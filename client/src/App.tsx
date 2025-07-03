@@ -31,7 +31,7 @@ import { LiveAnalytics } from "@/pages/LiveAnalytics";
 import { SystemDashboard } from "@/pages/SystemDashboard";
 
 import Navbar from "@/components/Navbar";
-import { AuthProvider } from "@/hooks/use-auth";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ProtectedRoute, AdminRoute } from "@/lib/protected-route";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -49,12 +49,38 @@ function App() {
               <Route path="/auth" component={AuthPage} />
               <Route path="/simple-preview" component={SimpleVideoPlayer} />
               
+              {/* Default route - redirect to landing for unauthenticated users */}
+              <Route path="/">
+                {() => {
+                  const { user, isLoading } = useAuth();
+                  
+                  if (isLoading) {
+                    return (
+                      <div className="flex items-center justify-center min-h-screen">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      </div>
+                    );
+                  }
+                  
+                  if (!user) {
+                    return <Landing />;
+                  }
+                  
+                  return (
+                    <>
+                      <Navbar />
+                      <main className="flex-grow pt-14 md:pt-16 mobile-scroll">
+                        <Home />
+                      </main>
+                    </>
+                  );
+                }}
+              </Route>
+              
               {/* Protected routes with navbar */}
-              <Route path="/" nest>
+              <Route path="/app" nest>
                 <Navbar />
                 <main className="flex-grow pt-14 md:pt-16 mobile-scroll">
-                  <Switch>
-                    <ProtectedRoute path="/" component={Home} />
                     <ProtectedRoute path="/profile" component={Profile} />
                     <ProtectedRoute path="/library" component={VideoLibrary} />
                     <ProtectedRoute path="/process/:templateId" component={VideoProcessor} />
@@ -79,9 +105,6 @@ function App() {
                     <AdminRoute path="/admin/system" component={SystemDashboard} />
                     <AdminRoute path="/admin/stories" component={AdminStoriesPage} />
                     <AdminRoute path="/admin/upload" component={AdminVideoUpload} />
-                    
-                    <Route component={NotFound} />
-                  </Switch>
                 </main>
               </Route>
             </Switch>
