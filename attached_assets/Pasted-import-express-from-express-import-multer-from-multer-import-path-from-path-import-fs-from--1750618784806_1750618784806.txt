@@ -1,0 +1,77 @@
+import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs/promises';
+import VoiceProcessor from './voiceProcessor';
+
+const app = express();
+const port = 3000;
+
+const upload = multer({ dest: 'uploads/' });
+const processor = new VoiceProcessor();
+
+app.use(express.json());
+
+// Step 1: Upload video/audio and get diarization
+app.post('/api/diarize', upload.single('audio'), async (req, res) => {
+  try {
+    const audioPath = req.file.path;
+    const diarization = await processor.extractAudioAndDiarize(audioPath);
+
+    res.json({
+      success: true,
+      speakers: diarization.speakers,
+      fullText: diarization.fullText,
+      originalAudio: audioPath
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Diarization failed' });
+  }
+});
+
+// Step 2: Replace selected speakers and return stitched audio
+app.post('/api/replace', async (req, res) => {
+  try {
+    const { speakerReplacements, originalAudio } = req.body; // { SPEAKER_00: elevenLabsVoiceId, ... }
+    const diarization = await processor.extractAudioAndDiarize(originalAudio);
+
+    const replaceMap = new Map();
+
+    for (const [speakerId, voiceId] of Object.entries(speakerReplacements)) {
+      const segments = diarization.speakers[speakerId]?.segments.map(s => ({
+        speakerId: s.speaker,
+        startTime: s.start,
+        endTime: s.end,
+        text: s.text
+      })) || [];
+
+      const replacements = await processor.replaceSpeakerWithElevenLabs(
+        segments,
+        voiceId,
+        `output/elevenlabs/${speakerId}`
+      );
+
+      replaceMap.set(speakerId, replacements.replacedAudioPaths);
+    }
+
+    const allSegments = Object.values(diarization.speakers).flatMap(s =>
+      s.segments.map(seg => ({
+        speakerId: seg.speaker,
+        startTime: seg.start,
+        endTime: seg.end,
+        text: seg.text
+      }))
+    );
+
+    const finalAudio = await processor.stitchFinalAudio(originalAudio, allSegments, replaceMap);
+    res.json({ success: true, output: finalAudio });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Replacement failed' });
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Voice replacement API running at http://localhost:${port}`);
+});

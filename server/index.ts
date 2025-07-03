@@ -1,0 +1,153 @@
+import express, { type Request, Response, NextFunction } from "express";
+import { registerRoutes } from "./routes";
+import { setupVite, serveStatic, log } from "./vite";
+import { initDatabase } from "./db";
+import { healthCheck } from "./middleware/security";
+import { 
+  productionSecurity, 
+  rateLimiter, 
+  requestSizeLimiter, 
+  performanceMonitor, 
+  errorTracker,
+  setupGracefulShutdown,
+  monitorResources
+} from "./middleware/production";
+
+const app = express();
+
+// Production middleware setup
+if (process.env.NODE_ENV === 'production') {
+  app.use(productionSecurity);
+  app.use(rateLimiter);
+  app.use(performanceMonitor);
+  monitorResources();
+}
+
+// Request parsing with size limits
+app.use(requestSizeLimiter());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: false, limit: '50mb' }));
+
+// Health check endpoints
+app.get('/health', healthCheck);
+app.get('/api/health', healthCheck);
+
+// Request timing and monitoring middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path.startsWith("/api") && !path.includes('/health')) {
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      
+      // Only log response in development
+      if (process.env.NODE_ENV === 'development' && capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
+
+      log(logLine);
+      
+      // Log slow requests
+      if (duration > 1000) {
+        log(`SLOW REQUEST: ${req.method} ${path} - ${res.statusCode} (${duration}ms)`, 'performance');
+      }
+      
+      // Alert on errors in production
+      if (process.env.NODE_ENV === 'production' && res.statusCode >= 500) {
+        log(`ERROR: ${req.method} ${path} - ${res.statusCode} (${duration}ms)`, 'error');
+      }
+    }
+  });
+
+  next();
+});
+
+(async () => {
+  try {
+    // Initialize database tables
+    await initDatabase();
+    log("Database initialized successfully");
+    
+    // Serve static files for cloned voice audio
+    app.use('/cloned-voice', express.static('public/cloned-voice', {
+      setHeaders: (res, path) => {
+        if (path.endsWith('.mp3')) {
+          res.setHeader('Content-Type', 'audio/mpeg');
+        }
+      }
+    }));
+
+    const server = await registerRoutes(app);
+
+    // Error handling middleware should be last
+    app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      
+      log(`Error ${status}: ${message} on ${req.method} ${req.path}`, "error");
+      console.error('Full error:', err);
+      
+      res.status(status).json({ message });
+    });
+
+    // importantly only setup vite in development and after
+    // setting up all the other routes so the catch-all route
+    // doesn't interfere with the other routes
+    const isProduction = process.env.NODE_ENV === "production";
+    
+    if (!isProduction) {
+      log("Setting up Vite development server", "express");
+      await setupVite(app, server);
+    } else {
+      log("Serving static files in production mode", "express");
+      serveStatic(app);
+    }
+
+    // Serve on port 5000 for development, PORT env var for production
+    const port = Number(process.env.PORT) || 5000;
+    const host = '0.0.0.0';
+    
+    const serverInstance = server.listen(port, host, () => {
+      log(`Server running on ${host}:${port}`, "express");
+      log(`Environment: ${process.env.NODE_ENV || 'development'}`, "express");
+      
+      // Log public URLs
+      if (process.env.REPLIT_DEV_DOMAIN) {
+        log(`Public URL: https://${process.env.REPLIT_DEV_DOMAIN}`, "express");
+      }
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      log('SIGTERM received, shutting down gracefully', 'express');
+      serverInstance.close(() => {
+        log('Server closed', 'express');
+        process.exit(0);
+      });
+    });
+
+    process.on('SIGINT', () => {
+      log('SIGINT received, shutting down gracefully', 'express');
+      serverInstance.close(() => {
+        log('Server closed', 'express');
+        process.exit(0);
+      });
+    });
+  } catch (error) {
+    log(`Failed to start server: ${(error as Error).message}`, "error");
+    process.exit(1);
+  }
+})();

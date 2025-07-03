@@ -1,0 +1,138 @@
+import fs from 'fs/promises';
+import path from 'path';
+import { spawn } from 'child_process';
+import axios from 'axios';
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+interface DiarizationSegment {
+  speaker: string;
+  start: number;
+  end: number;
+  text: string;
+}
+
+interface DiarizationResult {
+  speakers: Record<string, {
+    segments: DiarizationSegment[];
+  }>;
+  fullText: string;
+}
+
+interface SpeakerSegment {
+  speakerId: string;
+  startTime: number;
+  endTime: number;
+  text: string;
+}
+
+interface ReplacementResult {
+  speakerId: string;
+  originalSegments: SpeakerSegment[];
+  replacedAudioPaths: string[];
+}
+
+export class VoiceProcessor {
+  constructor() {}
+
+  async extractAudioAndDiarize(videoPath: string): Promise<DiarizationResult> {
+    const audioOutput = 'output/temp.wav';
+
+    await fs.mkdir('output', { recursive: true });
+
+    await this.extractAudio(videoPath, audioOutput);
+    const diarizationResult = await this.runSpeakerDiarization(audioOutput);
+    return diarizationResult;
+  }
+
+  private async extractAudio(videoPath: string, outputAudioPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ffmpeg = spawn('ffmpeg', ['-y', '-i', videoPath, '-ar', '16000', '-ac', '1', outputAudioPath]);
+
+      ffmpeg.stderr.on('data', (data) => {
+        console.error(`FFmpeg error: ${data}`);
+      });
+
+      ffmpeg.on('close', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`FFmpeg exited with code ${code}`));
+      });
+    });
+  }
+
+  private async runSpeakerDiarization(audioPath: string): Promise<DiarizationResult> {
+    return new Promise((resolve, reject) => {
+      const diarize = spawn('python3', ['diarize.py', audioPath]);
+
+      let dataBuffer = '';
+
+      diarize.stdout.on('data', (data) => {
+        dataBuffer += data.toString();
+      });
+
+      diarize.stderr.on('data', (data) => {
+        console.error(`Diarization error: ${data}`);
+      });
+
+      diarize.on('close', (code) => {
+        if (code !== 0) {
+          return reject(new Error(`Diarization script exited with code ${code}`));
+        }
+
+        try {
+          const json = JSON.parse(dataBuffer);
+          resolve(json);
+        } catch (err) {
+          reject(new Error(`Failed to parse diarization output: ${err}`));
+        }
+      });
+    });
+  }
+
+  async replaceSpeakerWithElevenLabs(
+    segments: SpeakerSegment[],
+    voiceId: string,
+    outputDir: string
+  ): Promise<ReplacementResult> {
+    const replacedAudioPaths: string[] = [];
+
+    await fs.mkdir(outputDir, { recursive: true });
+
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      const outputPath = path.join(outputDir, `segment-${seg.speakerId}-${i}.mp3`);
+
+      try {
+        const response = await axios.post(
+          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+          {
+            text: seg.text,
+            model_id: "eleven_multilingual_v2",
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.7
+            }
+          },
+          {
+            headers: {
+              "xi-api-key": process.env.ELEVENLABS_API_KEY!,
+              "Content-Type": "application/json"
+            },
+            responseType: "arraybuffer"
+          }
+        );
+
+        await fs.writeFile(outputPath, response.data);
+        replacedAudioPaths.push(outputPath);
+      } catch (error) {
+        console.error(`Failed to replace segment:`, seg.text, error);
+      }
+    }
+
+    return {
+      speakerId: segments[0].speakerId,
+      originalSegments: segments,
+      replacedAudioPaths
+    };
+  }
+}

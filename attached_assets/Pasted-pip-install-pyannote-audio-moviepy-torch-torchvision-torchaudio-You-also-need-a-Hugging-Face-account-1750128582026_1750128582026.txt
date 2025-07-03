@@ -1,0 +1,69 @@
+pip install pyannote.audio moviepy torch torchvision torchaudio
+You also need a Hugging Face account and access to the pyannote/speaker-diarization model. After creating an account, grab your token and use it to log in:
+
+bash
+Copy
+Edit
+huggingface-cli login
+📜 Python Script
+python
+Copy
+Edit
+from moviepy.editor import VideoFileClip
+from pyannote.audio import Pipeline
+import os
+
+def extract_audio_from_video(video_path, audio_path="temp_audio.wav"):
+    clip = VideoFileClip(video_path)
+    clip.audio.write_audiofile(audio_path, codec='pcm_s16le')
+    return audio_path
+
+def diarize_speakers(audio_path):
+    # Load diarization pipeline from Hugging Face
+    pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization")
+
+    # Apply the diarization pipeline
+    diarization = pipeline(audio_path)
+
+    speaker_segments = []
+
+    # Display results
+    for turn, _, speaker in diarization.itertracks(yield_label=True):
+        segment = {
+            "speaker": speaker,
+            "start": turn.start,
+            "end": turn.end
+        }
+        speaker_segments.append(segment)
+        print(f"{turn.start:.1f}s - {turn.end:.1f}s: {speaker}")
+    
+    return speaker_segments
+
+def main(video_file):
+    print("Extracting audio...")
+    audio_file = extract_audio_from_video(video_file)
+
+    print("Running speaker diarization...")
+    results = diarize_speakers(audio_file)
+
+    os.remove(audio_file)  # Clean up temp file
+    return results
+
+if __name__ == "__main__":
+    video_path = "your_video.mp4"  # Replace with your actual video file
+    speaker_data = main(video_path)
+🧠 Notes:
+Voice vs music separation: pyannote is trained to detect human voices and typically ignores music or noise. However, for best accuracy in music-heavy videos, consider pre-processing with Spleeter to isolate vocals:
+
+bash
+Copy
+Edit
+pip install spleeter
+spleeter separate -i your_video_audio.wav -p spleeter:2stems -o output
+Output: You’ll get speaker-labeled timestamps like:
+
+yaml
+Copy
+Edit
+0.0s - 3.5s: SPEAKER_00
+3.5s - 7.2s: SPEAKER_01

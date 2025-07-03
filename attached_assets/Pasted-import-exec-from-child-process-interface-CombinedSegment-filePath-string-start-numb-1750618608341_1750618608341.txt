@@ -1,0 +1,71 @@
+import { exec } from 'child_process';
+
+interface CombinedSegment {
+  filePath: string;
+  start: number;
+  end: number;
+}
+
+public async stitchFinalAudio(
+  originalAudioPath: string,
+  segments: SpeakerSegment[],
+  replacedMap: Map<string, string[]> // speakerId -> list of replacements
+): Promise<string> {
+  const tempDir = 'output/stitch_temp';
+  await fs.mkdir(tempDir, { recursive: true });
+
+  const combined: CombinedSegment[] = [];
+  let replaceCount: Record<string, number> = {};
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const { speakerId, startTime, endTime } = seg;
+
+    const replacementList = replacedMap.get(speakerId);
+    const shouldReplace = replacementList && replacementList.length > 0;
+
+    if (shouldReplace) {
+      const index = replaceCount[speakerId] || 0;
+      const filePath = replacementList[index];
+      replaceCount[speakerId] = index + 1;
+
+      combined.push({ filePath, start: startTime, end: endTime });
+    } else {
+      const chunkPath = `${tempDir}/orig-${i}.mp3`;
+      await this.extractAudioChunk(originalAudioPath, startTime, endTime, chunkPath);
+      combined.push({ filePath: chunkPath, start: startTime, end: endTime });
+    }
+  }
+
+  const concatListPath = `${tempDir}/concat_list.txt`;
+  const concatFileContent = combined.map((c) => `file '${path.resolve(c.filePath)}'`).join('\n');
+  await fs.writeFile(concatListPath, concatFileContent);
+
+  const finalOutputPath = 'output/final_result.mp3';
+
+  await new Promise<void>((resolve, reject) => {
+    const cmd = `ffmpeg -y -f concat -safe 0 -i "${concatListPath}" -c copy "${finalOutputPath}"`;
+    exec(cmd, (err, stdout, stderr) => {
+      if (err) {
+        console.error("FFmpeg concat error:", stderr);
+        return reject(err);
+      }
+      resolve();
+    });
+  });
+
+  return finalOutputPath;
+}
+
+private async extractAudioChunk(inputPath: string, start: number, end: number, outputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cmd = `ffmpeg -y -i "${inputPath}" -ss ${start} -to ${end} -c copy "${outputPath}"`;
+    exec(cmd, (error, stdout, stderr) => {
+      if (error) {
+        console.error("Chunk extract error:", stderr);
+        return reject(error);
+      }
+      resolve();
+    });
+  });
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="225" viewBox="0 0 400 225">
+  <rect width="400" height="225" fill="#f1f5f9" />
+  <g transform="translate(200 112.5)">
+    <circle r="40" fill="#0f172a" fill-opacity="0.1">
+      <animate attributeName="r" from="0" to="40" dur="2s" begin="0s" repeatCount="indefinite" />
+      <animate attributeName="fill-opacity" from="0.3" to="0" dur="2s" begin="0s" repeatCount="indefinite" />
+    </circle>
+    <circle r="30" fill="#0f172a" fill-opacity="0.2" />
+    <path d="M-15 0 L15 0 M0 -15 L0 15" stroke="#0f172a" stroke-width="6" stroke-linecap="round">
+      <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="1.5s" repeatCount="indefinite" />
+    </path>
+  </g>
+  <text x="200" y="180" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#0f172a">Processing your video...</text>
+</svg>

@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mobile-specific utilities */
+@layer utilities {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  /* Mobile touch improvements */
+  .touch-action-manipulation {
+    touch-action: manipulation;
+  }
+  
+  /* Better mobile scrolling */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .page-container {
+    @apply container mx-auto px-3 py-4 pb-20 sm:px-4 sm:py-6 sm:pb-16 md:py-8 md:pb-8;
+  }
+  
+  .glass-effect {
+    @apply bg-background/80 backdrop-blur-xl border border-border/50 shadow-lg;
+  }
+  
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary via-primary/80 to-purple-600 bg-clip-text text-transparent;
+  }
+  
+  .floating-card {
+    @apply transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1;
+  }
+  
+  .glow-effect {
+    @apply shadow-2xl shadow-primary/20;
+  }
+  
+  .modern-button {
+    @apply relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-primary/25;
+  }
+  
+  .modern-button::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full transition-transform duration-700;
+  }
+  
+  .modern-button:hover::before {
+    @apply translate-x-full;
+  }
+  
+  /* Mobile optimizations */
+  .mobile-friendly-form {
+    @apply space-y-4;
+  }
+  
+  .mobile-friendly-form .form-group {
+    @apply space-y-2;
+  }
+  
+  .mobile-friendly-input {
+    @apply h-11 text-base;
+  }
+  
+  .mobile-friendly-button {
+    @apply h-11 text-base font-medium;
+  }
+  
+  .mobile-friendly-card {
+    @apply p-4 sm:p-6;
+  }
+  
+  .mobile-text-responsive {
+    @apply text-sm sm:text-base;
+  }
+  
+  .mobile-heading-responsive {
+    @apply text-lg sm:text-xl md:text-2xl;
+  }
+}
+
+.logo-container {
+  background-color: transparent;
+  width: fit-content;
+  height: fit-content;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 16px;
+  transition: all 0.3s ease;
+}
+
+.logo-container:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.logo-container img {
+  object-fit: contain;
+  display: block;
+}
+
+.logo-text {
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.025em;
+}
+
+.logo-text-fam {
+  background: linear-gradient(135deg, hsl(262 83% 58%), hsl(252 83% 68%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.logo-text-flix {
+  background: linear-gradient(135deg, hsl(342 75% 60%), hsl(352 85% 65%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
