@@ -112,8 +112,97 @@ app.use((req, res, next) => {
         timestamp: new Date().toISOString(),
         server: 'express',
         environment: process.env.NODE_ENV || 'development',
-        port: 5000
+        port: 5000,
+        viteServer: 'initialized',
+        routes: ['/', '/simple', '/debug', '/api/health'],
+        headers: req.headers,
+        userAgent: req.get('User-Agent')
       });
+    });
+
+    // Network diagnostic endpoint
+    app.get('/network-test', (req, res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'text/html');
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Network Diagnostics</title>
+          <style>
+            body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+            .test { background: white; margin: 10px 0; padding: 15px; border-radius: 5px; }
+            .success { border-left: 4px solid green; }
+            .error { border-left: 4px solid red; }
+            .pending { border-left: 4px solid orange; }
+          </style>
+        </head>
+        <body>
+          <h1>FamFlix Network Diagnostics</h1>
+          <div id="results"></div>
+          
+          <script>
+            const results = document.getElementById('results');
+            
+            function addResult(test, status, message) {
+              const div = document.createElement('div');
+              div.className = 'test ' + status;
+              div.innerHTML = '<strong>' + test + ':</strong> ' + message;
+              results.appendChild(div);
+            }
+            
+            // Test 1: Basic connectivity
+            addResult('Server Response', 'success', 'HTML loaded successfully');
+            
+            // Test 2: JavaScript execution
+            addResult('JavaScript', 'success', 'Script execution working');
+            
+            // Test 3: Fetch API
+            addResult('Fetch API', 'pending', 'Testing...');
+            fetch('/api/health')
+              .then(r => r.json())
+              .then(data => {
+                addResult('API Endpoint', 'success', 'Health check: ' + JSON.stringify(data));
+              })
+              .catch(err => {
+                addResult('API Endpoint', 'error', 'Failed: ' + err.message);
+              });
+            
+            // Test 4: Module loading
+            addResult('Module System', 'pending', 'Testing ES modules...');
+            try {
+              import('/src/main.tsx')
+                .then(() => {
+                  addResult('React Module', 'success', 'Main.tsx loaded successfully');
+                })
+                .catch(err => {
+                  addResult('React Module', 'error', 'Import failed: ' + err.message);
+                });
+            } catch (err) {
+              addResult('Module System', 'error', 'Dynamic import not supported: ' + err.message);
+            }
+            
+            // Test 5: Vite HMR
+            addResult('Vite HMR', 'pending', 'Checking hot reload...');
+            fetch('/@vite/client')
+              .then(r => {
+                if (r.ok) {
+                  addResult('Vite Client', 'success', 'Vite development server accessible');
+                } else {
+                  addResult('Vite Client', 'error', 'Status: ' + r.status);
+                }
+              })
+              .catch(err => {
+                addResult('Vite Client', 'error', 'Cannot reach Vite: ' + err.message);
+              });
+              
+            setTimeout(() => {
+              addResult('Summary', 'success', 'Diagnostic complete. Check individual tests above.');
+            }, 2000);
+          </script>
+        </body>
+        </html>
+      `);
     });
 
     const server = await registerRoutes(app);

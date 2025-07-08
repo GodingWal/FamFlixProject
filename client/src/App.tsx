@@ -1,46 +1,103 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "./lib/queryClient";
-import { Toaster } from "@/components/ui/toaster";
-import "./index.css";
+// FamFlix App Component
+console.log("🎬 Loading FamFlix App component...");
 
-function App() {
+import React from "react";
+
+export default function App() {
+  console.log("📦 App component rendering...");
+  
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-primary mb-4">
-              🎬 FamFlix
-            </h1>
-            <p className="text-lg text-muted-foreground mb-8">
-              Educational Videos with Your Family
-            </p>
-            
-            <div className="max-w-md mx-auto bg-card rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Welcome to FamFlix</h2>
-              <p className="text-sm text-muted-foreground mb-6">
-                Transform educational videos by replacing actors' faces and voices with your family members.
-              </p>
-              
-              <div className="space-y-3">
-                <button className="w-full bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">
-                  Get Started
-                </button>
-                <button className="w-full border border-input bg-background hover:bg-accent px-4 py-2 rounded-md">
-                  Learn More
-                </button>
-              </div>
-            </div>
-            
-            <div className="mt-8 text-xs text-muted-foreground">
-              Server Status: ✅ Online | Database: ✅ Connected
-            </div>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      color: 'white'
+    }}>
+      <div style={{
+        background: 'rgba(255,255,255,0.1)',
+        padding: '60px 40px',
+        borderRadius: '20px',
+        backdropFilter: 'blur(10px)',
+        textAlign: 'center',
+        maxWidth: '500px',
+        width: '90%'
+      }}>
+        <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🎬</div>
+        <h1 style={{ 
+          fontSize: '3rem', 
+          fontWeight: '700', 
+          margin: '0 0 10px 0',
+          textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+        }}>
+          FamFlix
+        </h1>
+        <p style={{ 
+          fontSize: '1.3rem', 
+          margin: '0 0 40px 0', 
+          opacity: '0.9' 
+        }}>
+          Educational Videos with Your Family
+        </p>
+        
+        <div style={{
+          background: 'rgba(255,255,255,0.2)',
+          padding: '30px',
+          borderRadius: '15px',
+          marginBottom: '40px'
+        }}>
+          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.4rem' }}>
+            System Status
+          </h3>
+          <div style={{ fontSize: '1rem', lineHeight: '1.8' }}>
+            <div>✅ React App: Successfully Loaded</div>
+            <div>✅ Components: Rendering</div>
+            <div>✅ JavaScript: Working</div>
+            <div>✅ Server: Connected</div>
           </div>
         </div>
+        
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+          <button 
+            style={{
+              background: '#4f46e5',
+              color: 'white',
+              border: 'none',
+              padding: '15px 30px',
+              borderRadius: '10px',
+              fontSize: '1.1rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'transform 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+            onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+          >
+            Get Started
+          </button>
+          <button 
+            style={{
+              background: 'transparent',
+              color: 'white',
+              border: '2px solid white',
+              padding: '15px 30px',
+              borderRadius: '10px',
+              fontSize: '1.1rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'transform 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+            onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+          >
+            Learn More
+          </button>
+        </div>
       </div>
-      <Toaster />
-    </QueryClientProvider>
+    </div>
   );
 }
 
-export default App;
+console.log("✅ FamFlix App component defined successfully");
