@@ -2,27 +2,44 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>FamFlix - Educational Videos with You</title>
-    <meta name="description" content="Transform educational videos by replacing actors' faces and voices with yours" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamFlix</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f0f8ff; }
+      .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+      h1 { color: #6366f1; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div class="container">
+      <h1>🎬 FamFlix</h1>
+      <p>Educational Videos with Your Family</p>
+      <div id="root">Loading...</div>
+      <p><small>If this message persists, check the browser console for errors.</small></p>
+    </div>
+    
     <script>
-      // Debug script loading
-      console.log('HTML loaded, checking for React mounting...');
-      window.addEventListener('load', () => {
-        console.log('Window load event fired');
-        setTimeout(() => {
-          const root = document.getElementById('root');
-          console.log('Root element:', root);
-          console.log('Root innerHTML:', root ? root.innerHTML : 'ROOT NOT FOUND');
-        }, 1000);
-      });
+      console.log('HTML loaded');
+      
+      // Simple test to verify JavaScript is working
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML === 'Loading...') {
+          root.innerHTML = `
+            <div style="background: #fee2e2; padding: 15px; border-radius: 5px; margin: 10px 0;">
+              <h3>React Not Loading</h3>
+              <p>The page loaded but React did not mount. Check:</p>
+              <ul>
+                <li>Browser console for JavaScript errors</li>
+                <li>Network tab for failed requests</li>
+                <li>Vite dev server status</li>
+              </ul>
+            </div>
+          `;
+        }
+      }, 3000);
     </script>
-    <!-- This script injects a replit badge into the page, please feel free to remove this line -->
-    <script type="text/javascript" src="https://replit.com/public/js/replit-badge-v3.js"></script>
+    
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

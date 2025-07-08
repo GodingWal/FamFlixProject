@@ -90,32 +90,30 @@ app.use((req, res, next) => {
       }
     }));
 
-    // Debug test route
-    app.get('/test', async (req, res) => {
-      try {
-        const fs = await import('fs');
-        const path = await import('path');
-        const testPath = path.resolve(import.meta.dirname, "..", "test.html");
-        if (fs.existsSync(testPath)) {
-          res.sendFile(testPath);
-        } else {
-          res.send(`
-            <h1>🎬 FamFlix Diagnostic</h1>
-            <p>✅ Server: Running</p>
-            <p>✅ Express: Working</p>
-            <p>✅ Routing: Functional</p>
-            <p>Time: ${new Date().toISOString()}</p>
-            <hr>
-            <p><a href="/">← Back to Main Site</a></p>
-          `);
-        }
-      } catch (error) {
-        res.send(`
-          <h1>FamFlix Test</h1>
-          <p>✅ Server: Running</p>
-          <p>❌ File System Error: ${error.message}</p>
-        `);
-      }
+    // Simple test routes
+    app.get('/simple', (req, res) => {
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>FamFlix Simple Test</title></head>
+        <body>
+          <h1>✅ FamFlix Server Working</h1>
+          <p>Time: ${new Date().toISOString()}</p>
+          <p>Express is responding correctly.</p>
+          <p><a href="/">Go to main site</a></p>
+        </body>
+        </html>
+      `);
+    });
+
+    app.get('/debug', (req, res) => {
+      res.json({
+        status: 'working',
+        timestamp: new Date().toISOString(),
+        server: 'express',
+        environment: process.env.NODE_ENV || 'development',
+        port: 5000
+      });
     });
 
     const server = await registerRoutes(app);
