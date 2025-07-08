@@ -49,6 +49,9 @@ export default function AuthPage() {
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log("Login form submitted:", { username: loginForm.username, hasPassword: !!loginForm.password });
+    console.log("loginMutation:", loginMutation);
+    
     // Simple validation
     if (!loginForm.username || !loginForm.password) {
       toast({
@@ -59,7 +62,16 @@ export default function AuthPage() {
       return;
     }
     
-    loginMutation.mutate(loginForm);
+    if (loginMutation && loginMutation.mutate) {
+      loginMutation.mutate(loginForm);
+    } else {
+      console.error("loginMutation.mutate is not available");
+      toast({
+        title: "Error",
+        description: "Authentication system not ready. Please refresh the page.",
+        variant: "destructive",
+      });
+    }
   };
   
   // Handle registration submission
@@ -155,9 +167,20 @@ export default function AuthPage() {
                   <Button 
                     type="submit" 
                     className="w-full h-11 text-base font-medium" 
-                    disabled={loginMutation.isPending}
+                    disabled={loginMutation?.isPending}
+                    onClick={(e) => {
+                      console.log("Login button clicked");
+                      if (!loginForm.username || !loginForm.password) {
+                        e.preventDefault();
+                        toast({
+                          title: "Validation Error",
+                          description: "Please fill in all fields",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
                   >
-                    {loginMutation.isPending ? (
+                    {loginMutation?.isPending ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Logging in...
