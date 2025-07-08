@@ -2,44 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FamFlix</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f0f8ff; }
-      .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-      h1 { color: #6366f1; }
-    </style>
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FamFlix - Educational Videos with Your Family</title>
+    <meta name="description" content="Transform educational videos by replacing actors' faces and voices with your family members. Create personalized learning experiences for children." />
   </head>
   <body>
-    <div class="container">
-      <h1>🎬 FamFlix</h1>
-      <p>Educational Videos with Your Family</p>
-      <div id="root">Loading...</div>
-      <p><small>If this message persists, check the browser console for errors.</small></p>
-    </div>
-    
-    <script>
-      console.log('HTML loaded');
-      
-      // Simple test to verify JavaScript is working
-      setTimeout(() => {
-        const root = document.getElementById('root');
-        if (root && root.innerHTML === 'Loading...') {
-          root.innerHTML = `
-            <div style="background: #fee2e2; padding: 15px; border-radius: 5px; margin: 10px 0;">
-              <h3>React Not Loading</h3>
-              <p>The page loaded but React did not mount. Check:</p>
-              <ul>
-                <li>Browser console for JavaScript errors</li>
-                <li>Network tab for failed requests</li>
-                <li>Vite dev server status</li>
-              </ul>
-            </div>
-          `;
-        }
-      }, 3000);
-    </script>
-    
-    <script type="module" src="/src/main.tsx?t=${Date.now()}"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

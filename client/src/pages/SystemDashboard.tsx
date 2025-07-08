@@ -51,7 +51,7 @@ interface SystemMetrics {
   };
 }
 
-export function SystemDashboard() {
+export default function SystemDashboard() {
   const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
   const [isAutoRefresh, setIsAutoRefresh] = useState(true);
 
