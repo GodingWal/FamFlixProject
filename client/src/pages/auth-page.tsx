@@ -108,7 +108,7 @@ export default function AuthPage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-b from-primary/10 to-background">
       <div className="absolute top-4 left-4 md:top-6 md:left-6 z-10">
-        <Link href="/landing">
+        <Link href="/">
           <Button variant="ghost" className="gap-2 h-10 px-3 md:h-auto md:px-4">
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Back to Home</span>

@@ -19,11 +19,11 @@ export default function Landing() {
   
   // If user is logged in, redirect to dashboard using useEffect to avoid state updates during render
   useEffect(() => {
-    if (user) {
+    if (user && location === '/') {
       console.log('User is logged in, redirecting to dashboard:', user);
       navigate('/dashboard');
     }
-  }, [user, navigate]);
+  }, [user, navigate, location]);
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden bg-gradient-to-br from-background via-secondary/5 to-primary/5">

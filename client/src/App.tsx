@@ -17,6 +17,7 @@ export default function App() {
         <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
           <Switch>
             <Route path="/" component={Landing} />
+            <Route path="/landing" component={Landing} />
             <Route path="/auth" component={AuthPage} />
             <Route path="/dashboard" component={SystemDashboard} />
             <Route path="/people" component={PeopleManagement} />
