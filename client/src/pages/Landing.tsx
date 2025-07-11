@@ -17,11 +17,11 @@ export default function Landing() {
   const isMobile = useMobile();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // If user is logged in, redirect to dashboard using useEffect to avoid state updates during render
+  // If user is logged in, redirect to homepage using useEffect to avoid state updates during render
   useEffect(() => {
     if (user) {
-      console.log('User is logged in, redirecting to dashboard:', user);
-      navigate('/dashboard');
+      console.log('User is logged in, redirecting to homepage:', user);
+      navigate('/home');
     }
   }, [user, navigate]);
 

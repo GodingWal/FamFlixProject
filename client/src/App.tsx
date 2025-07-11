@@ -6,6 +6,7 @@ import { Route, Switch } from "wouter";
 import { AuthProvider } from "@/hooks/use-auth";
 import Landing from "./pages/Landing";
 import AuthPage from "./pages/auth-page";
+import Homepage from "./pages/Homepage";
 import SystemDashboard from "./pages/SystemDashboard";
 import PeopleManagement from "./pages/PeopleManagement";
 import "./index.css";
@@ -18,6 +19,7 @@ export default function App() {
           <Switch>
             <Route path="/" component={Landing} />
             <Route path="/auth" component={AuthPage} />
+            <Route path="/home" component={Homepage} />
             <Route path="/dashboard" component={SystemDashboard} />
             <Route path="/people" component={PeopleManagement} />
             <Route>
