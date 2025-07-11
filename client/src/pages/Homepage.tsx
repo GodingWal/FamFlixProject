@@ -127,41 +127,6 @@ export default function Homepage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <img src={famFlixLogo} alt="FamFlix" className="h-10 w-auto" />
-              <div>
-                <h1 className="text-2xl font-bold">
-                  <span className="text-primary">Fam</span>
-                  <span className="text-secondary-foreground">Flix</span>
-                </h1>
-                <p className="text-sm text-muted-foreground">Welcome back, {user?.displayName || user?.username}!</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              {user?.role === 'admin' && (
-                <Link href="/dashboard">
-                  <Button variant="outline" size="sm">
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    Admin Dashboard
-                  </Button>
-                </Link>
-              )}
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => logoutMutation.mutate()}
-              >
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
 
       <div className="container mx-auto px-6 py-8">
         {/* Welcome Section */}
@@ -171,18 +136,18 @@ export default function Homepage() {
             <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-6 -translate-x-6"></div>
             
             <div className="relative">
-              <h2 className="text-3xl font-bold mb-2">Create Magical Family Moments</h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-2">Welcome back, {user?.displayName || user?.username}!</h2>
               <p className="text-white/90 mb-6">Transform your family's voices into personalized educational content and stories</p>
               
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <Link href="/people">
-                  <Button variant="secondary" className="gap-2">
+                  <Button variant="secondary" className="gap-2 w-full sm:w-auto">
                     <Plus className="h-4 w-4" />
                     Get Started
                   </Button>
                 </Link>
                 <Link href="/stories">
-                  <Button variant="outline" className="gap-2 bg-white/20 border-white/30 text-white hover:bg-white/30">
+                  <Button variant="outline" className="gap-2 bg-white/20 border-white/30 text-white hover:bg-white/30 w-full sm:w-auto">
                     <Play className="h-4 w-4" />
                     Listen to Stories
                   </Button>

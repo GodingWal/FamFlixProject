@@ -4,6 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { Route, Switch } from "wouter";
 import { AuthProvider } from "@/hooks/use-auth";
+import Navigation from "./components/Navigation";
 import Landing from "./pages/Landing";
 import AuthPage from "./pages/auth-page";
 import Homepage from "./pages/Homepage";
@@ -16,6 +17,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
+          <Navigation />
           <Switch>
             <Route path="/" component={Landing} />
             <Route path="/auth" component={AuthPage} />
