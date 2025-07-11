@@ -17,13 +17,22 @@ export default function Landing() {
   const isMobile = useMobile();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // If user is logged in, redirect to dashboard using useEffect to avoid state updates during render
+  // If user is logged in and on landing page, redirect to dashboard 
   useEffect(() => {
-    if (user && location === '/') {
+    if (user && (location === '/' || location === '/landing')) {
       console.log('User is logged in, redirecting to dashboard:', user);
       navigate('/dashboard');
     }
   }, [user, navigate, location]);
+
+  // Don't render landing page content if user is logged in (to prevent flash)
+  if (user) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <h2 className="text-xl font-semibold">Redirecting to Dashboard...</h2>
+      </div>
+    </div>;
+  }
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden bg-gradient-to-br from-background via-secondary/5 to-primary/5">
