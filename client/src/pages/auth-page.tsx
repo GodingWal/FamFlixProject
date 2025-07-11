@@ -100,9 +100,9 @@ export default function AuthPage() {
     registerMutation.mutate(registerForm);
   };
   
-  // Redirect to home if already logged in
+  // Redirect to dashboard if already logged in
   if (user && !isLoading) {
-    return <Redirect to="/" />;
+    return <Redirect to="/dashboard" />;
   }
   
   return (

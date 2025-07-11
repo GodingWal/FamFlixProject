@@ -74,6 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (userData: Omit<SelectUser, "password">) => {
       queryClient.setQueryData(["/api/me"], userData);
+      // Invalidate the user query to trigger re-fetch and update the context
+      queryClient.invalidateQueries({ queryKey: ["/api/me"] });
       toast({
         title: "Login successful",
         description: `Welcome back, ${userData.displayName || userData.username}!`,
