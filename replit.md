@@ -214,6 +214,16 @@ FamFlix is a full-stack web application that allows users to personalize educati
 - **Progress tracking** - visual progress bars for family setup completion
 - **Admin dashboard access** - admin users can still access system dashboard when needed
 
+### Enhanced Authentication System (January 12, 2025)
+- **JWT token support** - added JWT authentication strategy alongside existing session-based auth
+- **Dual authentication modes** - supports both session cookies and Bearer token authentication
+- **Token generation** - access tokens (15min) and refresh tokens (7 days) for API access
+- **Role-based access control** - middleware for protecting routes based on user roles
+- **Refresh token endpoint** - `/api/refresh-token` for seamless token renewal
+- **JWT login endpoint** - `/api/login-jwt` returns tokens for API-first authentication
+- **Backward compatibility** - existing session-based authentication continues to work
+- **Enhanced security** - proper JWT secret management and token validation
+
 ### Production Deployment Configuration (July 2, 2025)
 - **Fixed public URL deployment** with proper port mapping (5000 → 80)
 - **Enhanced server logging** showing environment status and public URLs

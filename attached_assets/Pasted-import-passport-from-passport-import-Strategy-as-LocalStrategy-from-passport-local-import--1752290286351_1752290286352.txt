@@ -1,0 +1,66 @@
+import passport from 'passport';
+import { Strategy as LocalStrategy } from 'passport-local';
+import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { drizzle } from './db'; // Assume DB connection from Drizzle
+import { users } from '../shared/schema'; // Shared schema
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const REFRESH_SECRET = process.env.REFRESH_SECRET || 'your-refresh-secret';
+
+// Passport Local Strategy for login
+passport.use(new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
+  try {
+    const user = await drizzle.select().from(users).where({ email }).limit(1);
+    if (!user.length) return done(null, false, { message: 'Invalid credentials' });
+
+    const isMatch = await bcrypt.compare(password, user[0].passwordHash);
+    if (!isMatch) return done(null, false, { message: 'Invalid credentials' });
+
+    return done(null, user[0]);
+  } catch (err) {
+    return done(err);
+  }
+}));
+
+// Passport JWT Strategy for protected routes
+passport.use(new JwtStrategy({
+  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+  secretOrKey: JWT_SECRET,
+}, async (jwtPayload, done) => {
+  try {
+    const user = await drizzle.select().from(users).where({ id: jwtPayload.id }).limit(1);
+    if (!user.length) return done(null, false);
+    return done(null, user[0]);
+  } catch (err) {
+    return done(err);
+  }
+}));
+
+// Function to generate access and refresh tokens
+export const generateTokens = (user: { id: string; role: string }) => {
+  const accessToken = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '15m' });
+  const refreshToken = jwt.sign({ id: user.id }, REFRESH_SECRET, { expiresIn: '7d' });
+  return { accessToken, refreshToken };
+};
+
+// Refresh token endpoint logic (add to routes)
+export const refreshToken = async (req, res) => {
+  const { refreshToken } = req.body;
+  try {
+    const decoded = jwt.verify(refreshToken, REFRESH_SECRET);
+    const user = await drizzle.select().from(users).where({ id: decoded.id }).limit(1);
+    if (!user.length) return res.status(401).json({ message: 'Invalid token' });
+    const newTokens = generateTokens(user[0]);
+    return res.json(newTokens);
+  } catch (err) {
+    return res.status(401).json({ message: 'Token expired or invalid' });
+  }
+};
+
+// Role-based access control middleware
+export const requireRole = (roles: string[]) => (req, res, next) => {
+  if (!roles.includes(req.user.role)) return res.status(403).json({ message: 'Forbidden' });
+  next();
+};
