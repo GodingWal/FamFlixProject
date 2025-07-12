@@ -10,6 +10,7 @@ import AuthPage from "./pages/auth-page";
 import Homepage from "./pages/Homepage";
 import SystemDashboard from "./pages/SystemDashboard";
 import PeopleManagement from "./pages/PeopleManagement";
+import VoiceSynthesis from "./pages/VoiceSynthesis";
 import "./index.css";
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/home" component={Homepage} />
             <Route path="/dashboard" component={SystemDashboard} />
             <Route path="/people" component={PeopleManagement} />
+            <Route path="/voice-synthesis" component={VoiceSynthesis} />
             <Route>
               <div className="flex items-center justify-center min-h-screen">
                 <div className="text-center">

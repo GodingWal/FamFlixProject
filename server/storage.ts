@@ -1,5 +1,5 @@
 import { 
-  users, faceImages, faceVideos, voiceRecordings, videoTemplates, processedVideos, processedVideoPeople, people,
+  users, faceImages, faceVideos, voiceRecordings, videoTemplates, processedVideos, processedVideoPeople, people, profiles, templates,
   type User, type InsertUser, 
   type FaceImage, type InsertFaceImage,
   type FaceVideo, type InsertFaceVideo,
@@ -7,7 +7,9 @@ import {
   type VideoTemplate, type InsertVideoTemplate,
   type ProcessedVideo, type InsertProcessedVideo,
   type ProcessedVideoPerson, type InsertProcessedVideoPerson,
-  type Person, type InsertPerson
+  type Person, type InsertPerson,
+  type Profile, type InsertProfile,
+  type Template, type InsertTemplate
 } from "@shared/schema";
 import session from "express-session";
 import { db, pool } from './db';

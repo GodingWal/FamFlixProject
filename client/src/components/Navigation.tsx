@@ -34,6 +34,7 @@ export default function Navigation() {
     { path: "/home", label: "Home", icon: Home },
     { path: "/people", label: "Family", icon: Users },
     { path: "/voice-training", label: "Voice Training", icon: Mic },
+    { path: "/voice-synthesis", label: "Voice Synthesis", icon: Mic },
     { path: "/templates", label: "Videos", icon: Video },
     { path: "/stories", label: "Stories", icon: BookOpen },
   ];

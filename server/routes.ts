@@ -26,6 +26,7 @@ import FormData from "form-data";
 import { log } from "./vite";
 import { exec } from 'child_process';
 import encryptionRoutes from './routes/encryption';
+import voiceService from './services/voiceService';
 import { promisify } from 'util';
 import crypto from 'crypto';
 
@@ -197,6 +198,14 @@ const upload = multer({
   }
 });
 
+// Authentication middleware
+const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  next();
+};
+
 // Admin middleware to check if user is an admin
 const isAdmin = (req: Request, res: Response, next: NextFunction) => {
   if (!req.isAuthenticated()) {
@@ -234,6 +243,146 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
   
   // Encryption and cache management routes
   app.use('/api/encryption', encryptionRoutes);
+
+  // Voice synthesis service integration
+  app.get('/api/voice/health', async (req: Request, res: Response) => {
+    try {
+      const isHealthy = await voiceService.checkHealth();
+      res.json({
+        service: 'voice-synthesis',
+        status: isHealthy ? 'healthy' : 'unhealthy',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({
+        service: 'voice-synthesis',
+        status: 'error',
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // Start voice synthesis task
+  app.post('/api/voice/synthesize', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { text, voice_sample, quality = 'standard', preserve_accent = true, preserve_emotion = true } = req.body;
+      
+      if (!text || !voice_sample) {
+        return res.status(400).json({ error: 'Text and voice sample are required' });
+      }
+
+      const result = await voiceService.synthesizeVoice({
+        text,
+        voice_sample,
+        quality,
+        preserve_accent,
+        preserve_emotion
+      });
+
+      // Emit real-time update via Socket.IO
+      if (io) {
+        io.to(`user-${req.user.id}`).emit('voice-synthesis-started', {
+          taskId: result.task_id,
+          text: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+          status: 'started'
+        });
+      }
+
+      res.json(result);
+    } catch (error) {
+      log(`Voice synthesis error: ${(error as Error).message}`, 'error');
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Get voice synthesis task status
+  app.get('/api/voice/status/:taskId', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { taskId } = req.params;
+      const status = await voiceService.getTaskStatus(taskId);
+      
+      // Emit real-time status update
+      if (io && status.status === 'completed') {
+        io.to(`user-${req.user.id}`).emit('voice-synthesis-completed', {
+          taskId,
+          outputPath: status.output_path,
+          status: 'completed'
+        });
+      }
+
+      res.json(status);
+    } catch (error) {
+      res.status(404).json({ error: (error as Error).message });
+    }
+  });
+
+  // Upload voice sample for synthesis
+  app.post('/api/voice/upload-sample', isAuthenticated, upload.single('voiceSample'), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Voice sample file is required' });
+      }
+
+      const result = await voiceService.uploadVoiceSample(req.file.path, req.file.originalname);
+      
+      log(`Voice sample uploaded for user ${req.user.id}: ${result.filename}`, 'voice');
+      res.json(result);
+    } catch (error) {
+      log(`Voice sample upload error: ${(error as Error).message}`, 'error');
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Batch voice synthesis
+  app.post('/api/voice/batch-synthesize', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { requests, batch_name } = req.body;
+      
+      if (!requests || !Array.isArray(requests) || requests.length === 0) {
+        return res.status(400).json({ error: 'Requests array is required' });
+      }
+
+      const result = await voiceService.batchSynthesize({
+        requests,
+        batch_name
+      });
+
+      // Emit batch started event
+      if (io) {
+        io.to(`user-${req.user.id}`).emit('batch-synthesis-started', {
+          batchName: result.batch_name,
+          totalTasks: result.total_tasks,
+          taskIds: result.task_ids
+        });
+      }
+
+      res.json(result);
+    } catch (error) {
+      log(`Batch synthesis error: ${(error as Error).message}`, 'error');
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // List voice synthesis tasks
+  app.get('/api/voice/tasks', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const result = await voiceService.listTasks();
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Delete voice synthesis task
+  app.delete('/api/voice/tasks/:taskId', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { taskId } = req.params;
+      const result = await voiceService.deleteTask(taskId);
+      res.json(result);
+    } catch (error) {
+      res.status(404).json({ error: (error as Error).message });
+    }
+  });
   
   // Enhanced admin route monitoring with Socket.IO
   app.use('/api/admin/*', (req: Request, res: Response, next: NextFunction) => {

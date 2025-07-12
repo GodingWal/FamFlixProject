@@ -96,6 +96,40 @@ export const videoTemplates = pgTable("video_templates", {
   voiceOnly: boolean("voice_only").default(false), // Whether this template is for voice-only processing
 });
 
+// Enhanced user profiles with encrypted data support
+export const profiles = pgTable("profiles", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  photo: text("photo"), // Encrypted photo data or path
+  voiceSample: text("voice_sample"), // Encrypted voice sample data
+  relationship: text("relationship"), // e.g., "parent", "child", "grandparent"
+  preferences: jsonb("preferences"), // User preferences and settings
+  encryptionKeyId: text("encryption_key_id"), // Reference to encryption key used
+  isEncrypted: boolean("is_encrypted").default(false), // Whether data is encrypted
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Enhanced templates with premium tracking and encryption
+export const templates = pgTable("templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  videoPath: text("video_path").notNull(),
+  thumbnailPath: text("thumbnail_path"),
+  category: text("category").notNull(), // educational, entertainment, songs, etc.
+  ageRange: text("age_range").notNull(), // 2-4, 4-6, 6-8, 8+
+  duration: integer("duration"), // in seconds
+  isPremium: boolean("is_premium").default(false),
+  isFeatured: boolean("is_featured").default(false),
+  isActive: boolean("is_active").default(true),
+  tags: jsonb("tags"), // Array of tags for categorization
+  processingComplexity: text("processing_complexity").default("medium"), // low, medium, high
+  encryptionRequired: boolean("encryption_required").default(false), // Whether template requires encryption
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Processed videos with parent face/voice
 export const processedVideos = pgTable("processed_videos", {
   id: serial("id").primaryKey(),
@@ -308,6 +342,27 @@ export const insertProcessedVideoPersonSchema = createInsertSchema(processedVide
   id: true,
 });
 
+// Zod schemas for new enhanced tables
+export const insertProfileSchema = createInsertSchema(profiles).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  preferences: z.object({
+    theme: z.enum(['light', 'dark', 'system']).optional(),
+    language: z.string().optional(),
+    voiceQuality: z.enum(['low', 'standard', 'high']).optional(),
+    autoEncrypt: z.boolean().optional()
+  }).optional()
+});
+
+export const insertTemplateSchema = createInsertSchema(templates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  tags: z.array(z.string()).optional()
+});
+
 // Type definitions
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -332,3 +387,9 @@ export type InsertProcessedVideo = z.infer<typeof insertProcessedVideoSchema>;
 
 export type ProcessedVideoPerson = typeof processedVideoPeople.$inferSelect;
 export type InsertProcessedVideoPerson = z.infer<typeof insertProcessedVideoPersonSchema>;
+
+export type Profile = typeof profiles.$inferSelect;
+export type InsertProfile = typeof profiles.$inferInsert;
+
+export type Template = typeof templates.$inferSelect;
+export type InsertTemplate = typeof templates.$inferInsert;
