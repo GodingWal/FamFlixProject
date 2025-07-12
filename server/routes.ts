@@ -2579,8 +2579,8 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       const people = await storage.getPeopleByUserId(userId);
       
       // Fetch featured video templates (limit to 3 for home page)
-      const allTemplates = await storage.getVideoTemplates();
-      const templates = allTemplates.filter(t => t.featured).slice(0, 3);
+      const templates = await storage.getFeaturedVideoTemplates();
+      const featuredTemplates = templates.slice(0, 3);
       
       // Fetch user's recent processed videos (limit to 5)
       const allVideos = await storage.getProcessedVideosByUserId(userId);
@@ -2606,7 +2606,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
       res.json({
         people: people.slice(0, 6), // Limit to 6 for display
-        featuredTemplates: templates,
+        featuredTemplates,
         recentVideos,
         stories,
         stats

@@ -66,25 +66,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Enhanced login mutation with JWT fallback
+  // Session-based login with JWT fallback
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      // Try JWT login first
+      // Use session-based login as primary method
       try {
-        const jwtRes = await apiRequest("POST", "/api/login-jwt", credentials);
-        const jwtData = await jwtRes.json();
-        
-        // Store JWT tokens
-        if (jwtData.accessToken && jwtData.refreshToken) {
-          localStorage.setItem('accessToken', jwtData.accessToken);
-          localStorage.setItem('refreshToken', jwtData.refreshToken);
-        }
-        
-        return jwtData.user || jwtData;
-      } catch (jwtError) {
-        // Fall back to session-based login
         const res = await apiRequest("POST", "/api/login", credentials);
-        return await res.json();
+        const userData = await res.json();
+        return userData;
+      } catch (sessionError) {
+        // Try JWT login as fallback
+        try {
+          const jwtRes = await apiRequest("POST", "/api/login-jwt", credentials);
+          
+          if (!jwtRes.ok) {
+            throw new Error(`Login failed: ${jwtRes.status}`);
+          }
+          
+          const jwtData = await jwtRes.json();
+          
+          // Store JWT tokens if provided
+          if (jwtData.accessToken && jwtData.refreshToken) {
+            localStorage.setItem('accessToken', jwtData.accessToken);
+            localStorage.setItem('refreshToken', jwtData.refreshToken);
+          }
+          
+          return jwtData.user || jwtData;
+        } catch (jwtError) {
+          throw sessionError; // Throw original session error
+        }
       }
     },
     onSuccess: (userData: Omit<SelectUser, "password">) => {
@@ -110,7 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Remove confirmPassword as it's not needed by the API
       const { confirmPassword, ...registerData } = userData;
       const res = await apiRequest("POST", "/api/register", registerData);
-      return await res.json();
+      const responseData = await res.json();
+      return responseData;
     },
     onSuccess: (userData: Omit<SelectUser, "password">) => {
       queryClient.setQueryData(["/api/me"], userData);
