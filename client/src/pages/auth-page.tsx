@@ -62,10 +62,10 @@ export default function AuthPage() {
       return;
     }
     
-    if (loginMutation && loginMutation.mutate) {
+    if (loginMutation?.mutate) {
       loginMutation.mutate(loginForm);
     } else {
-      console.error("loginMutation.mutate is not available");
+      console.error("loginMutation.mutate is not available", loginMutation);
       toast({
         title: "Error",
         description: "Authentication system not ready. Please refresh the page.",
@@ -97,12 +97,21 @@ export default function AuthPage() {
       return;
     }
     
-    registerMutation.mutate(registerForm);
+    if (registerMutation?.mutate) {
+      registerMutation.mutate(registerForm);
+    } else {
+      console.error("registerMutation.mutate is not available", registerMutation);
+      toast({
+        title: "Error",
+        description: "Registration system not ready. Please refresh the page.",
+        variant: "destructive",
+      });
+    }
   };
   
-  // Redirect to dashboard if already logged in
+  // Redirect to home if already logged in
   if (user && !isLoading) {
-    return <Redirect to="/dashboard" />;
+    return <Redirect to="/home" />;
   }
   
   return (

@@ -1,232 +1,538 @@
-import { useState, useEffect } from "react";
-import { Link, useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { checkBrowserSupport } from "@/lib/ml-utils";
-import { useQuery } from "@tanstack/react-query";
-import VideoCard from "@/components/VideoCard";
-import { VideoTemplate } from "@shared/schema";
-import { Play, Camera, Mic, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import famFlixLogo from "../assets/FamFlix.png";
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'wouter';
+import { 
+  AlertCircle, 
+  User, 
+  Video, 
+  Mic, 
+  BookOpen, 
+  Star, 
+  Clock, 
+  Plus,
+  Users,
+  Waveform,
+  PlayCircle,
+  TrendingUp
+} from 'lucide-react';
+
+interface PersonProfile {
+  id: number;
+  name: string;
+  relationship: string;
+  defaultFaceImageUrl?: string;
+  faceImagesCount: number;
+  voiceRecordingsCount: number;
+  hasVoiceClone: boolean;
+}
+
+interface VideoTemplate {
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  ageRange: string;
+  duration: number;
+  thumbnailUrl?: string;
+  featured: boolean;
+}
+
+interface ProcessedVideo {
+  id: number;
+  title: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  createdAt: string;
+  thumbnailUrl?: string;
+}
+
+interface Story {
+  id: number;
+  title: string;
+  category: string;
+  ageRange: string;
+  duration: number;
+}
+
+interface DashboardData {
+  people: PersonProfile[];
+  featuredTemplates: VideoTemplate[];
+  recentVideos: ProcessedVideo[];
+  stories: Story[];
+  stats: {
+    totalPeople: number;
+    totalVideos: number;
+    totalStories: number;
+    voiceQuality: number;
+  };
+}
+
+const fetchDashboardData = async (): Promise<DashboardData> => {
+  try {
+    // Get user ID from current session
+    const userRes = await fetch('/api/me', { credentials: 'include' });
+    if (!userRes.ok) {
+      throw new Error('Not authenticated');
+    }
+    const user = await userRes.json();
+    
+    const [peopleRes, templatesRes, videosRes] = await Promise.all([
+      fetch(`/api/users/${user.id}/people`, { credentials: 'include' }),
+      fetch('/api/videoTemplates/featured', { credentials: 'include' }),
+      fetch(`/api/users/${user.id}/processedVideos`, { credentials: 'include' })
+    ]);
+
+    // Fetch available stories (not user-specific)
+    const storiesRes = await fetch('/api/admin/stories', { credentials: 'include' });
+    
+    const [people, templates, videos] = await Promise.all([
+      peopleRes.ok ? peopleRes.json() : [],
+      templatesRes.ok ? templatesRes.json() : [],
+      videosRes.ok ? videosRes.json() : []
+    ]);
+    
+    const stories = storiesRes.ok ? await storiesRes.json() : [];
+
+    return {
+      people: (people || []).slice(0, 6),
+      featuredTemplates: (templates || []).slice(0, 3),
+      recentVideos: (videos || []).slice(0, 5),
+      stories: (stories || []).slice(0, 4),
+      stats: {
+        totalPeople: (people || []).length,
+        totalVideos: (videos || []).length,
+        totalStories: (stories || []).length,
+        voiceQuality: people && people.length > 0 
+          ? people.filter((p: PersonProfile) => p.hasVoiceClone).length / people.length * 100 
+          : 0
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    // Return empty data structure instead of throwing
+    return {
+      people: [],
+      featuredTemplates: [],
+      recentVideos: [],
+      stories: [],
+      stats: {
+        totalPeople: 0,
+        totalVideos: 0,
+        totalStories: 0,
+        voiceQuality: 0
+      }
+    };
+  }
+};
+
+const StatCard = ({ icon: Icon, title, value, description, color = "text-primary" }: {
+  icon: any;
+  title: string;
+  value: string | number;
+  description: string;
+  color?: string;
+}) => (
+  <Card>
+    <CardContent className="p-6">
+      <div className="flex items-center space-x-4">
+        <div className={`p-3 rounded-full bg-primary/10 ${color}`}>
+          <Icon className="h-6 w-6" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="text-2xl font-bold">{value}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 const Home = () => {
-  const [, navigate] = useLocation();
-  const [browserSupport, setBrowserSupport] = useState<{
-    supported: boolean;
-    features: {
-      webgl: boolean;
-      webAssembly: boolean;
-      mediaDevices: boolean;
-      sharedArrayBuffer: boolean;
-    };
-  } | null>(null);
-  
-  // Check browser support on component mount
-  useEffect(() => {
-    const support = checkBrowserSupport();
-    setBrowserSupport(support);
-  }, []);
-  
-  // Fetch featured video templates
-  const { data: featuredTemplates, isLoading } = useQuery<VideoTemplate[]>({
-    queryKey: ['/api/videoTemplates/featured'],
+  const { user, isLoading: authLoading } = useAuth();
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboardData'],
+    queryFn: fetchDashboardData,
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2, // 2 minutes
   });
-  
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/5 rounded-full blur-3xl"></div>
-      </div>
-      
-      <div className="container mx-auto px-4 md:px-6 py-8 md:py-12 pb-16 md:pb-20 relative z-10">
-        {/* Hero section */}
-        <section className="py-8 md:py-16 text-center">
-          <div className="flex flex-col items-center mb-8 md:mb-12">
-            <div className="relative mb-6 md:mb-8">
-              <div className="logo-container glow-effect">
-                <img src={famFlixLogo} alt="FamFlix Logo" className="h-20 md:h-32 w-auto" />
-              </div>
-              <div className="absolute -top-2 -right-2 md:-top-4 md:-right-4 w-6 h-6 md:w-8 md:h-8 bg-green-500 rounded-full border-2 md:border-4 border-background animate-pulse"></div>
-            </div>
-            
-            <div className="space-y-4 md:space-y-6 max-w-4xl px-4">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold tracking-tight">
-                Welcome to <span className="gradient-text">FamFlix</span>
-              </h1>
-              <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-medium text-muted-foreground">
-                Educational Videos Starring You
-              </p>
-              <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed px-2">
-                Transform learning into a personal journey. Replace actors with familiar faces and create engaging educational experiences your children will love.
-              </p>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 mt-8 md:mt-10 px-4 w-full max-w-md sm:max-w-none">
-              <Button 
-                size="lg" 
-                className="modern-button gap-2 md:gap-3 h-12 md:h-14 px-6 md:px-8 text-base md:text-lg font-semibold w-full sm:w-auto"
-                onClick={() => navigate("/library")}
-              >
-                <Play size={20} className="md:hidden" />
-                <Play size={24} className="hidden md:block" />
-                Start Creating
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline"
-                className="h-12 md:h-14 px-6 md:px-8 text-base md:text-lg font-medium border-2 w-full sm:w-auto"
-                onClick={() => navigate("/people")}
-              >
-                <Camera size={18} className="mr-2 md:hidden" />
-                <Camera size={20} className="mr-2 hidden md:block" />
-                Manage Profiles
-              </Button>
-            </div>
-          </div>
-        </section>
-      
-      {/* Browser compatibility check */}
-      {browserSupport && !browserSupport.supported && (
-        <Alert variant="destructive" className="mb-8 max-w-2xl mx-auto">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Compatibility Issue</AlertTitle>
-          <AlertDescription>
-            <p>Your browser doesn't support all the features needed for the best experience.</p>
-            <ul className="list-disc pl-5 mt-2 text-sm">
-              {!browserSupport.features.webgl && <li>WebGL is not available</li>}
-              {!browserSupport.features.webAssembly && <li>WebAssembly is not supported</li>}
-              {!browserSupport.features.mediaDevices && <li>Camera/Microphone access is not available</li>}
-            </ul>
-            <p className="mt-2 text-sm">Try using a modern browser like Chrome, Firefox, or Edge.</p>
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {/* How it works section */}
-      <section className="py-12 md:py-20">
-        <div className="text-center mb-12 md:mb-16 px-4">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-3 md:mb-4">
-            Get Started in <span className="gradient-text">3 Steps</span>
-          </h2>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto px-2">
-            Create personalized educational content in minutes
+
+  if (!user && !authLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6">
+        <div className="space-y-4">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            Welcome to FamFlix
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl">
+            Create magical personalized educational videos for your family. Transform learning with familiar faces and voices.
           </p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto px-4">
-          <Card className="floating-card relative overflow-hidden border-2 border-border/20">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-purple-600"></div>
-            <CardContent className="p-6 md:p-8">
-              <div className="flex flex-col items-center text-center space-y-4 md:space-y-6">
-                <div className="relative">
-                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center">
-                    <Camera className="h-8 w-8 md:h-10 md:w-10 text-primary" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 md:-top-2 md:-right-2 w-6 h-6 md:w-8 md:h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs md:text-sm font-bold">
-                    1
-                  </div>
-                </div>
-                <div className="space-y-2 md:space-y-3">
-                  <h3 className="text-xl md:text-2xl font-bold">Create Profiles</h3>
-                  <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-                    Upload photos and record your voice. Our AI learns your unique characteristics.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mt-8">
+          <Card className="p-6 text-center">
+            <User className="h-12 w-12 mx-auto text-indigo-600 mb-4" />
+            <h3 className="font-semibold mb-2">Family Profiles</h3>
+            <p className="text-sm text-muted-foreground">Upload photos and record voices of your family members</p>
           </Card>
-          
-          <Card className="floating-card relative overflow-hidden border-2 border-border/20">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 to-pink-600"></div>
-            <CardContent className="p-6 md:p-8">
-              <div className="flex flex-col items-center text-center space-y-4 md:space-y-6">
-                <div className="relative">
-                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                    <Play className="h-8 w-8 md:h-10 md:w-10 text-purple-600" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 md:-top-2 md:-right-2 w-6 h-6 md:w-8 md:h-8 bg-purple-600 text-white rounded-full flex items-center justify-center text-xs md:text-sm font-bold">
-                    2
-                  </div>
-                </div>
-                <div className="space-y-2 md:space-y-3">
-                  <h3 className="text-xl md:text-2xl font-bold">Choose Content</h3>
-                  <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-                    Browse our educational library and select videos perfect for your child's age.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
+          <Card className="p-6 text-center">
+            <Video className="h-12 w-12 mx-auto text-purple-600 mb-4" />
+            <h3 className="font-semibold mb-2">Video Templates</h3>
+            <p className="text-sm text-muted-foreground">Choose from educational templates and personalize them</p>
           </Card>
-          
-          <Card className="floating-card relative overflow-hidden border-2 border-border/20">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-600 to-red-500"></div>
-            <CardContent className="p-6 md:p-8">
-              <div className="flex flex-col items-center text-center space-y-4 md:space-y-6">
-                <div className="relative">
-                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-pink-500/20 to-red-500/20 flex items-center justify-center">
-                    <Mic className="h-8 w-8 md:h-10 md:w-10 text-pink-600" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 md:-top-2 md:-right-2 w-6 h-6 md:w-8 md:h-8 bg-pink-600 text-white rounded-full flex items-center justify-center text-xs md:text-sm font-bold">
-                    3
-                  </div>
-                </div>
-                <div className="space-y-2 md:space-y-3">
-                  <h3 className="text-xl md:text-2xl font-bold">Watch & Enjoy</h3>
-                  <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-                    Stream personalized videos to any device or cast to your TV for family viewing.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
+          <Card className="p-6 text-center">
+            <BookOpen className="h-12 w-12 mx-auto text-pink-600 mb-4" />
+            <h3 className="font-semibold mb-2">Voice Stories</h3>
+            <p className="text-sm text-muted-foreground">Listen to stories narrated by your family's voices</p>
           </Card>
         </div>
-      </section>
-      
-      {/* Featured videos section */}
-      <section className="py-8 md:py-12">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-6 gap-3 sm:gap-0">
-          <h2 className="text-xl md:text-2xl font-bold">Featured Videos</h2>
-          <Link href="/library">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto">View All</Button>
-          </Link>
+
+        <Link href="/login">
+          <Button size="lg" className="mt-6">
+            Get Started
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (authLoading || isLoading) {
+    return (
+      <div className="space-y-8">
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-4 w-96" />
         </div>
         
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <Card key={i} className="overflow-hidden">
-                <div className="w-full aspect-video bg-muted animate-pulse" />
-                <CardContent className="pt-4">
-                  <div className="h-6 w-3/4 bg-muted animate-pulse rounded mb-3" />
-                  <div className="h-4 bg-muted animate-pulse rounded mb-2" />
-                  <div className="h-4 w-4/5 bg-muted animate-pulse rounded" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : featuredTemplates?.length ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredTemplates.map((template) => (
-              <VideoCard 
-                key={template.id} 
-                video={template} 
-                type="template"
-                onSelect={(id) => navigate(`/process/${id}`)}
-              />
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <p className="text-muted-foreground">No featured videos available.</p>
-            </CardContent>
-          </Card>
-        )}
-      </section>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-32 w-full rounded-lg" />
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-48 w-full rounded-lg" />
+          ))}
+        </div>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <Card className="p-6">
+          <div className="flex items-center space-x-3 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <div>
+              <p className="font-medium">Unable to load dashboard</p>
+              <p className="text-sm text-muted-foreground">
+                {error instanceof Error ? error.message : 'Something went wrong'}
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Welcome Header */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">
+              Welcome back, {user?.displayName || user?.username}!
+            </h1>
+            <p className="text-muted-foreground">
+              Ready to create more magical moments for your family?
+            </p>
+          </div>
+          {user?.role === 'admin' && (
+            <Link href="/dashboard">
+              <Button variant="outline">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Admin Dashboard
+              </Button>
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          icon={Users}
+          title="Family Members"
+          value={data.stats.totalPeople}
+          description="Profiles created"
+          color="text-indigo-600"
+        />
+        <StatCard
+          icon={Video}
+          title="Videos Created"
+          value={data.stats.totalVideos}
+          description="Personalized content"
+          color="text-purple-600"
+        />
+        <StatCard
+          icon={BookOpen}
+          title="Stories Available"
+          value={data.stats.totalStories}
+          description="Voice narrations"
+          color="text-pink-600"
+        />
+        <StatCard
+          icon={Waveform}
+          title="Voice Quality"
+          value={`${Math.round(data.stats.voiceQuality)}%`}
+          description="Family voices trained"
+          color="text-green-600"
+        />
+      </div>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Star className="h-5 w-5 text-yellow-500" />
+            <span>Quick Actions</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href="/people/new">
+              <Button variant="outline" className="w-full h-20 flex-col space-y-2">
+                <Plus className="h-6 w-6" />
+                <span>Add Family Member</span>
+              </Button>
+            </Link>
+            <Link href="/voice-training">
+              <Button variant="outline" className="w-full h-20 flex-col space-y-2">
+                <Mic className="h-6 w-6" />
+                <span>Record Voice</span>
+              </Button>
+            </Link>
+            <Link href="/templates">
+              <Button variant="outline" className="w-full h-20 flex-col space-y-2">
+                <Video className="h-6 w-6" />
+                <span>Create Video</span>
+              </Button>
+            </Link>
+            <Link href="/stories">
+              <Button variant="outline" className="w-full h-20 flex-col space-y-2">
+                <BookOpen className="h-6 w-6" />
+                <span>Listen to Stories</span>
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Family Profiles */}
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-semibold">Your Family</h2>
+          <Link href="/people">
+            <Button variant="ghost">View All</Button>
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {data.people.map((person) => (
+            <Card key={person.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <User className="h-5 w-5" />
+                    <span>{person.name}</span>
+                  </div>
+                  {person.hasVoiceClone && (
+                    <Badge variant="secondary" className="text-xs">
+                      <Waveform className="h-3 w-3 mr-1" />
+                      Voice Ready
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-center">
+                  {person.defaultFaceImageUrl ? (
+                    <img 
+                      src={person.defaultFaceImageUrl} 
+                      alt={`${person.name}'s photo`} 
+                      className="w-20 h-20 rounded-full object-cover border-2 border-border"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
+                      <User className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Photos:</span>
+                    <span>{person.faceImagesCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Voice Recordings:</span>
+                    <span>{person.voiceRecordingsCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Relationship:</span>
+                    <span className="capitalize">{person.relationship}</span>
+                  </div>
+                </div>
+
+                <Link href={`/people/${person.id}`}>
+                  <Button variant="outline" className="w-full">
+                    Edit Profile
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+          
+          {data.people.length < 6 && (
+            <Card className="border-dashed border-2 hover:border-solid transition-all">
+              <CardContent className="flex items-center justify-center h-full min-h-[200px]">
+                <Link href="/people/new">
+                  <Button variant="ghost" className="flex-col space-y-2">
+                    <Plus className="h-8 w-8" />
+                    <span>Add Family Member</span>
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </section>
+
+      {/* Featured Templates */}
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-semibold">Popular Templates</h2>
+          <Link href="/templates">
+            <Button variant="ghost">Browse All</Button>
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {data.featuredTemplates.map((template) => (
+            <Card key={template.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="truncate">{template.title}</span>
+                  {template.featured && (
+                    <Badge variant="default" className="ml-2">
+                      <Star className="h-3 w-3 mr-1" />
+                      Featured
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-center h-24 bg-muted rounded-lg">
+                  {template.thumbnailUrl ? (
+                    <img 
+                      src={template.thumbnailUrl} 
+                      alt={template.title}
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                  ) : (
+                    <Video className="h-12 w-12 text-muted-foreground" />
+                  )}
+                </div>
+                
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {template.description}
+                </p>
+                
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <Badge variant="outline">{template.category}</Badge>
+                  <Badge variant="outline">{template.ageRange}</Badge>
+                  <div className="flex items-center space-x-1">
+                    <Clock className="h-3 w-3" />
+                    <span>{template.duration}s</span>
+                  </div>
+                </div>
+
+                <Link href={`/templates/${template.id}`}>
+                  <Button className="w-full">
+                    <PlayCircle className="h-4 w-4 mr-2" />
+                    Use Template
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* Recent Activity */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-6">Recent Activity</h2>
+        <Card>
+          <CardContent className="p-6">
+            {data.recentVideos.length > 0 ? (
+              <div className="space-y-4">
+                {data.recentVideos.map((video) => (
+                  <div key={video.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                        <Video className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{video.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(video.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3">
+                      <Badge 
+                        variant={
+                          video.status === 'completed' ? 'default' :
+                          video.status === 'processing' ? 'secondary' :
+                          video.status === 'failed' ? 'destructive' : 'outline'
+                        }
+                      >
+                        {video.status}
+                      </Badge>
+                      
+                      {video.status === 'completed' && (
+                        <Link href={`/videos/${video.id}`}>
+                          <Button size="sm" variant="outline">
+                            <PlayCircle className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-4">No videos created yet</p>
+                <Link href="/templates">
+                  <Button>Create Your First Video</Button>
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 };

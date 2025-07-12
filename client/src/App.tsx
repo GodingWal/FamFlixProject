@@ -11,7 +11,7 @@ import './index.css';
 // Lazy load pages for better performance
 const LandingPage = lazy(() => import('./pages/Landing'));
 const AuthPage = lazy(() => import('./pages/auth-page'));
-const Homepage = lazy(() => import('./pages/Homepage'));
+const Home = lazy(() => import('./pages/Home'));
 const SystemDashboard = lazy(() => import('./pages/SystemDashboard'));
 const PeopleManagement = lazy(() => import('./pages/PeopleManagement'));
 const VoiceSynthesis = lazy(() => import('./pages/VoiceSynthesis'));
@@ -60,7 +60,7 @@ export default function App() {
                   <Switch>
                     <Route path="/" component={LandingPage} />
                     <Route path="/auth" component={AuthPage} />
-                    <Route path="/home" component={Homepage} />
+                    <Route path="/home" component={Home} />
                     <Route path="/dashboard" component={SystemDashboard} />
                     <Route path="/people" component={PeopleManagement} />
                     <Route path="/voice-synthesis" component={VoiceSynthesis} />
