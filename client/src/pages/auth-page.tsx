@@ -63,8 +63,9 @@ export default function AuthPage() {
     }
     
     console.log("Login mutation available:", !!loginMutation?.mutate);
+    console.log("Full loginMutation object:", loginMutation);
     
-    if (loginMutation?.mutate) {
+    if (loginMutation?.mutate && typeof loginMutation.mutate === 'function') {
       loginMutation.mutate(loginForm);
     } else {
       console.error("loginMutation.mutate is not available", loginMutation);

@@ -44,9 +44,33 @@ const defaultContext: AuthContextType = {
   isAdmin: false,
   isLoading: false,
   error: null,
-  loginMutation: {} as UseMutationResult<Omit<SelectUser, "password">, Error, LoginData>,
-  logoutMutation: {} as UseMutationResult<void, Error, void>,
-  registerMutation: {} as UseMutationResult<Omit<SelectUser, "password">, Error, RegisterData>
+  loginMutation: {
+    mutate: () => {},
+    isLoading: false,
+    isPending: false,
+    error: null,
+    data: undefined,
+    reset: () => {},
+    mutateAsync: async () => ({} as any)
+  } as UseMutationResult<Omit<SelectUser, "password">, Error, LoginData>,
+  logoutMutation: {
+    mutate: () => {},
+    isLoading: false,
+    isPending: false,
+    error: null,
+    data: undefined,
+    reset: () => {},
+    mutateAsync: async () => {}
+  } as UseMutationResult<void, Error, void>,
+  registerMutation: {
+    mutate: () => {},
+    isLoading: false,
+    isPending: false,
+    error: null,
+    data: undefined,
+    reset: () => {},
+    mutateAsync: async () => ({} as any)
+  } as UseMutationResult<Omit<SelectUser, "password">, Error, RegisterData>
 };
 
 export const AuthContext = createContext<AuthContextType>(defaultContext);

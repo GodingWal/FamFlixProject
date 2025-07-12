@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from 'react';
 import { Router, Route, Switch } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './components/theme-provider';
+import { AuthProvider } from '@/hooks/use-auth';
 import { Toaster } from '@/components/ui/toaster';
 import Navigation from './components/Navigation';
 import { Card, CardContent } from '@/components/ui/card';
@@ -51,11 +52,12 @@ export default function App() {
   return (
     <ThemeProvider defaultTheme={darkMode ? 'dark' : 'light'} storageKey="famflix-theme">
       <QueryClientProvider client={queryClient}>
-        <div className="min-h-screen bg-background text-foreground">
-          <Router>
-            <div className="flex flex-col min-h-screen">
-              <Navigation toggleDarkMode={() => setDarkMode(!darkMode)} />
-              <main className="flex-1">
+        <AuthProvider>
+          <div className="min-h-screen bg-background text-foreground">
+            <Router>
+              <div className="flex flex-col min-h-screen">
+                <Navigation toggleDarkMode={() => setDarkMode(!darkMode)} />
+                <main className="flex-1">
                 <Suspense fallback={<LoadingSpinner />}>
                   <Switch>
                     <Route path="/" component={LandingPage} />
@@ -87,8 +89,9 @@ export default function App() {
               </main>
             </div>
           </Router>
-        </div>
-        <Toaster />
+          </div>
+          <Toaster />
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
