@@ -14,6 +14,16 @@ import { db, pool } from './db';
 import { eq, inArray, sql } from "drizzle-orm";
 import connectPg from 'connect-pg-simple';
 import { cache, CacheKeys, CacheTTL } from "./cache.js";
+import { 
+  encrypt, 
+  decrypt, 
+  storeSecureData, 
+  retrieveSecureData, 
+  cacheSet, 
+  cacheGet, 
+  cacheDelete, 
+  cacheDeletePattern 
+} from "./encryption";
 
 // Storage interface for all CRUD operations
 export interface IStorage {
@@ -246,6 +256,25 @@ export class DatabaseStorage implements IStorage {
   // Face image operations
   async getFaceImage(id: number): Promise<FaceImage | undefined> {
     const [faceImage] = await db.select().from(faceImages).where(eq(faceImages.id, id));
+    
+    if (faceImage && faceImage.imageUrl) {
+      // Try to decrypt if data is encrypted
+      try {
+        const parsedData = JSON.parse(faceImage.imageUrl);
+        if (parsedData.encrypted && parsedData.iv && parsedData.authTag) {
+          const decryptedImage = await retrieveSecureData(
+            parsedData,
+            `cache:face_image:${faceImage.personId}:${faceImage.id}`
+          );
+          if (decryptedImage) {
+            faceImage.imageUrl = decryptedImage as string;
+          }
+        }
+      } catch (error) {
+        // Data is not encrypted, continue with original
+      }
+    }
+    
     return faceImage;
   }
 
@@ -272,9 +301,29 @@ export class DatabaseStorage implements IStorage {
         .where(eq(faceImages.personId, insertFaceImage.personId));
     }
     
+    // Encrypt sensitive image data if it contains actual image data
+    let processedFaceImage = { ...insertFaceImage };
+    
+    if (insertFaceImage.imageUrl && insertFaceImage.imageUrl.startsWith('data:image/')) {
+      try {
+        const encryptedData = await storeSecureData(
+          `faceImage:${Date.now()}`, 
+          insertFaceImage.imageUrl,
+          `cache:face_image:${insertFaceImage.personId}:${Date.now()}`
+        );
+        
+        // Store encrypted data as JSON string in imageUrl field
+        processedFaceImage.imageUrl = JSON.stringify(encryptedData);
+        console.log('Face image data encrypted successfully');
+      } catch (error) {
+        console.error('Face image encryption failed:', error);
+        // Continue with original data if encryption fails
+      }
+    }
+    
     const [faceImage] = await db
       .insert(faceImages)
-      .values(insertFaceImage)
+      .values(processedFaceImage)
       .returning();
     
     // Invalidate related caches
@@ -367,6 +416,25 @@ export class DatabaseStorage implements IStorage {
   // Voice recording operations
   async getVoiceRecording(id: number): Promise<VoiceRecording | undefined> {
     const [voiceRecording] = await db.select().from(voiceRecordings).where(eq(voiceRecordings.id, id));
+    
+    if (voiceRecording && voiceRecording.audioUrl) {
+      // Try to decrypt if data is encrypted
+      try {
+        const parsedData = JSON.parse(voiceRecording.audioUrl);
+        if (parsedData.encrypted && parsedData.iv && parsedData.authTag) {
+          const decryptedAudio = await retrieveSecureData(
+            parsedData,
+            `cache:voice_recording:${voiceRecording.personId}:${voiceRecording.id}`
+          );
+          if (decryptedAudio) {
+            voiceRecording.audioUrl = decryptedAudio as string;
+          }
+        }
+      } catch (error) {
+        // Data is not encrypted, continue with original
+      }
+    }
+    
     return voiceRecording;
   }
 
@@ -393,9 +461,29 @@ export class DatabaseStorage implements IStorage {
         .where(eq(voiceRecordings.personId, insertVoiceRecording.personId));
     }
     
+    // Encrypt sensitive voice data if it contains actual audio data
+    let processedVoiceRecording = { ...insertVoiceRecording };
+    
+    if (insertVoiceRecording.audioUrl && insertVoiceRecording.audioUrl.startsWith('data:audio/')) {
+      try {
+        const encryptedData = await storeSecureData(
+          `voiceRecording:${Date.now()}`, 
+          insertVoiceRecording.audioUrl,
+          `cache:voice_recording:${insertVoiceRecording.personId}:${Date.now()}`
+        );
+        
+        // Store encrypted data as JSON string in audioUrl field
+        processedVoiceRecording.audioUrl = JSON.stringify(encryptedData);
+        console.log('Voice recording data encrypted successfully');
+      } catch (error) {
+        console.error('Voice recording encryption failed:', error);
+        // Continue with original data if encryption fails
+      }
+    }
+    
     const [voiceRecording] = await db
       .insert(voiceRecordings)
-      .values(insertVoiceRecording)
+      .values(processedVoiceRecording)
       .returning();
     
     // Invalidate related caches

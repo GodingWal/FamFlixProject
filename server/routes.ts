@@ -25,6 +25,7 @@ import multer from "multer";
 import FormData from "form-data";
 import { log } from "./vite";
 import { exec } from 'child_process';
+import encryptionRoutes from './routes/encryption';
 import { promisify } from 'util';
 import crypto from 'crypto';
 
@@ -230,6 +231,9 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
   // Apply API rate limiting
   app.use('/api', rateLimitMiddleware(apiLimiter));
+  
+  // Encryption and cache management routes
+  app.use('/api/encryption', encryptionRoutes);
   
   // Enhanced admin route monitoring with Socket.IO
   app.use('/api/admin/*', (req: Request, res: Response, next: NextFunction) => {

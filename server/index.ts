@@ -5,6 +5,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { initDatabase } from "./db";
 import { healthCheck } from "./middleware/security";
+import { initializeRedis, checkCacheHealth } from "./encryption";
 import { 
   productionSecurity, 
   rateLimiter, 
@@ -96,6 +97,19 @@ app.use((req, res, next) => {
     // Initialize database tables
     await initDatabase();
     log("Database initialized successfully");
+    
+    // Initialize Redis for encryption caching
+    const redis = initializeRedis();
+    if (redis) {
+      const health = await checkCacheHealth();
+      if (health.redis) {
+        log(`Redis initialized successfully (latency: ${health.latency}ms)`, "encryption");
+      } else {
+        log("Redis connection failed", "encryption");
+      }
+    } else {
+      log("Redis not configured - running without cache encryption", "encryption");
+    }
     
     // Serve static files for cloned voice audio
     app.use('/cloned-voice', express.static('public/cloned-voice', {
