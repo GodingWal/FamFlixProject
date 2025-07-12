@@ -2,6 +2,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useLocation, Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useTheme } from './theme-provider';
 import { 
   Home, 
   Users, 
@@ -27,9 +28,14 @@ interface NavigationProps {
 
 export default function Navigation({ toggleDarkMode }: NavigationProps) {
   const { user, logoutMutation } = useAuth();
+  const { setTheme, theme } = useTheme();
   const [location] = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isMobile = useMobile();
+
+  const handleThemeToggle = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
   // Don't show navigation on landing or auth pages
   if (!user || location === '/' || location === '/auth') {
@@ -113,18 +119,16 @@ export default function Navigation({ toggleDarkMode }: NavigationProps) {
         </div>
 
         {/* Theme Toggle */}
-        {toggleDarkMode && (
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={toggleDarkMode}
-            className="relative"
-          >
-            <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-            <span className="sr-only">Toggle theme</span>
-          </Button>
-        )}
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleThemeToggle}
+          className="relative"
+        >
+          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">Toggle theme</span>
+        </Button>
 
         {/* Logout Button */}
         <Button
