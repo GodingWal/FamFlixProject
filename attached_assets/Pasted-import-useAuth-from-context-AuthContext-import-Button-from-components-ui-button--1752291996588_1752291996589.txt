@@ -1,0 +1,131 @@
+import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/ui/button'; // shadcn/ui
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Skeleton } from '../components/ui/skeleton';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'wouter';
+import { AlertCircle, User, Video } from 'lucide-react'; // Icons for visual appeal
+
+const fetchPersonalizedData = async () => {
+  const token = localStorage.getItem('accessToken');
+  const res = await fetch('/api/personalized', { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json(); // Assume returns { profiles: [], templates: [], recentVideos: [] }
+};
+
+const Home = () => {
+  const { isLoggedIn, user } = useAuth();
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['personalizedData'],
+    queryFn: fetchPersonalizedData,
+    enabled: isLoggedIn, // Only fetch if logged in
+  });
+
+  if (!isLoggedIn) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
+        <h1 className="text-4xl font-bold">Welcome to FamFlix</h1>
+        <p className="text-lg text-muted-foreground">Create personalized educational videos for your family.</p>
+        <Link href="/login">
+          <Button size="lg" className="mt-4">Log In to Get Started</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-48 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center space-x-2 text-destructive">
+        <AlertCircle />
+        <p>Error loading data: {error.message}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <h1 className="text-3xl font-bold">Welcome back, {user?.email}!</h1>
+      
+      {/* Profiles Section */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Your Family Profiles</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {data.profiles.map((profile) => (
+            <Card key={profile.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <User size={20} />
+                  <span>{profile.name}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <img src={profile.photo} alt={`${profile.name}'s photo`} className="w-24 h-24 rounded-full mx-auto" />
+                <Link href={`/profiles/${profile.id}`}>
+                  <Button variant="outline" className="mt-2 w-full">Edit Profile</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+          <Card className="border-dashed hover:border-solid transition-all">
+            <CardContent className="flex items-center justify-center h-full">
+              <Link href="/profiles/new">
+                <Button variant="ghost">+ Add New Profile</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+      
+      {/* Templates Section */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Recommended Templates</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {data.templates.map((template) => (
+            <Card key={template.id}>
+              <CardHeader>
+                <CardTitle>{template.name}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Video size={48} className="mx-auto text-primary" />
+                <p className="text-sm text-muted-foreground mt-2">{template.description}</p>
+                <Link href={`/templates/${template.id}`}>
+                  <Button className="mt-2 w-full">Use Template</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+      
+      {/* Recent Videos or Processing Status */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Recent Creations</h2>
+        {data.recentVideos.length ? (
+          <ul className="space-y-2">
+            {data.recentVideos.map((video) => (
+              <li key={video.id} className="flex justify-between items-center p-2 border rounded">
+                <span>{video.title}</span>
+                <span className="text-sm text-muted-foreground">{video.status}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground">No recent videos. Start creating!</p>
+        )}
+      </section>
+    </div>
+  );
+};
+
+export default Home;

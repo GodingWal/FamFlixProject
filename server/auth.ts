@@ -247,6 +247,59 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // JWT-based login endpoint
+  app.post('/api/login-jwt', async (req, res) => {
+    try {
+      const validatedData = loginSchema.parse(req.body);
+      const user = await storage.getUserByUsername(validatedData.username);
+      
+      if (!user || !(await comparePasswords(validatedData.password, user.password))) {
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      const tokens = generateTokens({ id: user.id, role: user.role });
+      const { password, ...safeUser } = user;
+      
+      res.json({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        user: safeUser
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: 'Validation failed', 
+          errors: error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
+          }))
+        });
+      }
+      
+      log(`JWT Login error: ${(error as Error).message}`, 'auth');
+      return res.status(500).json({ message: 'Login failed' });
+    }
+  });
+
+  // Token refresh endpoint
+  app.post('/api/refresh-token', async (req, res) => {
+    try {
+      const { refreshToken } = req.body;
+      
+      if (!refreshToken) {
+        return res.status(401).json({ message: 'Refresh token required' });
+      }
+
+      const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as any;
+      const tokens = generateTokens({ id: decoded.id, role: decoded.role });
+
+      res.json(tokens);
+    } catch (error) {
+      log(`Token refresh error: ${(error as Error).message}`, 'auth');
+      res.status(401).json({ message: 'Invalid refresh token' });
+    }
+  });
+
   // Logout endpoint
   app.post('/api/logout', (req, res) => {
     req.logout((err) => {

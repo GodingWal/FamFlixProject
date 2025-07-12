@@ -66,15 +66,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Mutation for login
+  // Enhanced login mutation with JWT fallback
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      // Try JWT login first
+      try {
+        const jwtRes = await apiRequest("POST", "/api/login-jwt", credentials);
+        const jwtData = await jwtRes.json();
+        
+        // Store JWT tokens
+        if (jwtData.accessToken && jwtData.refreshToken) {
+          localStorage.setItem('accessToken', jwtData.accessToken);
+          localStorage.setItem('refreshToken', jwtData.refreshToken);
+        }
+        
+        return jwtData.user || jwtData;
+      } catch (jwtError) {
+        // Fall back to session-based login
+        const res = await apiRequest("POST", "/api/login", credentials);
+        return await res.json();
+      }
     },
     onSuccess: (userData: Omit<SelectUser, "password">) => {
       queryClient.setQueryData(["/api/me"], userData);
-      // Invalidate the user query to trigger re-fetch and update the context
       queryClient.invalidateQueries({ queryKey: ["/api/me"] });
       toast({
         title: "Login successful",
@@ -114,13 +128,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Mutation for logout
+  // Enhanced logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
+      // Clear JWT tokens
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      
+      // Also logout from session
+      try {
+        await apiRequest("POST", "/api/logout");
+      } catch (error) {
+        console.warn('Session logout failed, but JWT tokens cleared');
+      }
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/me"], null);
+      queryClient.clear();
       toast({
         title: "Logged out",
         description: "You have been successfully logged out.",
