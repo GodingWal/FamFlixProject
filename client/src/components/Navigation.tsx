@@ -12,14 +12,20 @@ import {
   LogOut,
   User,
   Menu,
-  X
+  X,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import famFlixLogo from "../assets/FamFlix.png";
 import { useMobile } from "@/hooks/use-mobile";
 
-export default function Navigation() {
+interface NavigationProps {
+  toggleDarkMode?: () => void;
+}
+
+export default function Navigation({ toggleDarkMode }: NavigationProps) {
   const { user, logoutMutation } = useAuth();
   const [location] = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -105,6 +111,20 @@ export default function Navigation() {
             </div>
           )}
         </div>
+
+        {/* Theme Toggle */}
+        {toggleDarkMode && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={toggleDarkMode}
+            className="relative"
+          >
+            <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <span className="sr-only">Toggle theme</span>
+          </Button>
+        )}
 
         {/* Logout Button */}
         <Button
