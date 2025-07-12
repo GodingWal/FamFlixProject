@@ -1,5 +1,10 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import { Server as SocketServer } from "socket.io";
+import { RateLimiterMemory } from 'rate-limiter-flexible';
+import { body, validationResult } from 'express-validator';
+import helmet from 'helmet';
+import passport from 'passport';
 import { storage } from "./storage"; // Use the storage interface
 import { 
   insertUserSchema, 
@@ -10,7 +15,7 @@ import {
   insertVideoTemplateSchema
 } from "@shared/schema";
 import { ZodError } from "zod";
-import { setupAuth } from "./auth";
+import { setupAuth, generateTokens, requireRole } from "./auth";
 import { stripe } from "./stripe";
 // import MLService from "./ml"; // Removed ML service dependencies
 import fs from "fs/promises";
@@ -24,6 +29,38 @@ import { promisify } from 'util';
 import crypto from 'crypto';
 
 const execPromise = promisify(exec);
+
+// Rate limiting setup
+const authLimiter = new RateLimiterMemory({
+  points: 5, // 5 attempts
+  duration: 60, // per minute
+});
+
+const apiLimiter = new RateLimiterMemory({
+  points: 100, // 100 requests
+  duration: 60, // per minute
+});
+
+// Rate limiting middleware
+const rateLimitMiddleware = (limiter: RateLimiterMemory) => async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await limiter.consume(req.ip);
+    next();
+  } catch (rejRes) {
+    const remainingPoints = rejRes.remainingPoints || 0;
+    const msBeforeNext = rejRes.msBeforeNext || 1000;
+    
+    res.set('Retry-After', Math.round(msBeforeNext / 1000).toString());
+    res.set('X-RateLimit-Limit', limiter.points.toString());
+    res.set('X-RateLimit-Remaining', remainingPoints.toString());
+    res.set('X-RateLimit-Reset', new Date(Date.now() + msBeforeNext).toISOString());
+    
+    res.status(429).json({ 
+      message: 'Too many requests', 
+      retryAfter: Math.round(msBeforeNext / 1000)
+    });
+  }
+};
 
 // Background voice cloning function
 async function cloneVoiceInBackground(voiceRecordingId: number, voiceRecording: any) {
@@ -172,9 +209,91 @@ const isAdmin = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express, io?: SocketServer): Promise<Server> {
   // Setup authentication
+  // Security headers
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "ws:", "wss:", "https:"],
+        fontSrc: ["'self'", "data:"],
+        mediaSrc: ["'self'", "blob:"],
+        frameSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  }));
+
+  // Apply API rate limiting
+  app.use('/api', rateLimitMiddleware(apiLimiter));
+  
+  // Enhanced admin route monitoring with Socket.IO
+  app.use('/api/admin/*', (req: Request, res: Response, next: NextFunction) => {
+    // Log admin access attempts
+    if (req.isAuthenticated()) {
+      log(`Admin access: ${req.user.username} accessing ${req.path} from ${req.ip}`, 'auth');
+      
+      // Emit admin activity for real-time monitoring
+      if (io && req.user.role === 'admin') {
+        io.emit('admin-activity', {
+          userId: req.user.id,
+          username: req.user.username,
+          action: `${req.method} ${req.path}`,
+          timestamp: new Date(),
+          ip: req.ip
+        });
+      }
+    }
+    next();
+  });
+  
   setupAuth(app);
+
+  // Enhanced login endpoint with validation and rate limiting
+  app.post('/api/login-secure', 
+    rateLimitMiddleware(authLimiter),
+    [
+      body('username').trim().isLength({ min: 1 }).escape(),
+      body('password').isLength({ min: 8 })
+    ],
+    async (req: Request, res: Response, next: NextFunction) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
+
+      passport.authenticate('local', { session: false }, (err: any, user: any, info: any) => {
+        if (err || !user) {
+          log(`Failed login attempt from ${req.ip}: ${info?.message}`, 'auth');
+          return res.status(401).json({ 
+            message: info?.message || 'Authentication failed' 
+          });
+        }
+
+        const tokens = generateTokens(user);
+        const { password, ...safeUser } = user;
+        
+        log(`Successful login: ${user.username} from ${req.ip}`, 'auth');
+        
+        // Emit real-time login event
+        if (io) {
+          io.emit('user-login', { userId: user.id, timestamp: new Date() });
+        }
+        
+        return res.json({ 
+          ...tokens, 
+          user: safeUser 
+        });
+      })(req, res, next);
+    }
+  );
 
   // Serve voice preview files FIRST (before any other middleware)
   app.get('/voice-previews/:filename', (req: Request, res: Response) => {
@@ -421,8 +540,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = insertVoiceRecordingSchema.parse(rawData);
       const voiceRecording = await storage.createVoiceRecording(data);
       
-      // Start voice cloning process in background
-      cloneVoiceInBackground(voiceRecording.id, voiceRecording);
+      // Start voice cloning process in background with real-time updates
+      cloneVoiceInBackground(voiceRecording.id, voiceRecording).then(() => {
+        if (io) {
+          io.to(`user-${req.user.id}`).emit('voice-cloning-complete', {
+            voiceRecordingId: voiceRecording.id,
+            personId: data.personId,
+            timestamp: new Date()
+          });
+        }
+      }).catch((error) => {
+        if (io) {
+          io.to(`user-${req.user.id}`).emit('voice-cloning-error', {
+            voiceRecordingId: voiceRecording.id,
+            error: error.message,
+            timestamp: new Date()
+          });
+        }
+      });
       
       res.json(voiceRecording);
     } catch (error: unknown) {
@@ -592,6 +727,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateProcessedVideoStatus(processedVideo.id, 'completed', undefined, `/processed-videos/${outputFilename}`);
       
       const updatedProcessedVideo = await storage.getProcessedVideo(processedVideo.id);
+      
+      // Emit real-time update for video processing completion
+      if (io) {
+        io.to(`user-${req.user.id}`).emit('video-processing-complete', {
+          videoId: processedVideo.id,
+          templateId: templateId,
+          timestamp: new Date()
+        });
+      }
+      
       res.json(updatedProcessedVideo);
       
     } catch (error: any) {
@@ -641,6 +786,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertPersonSchema.parse(req.body);
       const person = await storage.createPerson(data);
+      
+      // Emit real-time update for family member creation
+      if (io) {
+        io.to(`user-${req.user.id}`).emit('family-member-created', {
+          personId: person.id,
+          name: person.name,
+          timestamp: new Date()
+        });
+      }
+      
       res.json(person);
     } catch (error: unknown) {
       if (error instanceof ZodError) {
@@ -2216,6 +2371,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // Socket.IO connection handler for real-time features
+  if (io) {
+    io.on('connection', (socket) => {
+      log(`Socket.IO client connected: ${socket.id}`, 'socket');
+      
+      // Handle user joining their personal room for notifications
+      socket.on('join-user-room', (userId) => {
+        socket.join(`user-${userId}`);
+        log(`User ${userId} joined their personal room`, 'socket');
+      });
+      
+      // Handle video processing status requests
+      socket.on('request-processing-status', async (data) => {
+        try {
+          const { videoId, userId } = data;
+          socket.emit('processing-status-update', {
+            videoId,
+            status: 'processing',
+            progress: 50
+          });
+        } catch (error) {
+          socket.emit('error', { message: 'Failed to get processing status' });
+        }
+      });
+      
+      // Handle voice cloning progress requests
+      socket.on('request-voice-status', async (data) => {
+        try {
+          const { voiceRecordingId, userId } = data;
+          socket.emit('voice-status-update', {
+            voiceRecordingId,
+            status: 'processing',
+            progress: 75
+          });
+        } catch (error) {
+          socket.emit('error', { message: 'Failed to get voice status' });
+        }
+      });
+      
+      socket.on('disconnect', () => {
+        log(`Socket.IO client disconnected: ${socket.id}`, 'socket');
+      });
+    });
+  }
 
   const httpServer = createServer(app);
   return httpServer;

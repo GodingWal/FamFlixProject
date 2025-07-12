@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { initDatabase } from "./db";
@@ -14,6 +16,20 @@ import {
 } from "./middleware/production";
 
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Socket.IO for real-time updates
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production' 
+      ? [process.env.PUBLIC_URL || 'https://fam-flix.com'] 
+      : ["http://localhost:3000", "http://localhost:5000"],
+    credentials: true
+  }
+});
+
+// Export io for use in other modules
+export { io };
 
 // Production middleware setup
 if (process.env.NODE_ENV === 'production') {
@@ -205,7 +221,7 @@ app.use((req, res, next) => {
       `);
     });
 
-    const server = await registerRoutes(app);
+    const server = await registerRoutes(app, io);
 
     // Error handling middleware should be last
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
@@ -235,9 +251,10 @@ app.use((req, res, next) => {
     const port = Number(process.env.PORT) || 5000;
     const host = '0.0.0.0';
     
-    const serverInstance = server.listen(port, host, () => {
+    const serverInstance = httpServer.listen(port, host, () => {
       log(`Server running on ${host}:${port}`, "express");
       log(`Environment: ${process.env.NODE_ENV || 'development'}`, "express");
+      log(`Socket.IO server initialized and ready`, "express");
       
       // Log public URLs
       if (process.env.REPLIT_DEV_DOMAIN) {
