@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import useVoiceSynthesis from '@/hooks/useVoiceSynthesis';
 import { Mic, Upload, Play, Square, Trash2, Download, AlertCircle, CheckCircle, AudioWaveform } from 'lucide-react';
+import AudioPlayer from '@/components/AudioPlayer';
 
 export const VoiceSynthesisPanel = () => {
   const { toast } = useToast();
@@ -283,17 +284,28 @@ export const VoiceSynthesisPanel = () => {
                   )}
                   
                   {taskStatus.output_path && (
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline">
-                        <Download className="h-3 w-3 mr-1" />
-                        Download
-                      </Button>
+                    <div className="space-y-3">
+                      <AudioPlayer
+                        src={taskStatus.output_path}
+                        isLoading={false}
+                        title="Synthesized Audio"
+                        altText="Voice synthesis result"
+                        quality={quality}
+                        downloadable={true}
+                        onDownload={() => {
+                          const link = document.createElement('a');
+                          link.href = taskStatus.output_path;
+                          link.download = `synthesis_${currentTaskId}.wav`;
+                          link.click();
+                        }}
+                      />
                       <Button 
                         size="sm" 
                         variant="outline" 
                         onClick={clearCurrentTask}
+                        className="w-full"
                       >
-                        Clear
+                        Clear Task
                       </Button>
                     </div>
                   )}
