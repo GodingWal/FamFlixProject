@@ -2570,6 +2570,56 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
     });
   }
 
+  // Personalized endpoint for home page dashboard
+  app.get('/api/personalized', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      
+      // Fetch user's family profiles/people using storage interface
+      const people = await storage.getPeopleByUserId(userId);
+      
+      // Fetch featured video templates (limit to 3 for home page)
+      const allTemplates = await storage.getVideoTemplates();
+      const templates = allTemplates.filter(t => t.featured).slice(0, 3);
+      
+      // Fetch user's recent processed videos (limit to 5)
+      const allVideos = await storage.getProcessedVideosByUserId(userId);
+      const recentVideos = allVideos.slice(0, 5);
+      
+      // Fetch available stories (mock data for now since getStories may not exist)
+      const stories = [
+        { id: 1, title: "The Magic Forest Adventure", category: "adventure", ageRange: "4-6", duration: 300 },
+        { id: 2, title: "Counting with Friends", category: "educational", ageRange: "2-4", duration: 180 },
+        { id: 3, title: "Goodnight Sleepy Animals", category: "bedtime", ageRange: "2-6", duration: 240 },
+        { id: 4, title: "The Brave Little Explorer", category: "adventure", ageRange: "6-8", duration: 360 }
+      ];
+      
+      // Calculate statistics
+      const stats = {
+        totalPeople: people.length,
+        totalVideos: allVideos.length,
+        totalStories: stories.length,
+        voiceQuality: people.length > 0 
+          ? people.filter(p => p.hasVoiceClone).length / people.length * 100 
+          : 0
+      };
+
+      res.json({
+        people: people.slice(0, 6), // Limit to 6 for display
+        featuredTemplates: templates,
+        recentVideos,
+        stories,
+        stats
+      });
+    } catch (error) {
+      console.error('Error fetching personalized data:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch personalized data',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

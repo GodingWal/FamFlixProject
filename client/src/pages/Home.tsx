@@ -73,42 +73,38 @@ interface DashboardData {
 
 const fetchDashboardData = async (): Promise<DashboardData> => {
   try {
-    // Get user ID from current session
-    const userRes = await fetch('/api/me', { credentials: 'include' });
-    if (!userRes.ok) {
-      throw new Error('Not authenticated');
+    // Use the new personalized endpoint with JWT authentication support
+    const token = localStorage.getItem('accessToken');
+    const headers: HeadersInit = { 
+      'Content-Type': 'application/json'
+    };
+    
+    // Add JWT token if available
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
-    const user = await userRes.json();
     
-    const [peopleRes, templatesRes, videosRes] = await Promise.all([
-      fetch(`/api/users/${user.id}/people`, { credentials: 'include' }),
-      fetch('/api/videoTemplates/featured', { credentials: 'include' }),
-      fetch(`/api/users/${user.id}/processedVideos`, { credentials: 'include' })
-    ]);
-
-    // Fetch available stories (not user-specific)
-    const storiesRes = await fetch('/api/admin/stories', { credentials: 'include' });
+    const response = await fetch('/api/personalized', { 
+      credentials: 'include',
+      headers
+    });
     
-    const [people, templates, videos] = await Promise.all([
-      peopleRes.ok ? peopleRes.json() : [],
-      templatesRes.ok ? templatesRes.json() : [],
-      videosRes.ok ? videosRes.json() : []
-    ]);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch personalized data: ${response.status}`);
+    }
     
-    const stories = storiesRes.ok ? await storiesRes.json() : [];
-
+    const data = await response.json();
+    
     return {
-      people: (people || []).slice(0, 6),
-      featuredTemplates: (templates || []).slice(0, 3),
-      recentVideos: (videos || []).slice(0, 5),
-      stories: (stories || []).slice(0, 4),
-      stats: {
-        totalPeople: (people || []).length,
-        totalVideos: (videos || []).length,
-        totalStories: (stories || []).length,
-        voiceQuality: people && people.length > 0 
-          ? people.filter((p: PersonProfile) => p.hasVoiceClone).length / people.length * 100 
-          : 0
+      people: data.people || [],
+      featuredTemplates: data.featuredTemplates || [],
+      recentVideos: data.recentVideos || [],
+      stories: data.stories || [],
+      stats: data.stats || {
+        totalPeople: 0,
+        totalVideos: 0,
+        totalStories: 0,
+        voiceQuality: 0
       }
     };
   } catch (error) {
