@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import useVoiceSynthesis from '@/hooks/useVoiceSynthesis';
-import { Mic, Upload, Play, Square, Trash2, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import { Mic, Upload, Play, Square, Trash2, Download, AlertCircle, CheckCircle, AudioWaveform } from 'lucide-react';
 
 export const VoiceSynthesisPanel = () => {
   const { toast } = useToast();
@@ -224,8 +224,9 @@ export const VoiceSynthesisPanel = () => {
             <Button 
               onClick={handleSynthesize}
               disabled={isSynthesizing || !isServiceHealthy}
-              className="flex-1"
+              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
             >
+              <Mic className="h-4 w-4 mr-2" />
               {isSynthesizing ? "Synthesizing..." : "Start Synthesis"}
             </Button>
             
@@ -245,12 +246,15 @@ export const VoiceSynthesisPanel = () => {
 
           {/* Current Task Status */}
           {currentTaskId && taskStatus && (
-            <Card className="bg-muted/50">
+            <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 border-indigo-200">
               <CardContent className="pt-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Current Task</span>
-                    <Badge className={getStatusColor(taskStatus.status)}>
+                    <div className="flex items-center gap-2">
+                      <AudioWaveform className="h-4 w-4 text-indigo-600 animate-pulse" />
+                      <span className="text-sm font-medium">Current Task</span>
+                    </div>
+                    <Badge className={`${getStatusColor(taskStatus.status)} text-white`}>
                       <div className="flex items-center gap-1">
                         {getStatusIcon(taskStatus.status)}
                         {taskStatus.status}
