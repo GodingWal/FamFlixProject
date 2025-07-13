@@ -16,7 +16,7 @@ import {
   Clock, 
   Plus,
   Users,
-  Waveform,
+  AudioWaveform,
   PlayCircle,
   TrendingUp
 } from 'lucide-react';
@@ -288,7 +288,7 @@ const Home = () => {
           color="text-pink-600"
         />
         <StatCard
-          icon={Waveform}
+          icon={AudioWaveform}
           title="Voice Quality"
           value={`${Math.round(data.stats.voiceQuality)}%`}
           description="Family voices trained"
