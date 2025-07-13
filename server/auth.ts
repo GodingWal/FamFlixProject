@@ -6,6 +6,7 @@ import session from 'express-session';
 import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { storage } from './storage';
 import { insertUserSchema, User as SelectUser } from '@shared/schema';
 import { log } from './vite';
@@ -25,19 +26,14 @@ const scryptAsync = promisify(scrypt);
 const JWT_SECRET = process.env.JWT_SECRET || randomBytes(32).toString('hex');
 const REFRESH_SECRET = process.env.REFRESH_SECRET || randomBytes(32).toString('hex');
 
-// Function to hash a password with a random salt
+// Function to hash a password using bcrypt
 async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString('hex');
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString('hex')}.${salt}`;
+  return await bcrypt.hash(password, 10);
 }
 
 // Function to compare a supplied password with a stored hash
 async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split('.');
-  const hashedBuf = Buffer.from(hashed, 'hex');
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
+  return await bcrypt.compare(supplied, stored);
 }
 
 // Enhanced schema with validation for registration
