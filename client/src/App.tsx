@@ -16,6 +16,11 @@ const Home = lazy(() => import('./pages/Home'));
 const SystemDashboard = lazy(() => import('./pages/SystemDashboard'));
 const PeopleManagement = lazy(() => import('./pages/PeopleManagement'));
 const VoiceSynthesis = lazy(() => import('./pages/VoiceSynthesis'));
+const StoriesPage = lazy(() => import('./pages/StoriesPage'));
+const VideoLibrary = lazy(() => import('./pages/VideoLibrary'));
+const SmartVoiceTraining = lazy(() => import('./pages/SmartVoiceTraining'));
+const AIStoryGenerator = lazy(() => import('./pages/AIStoryGenerator'));
+const SavedVideos = lazy(() => import('./pages/SavedVideos'));
 
 // Loading component with FamFlix branding
 const LoadingSpinner = () => (
@@ -61,6 +66,13 @@ export default function App() {
                     <Route path="/dashboard" component={SystemDashboard} />
                     <Route path="/people" component={PeopleManagement} />
                     <Route path="/voice-synthesis" component={VoiceSynthesis} />
+                    <Route path="/stories" component={StoriesPage} />
+                    <Route path="/templates" component={VideoLibrary} />
+                    <Route path="/library" component={VideoLibrary} />
+                    <Route path="/voice-training" component={SmartVoiceTraining} />
+                    <Route path="/ai-stories" component={AIStoryGenerator} />
+                    <Route path="/smart-voice" component={SmartVoiceTraining} />
+                    <Route path="/saved" component={SavedVideos} />
                     <Route>
                       <div className="flex items-center justify-center min-h-screen">
                         <Card className="max-w-md mx-auto">
