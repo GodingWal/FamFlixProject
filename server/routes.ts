@@ -198,17 +198,39 @@ const upload = multer({
   }
 });
 
+// Helper function to check if user is authenticated
+const checkAuth = (req: Request) => {
+  return req.user || (req.isAuthenticated && req.isAuthenticated());
+};
+
 // Authentication middleware
 const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Authentication required" });
+  // Check if user is authenticated via session or JWT
+  if (req.user || (req.isAuthenticated && req.isAuthenticated())) {
+    return next();
   }
-  next();
+  
+  // Check for JWT token in Authorization header
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret');
+      req.user = decoded;
+      return next();
+    } catch (err) {
+      // JWT verification failed
+    }
+  }
+  
+  return res.status(401).json({ error: "Authentication required" });
 };
 
 // Admin middleware to check if user is an admin
 const isAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
+  // First check authentication
+  if (!req.user && (!req.isAuthenticated || !req.isAuthenticated())) {
     return res.status(401).json({ error: "Authentication required" });
   }
   
@@ -509,7 +531,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
   // Face Images
   app.post('/api/faceImages', async (req: Request, res: Response) => {
-    if (!req.isAuthenticated()) {
+    if (!checkAuth(req)) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -574,7 +596,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
   // Face Videos
   app.post('/api/faceVideos', async (req: Request, res: Response) => {
-    if (!req.isAuthenticated()) {
+    if (!checkAuth(req)) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -675,7 +697,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
   }
 
   app.post('/api/voiceRecordings', async (req: Request, res: Response) => {
-    if (!req.isAuthenticated()) {
+    if (!checkAuth(req)) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -788,7 +810,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
   // Processed Videos
   app.post('/api/processedVideos', async (req: Request, res: Response) => {
-    if (!req.isAuthenticated()) {
+    if (!checkAuth(req)) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -932,7 +954,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
   });
 
   app.post('/api/people', async (req: Request, res: Response) => {
-    if (!req.isAuthenticated()) {
+    if (!checkAuth(req)) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
