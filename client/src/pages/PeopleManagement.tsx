@@ -161,7 +161,9 @@ const PeopleManagement = () => {
     },
     onSuccess: () => {
       setIsAddPersonDialogOpen(false);
+      addPersonForm.reset(); // Reset the form
       queryClient.invalidateQueries({ queryKey: [`/api/users/${user?.id}/people`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/personalized"] }); // Also refresh homepage data
       toast({
         title: "Success",
         description: "Person added successfully",
