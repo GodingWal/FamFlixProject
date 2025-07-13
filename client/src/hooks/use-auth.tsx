@@ -128,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Login successful",
         description: `Welcome back, ${userData.displayName || userData.username}!`,
       });
+      // Redirect to homepage after successful login
+      window.location.href = '/home';
     },
     onError: (error: Error) => {
       toast({
