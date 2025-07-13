@@ -417,7 +417,7 @@ const Home = () => {
                   </div>
                   {person.hasVoiceClone && (
                     <Badge variant="secondary" className="text-xs">
-                      <Waveform className="h-3 w-3 mr-1" />
+                      <AudioWaveform className="h-3 w-3 mr-1" />
                       Voice Ready
                     </Badge>
                   )}
@@ -593,6 +593,7 @@ const Home = () => {
           </CardContent>
         </Card>
       </section>
+      </div>
     </div>
   );
 };
