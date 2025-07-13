@@ -308,7 +308,21 @@ export function setupAuth(app: Express) {
         return res.status(500).json({ message: 'Logout failed' });
       }
       
-      res.status(200).json({ message: 'Logged out successfully' });
+      // Clear the session
+      req.session.destroy((sessionErr) => {
+        if (sessionErr) {
+          log(`Session destroy error: ${sessionErr.message}`, 'auth');
+        }
+        
+        // Clear session cookie
+        res.clearCookie('connect.sid', {
+          path: '/',
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production'
+        });
+        
+        res.status(200).json({ message: 'Logged out successfully' });
+      });
     });
   });
 
