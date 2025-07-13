@@ -81,7 +81,7 @@ export default function Homepage() {
       title: 'Create Video',
       description: 'Make personalized family videos',
       icon: Video,
-      href: '/templates',
+      href: '/library',
       color: 'bg-purple-500',
       disabled: false
     },
@@ -237,36 +237,38 @@ export default function Homepage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold">Featured Templates</h3>
-              <Link href="/templates">
+              <Link href="/library">
                 <Button variant="outline" size="sm">View All</Button>
               </Link>
             </div>
             
             <div className="space-y-4">
               {featuredTemplates.map((template) => (
-                <Card key={template.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex gap-4">
-                      <div className="w-16 h-16 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center">
-                        <Video className="h-8 w-8 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold">{template.title}</h4>
-                          <Badge variant="secondary" className="text-xs">{template.category}</Badge>
+                <Link key={template.id} href="/library">
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                    <CardContent className="p-4">
+                      <div className="flex gap-4">
+                        <div className="w-16 h-16 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center">
+                          <Video className="h-8 w-8 text-primary" />
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">{template.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>Ages {template.ageRange}</span>
-                          <span>{template.duration}</span>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold">{template.title}</h4>
+                            <Badge variant="secondary" className="text-xs">{template.category}</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-2">{template.description}</p>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span>Ages {template.ageRange}</span>
+                            <span>{template.duration}</span>
+                          </div>
                         </div>
+                        <Button size="sm" variant="outline">
+                          <Play className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button size="sm" variant="outline">
-                        <Play className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </Link>
               ))}
             </div>
           </div>

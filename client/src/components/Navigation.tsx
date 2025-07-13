@@ -27,6 +27,11 @@ export default function Navigation() {
   const [location] = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isMobile = useMobile();
+  const { setTheme } = useTheme();
+
+  const handleThemeToggle = () => {
+    setTheme((prev) => prev === 'light' ? 'dark' : 'light');
+  };
 
   // Don't show navigation on landing or auth pages
   if (!user || location === '/' || location === '/auth') {
@@ -38,7 +43,7 @@ export default function Navigation() {
     { path: "/people", label: "Family", icon: Users },
     { path: "/voice-training", label: "Voice Training", icon: Mic },
     { path: "/voice-synthesis", label: "Voice Synthesis", icon: Mic },
-    { path: "/templates", label: "Videos", icon: Video },
+    { path: "/library", label: "Videos", icon: Video },
     { path: "/stories", label: "Stories", icon: BookOpen },
   ];
 
