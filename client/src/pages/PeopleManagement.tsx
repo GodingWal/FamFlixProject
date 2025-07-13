@@ -133,7 +133,12 @@ const PeopleManagement = () => {
   } = useQuery<Person[]>({
     queryKey: [`/api/users/${user?.id}/people`],
     enabled: !!user,
+    retry: 1,
+    retryDelay: 1000,
   });
+
+  // Debug logging
+  console.log('People query state:', { people, isLoading, error: error?.message, userId: user?.id });
 
   // Query face images for selected person
   const {
