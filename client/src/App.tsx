@@ -44,19 +44,14 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
-  const [darkMode, setDarkMode] = useState(() => 
-    localStorage.theme === 'dark' || 
-    (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  );
-
   return (
-    <ThemeProvider defaultTheme={darkMode ? 'dark' : 'light'} storageKey="famflix-theme">
+    <ThemeProvider defaultTheme="light" storageKey="famflix-theme">
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <div className="min-h-screen bg-background text-foreground">
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
             <Router>
               <div className="flex flex-col min-h-screen">
-                <Navigation toggleDarkMode={() => setDarkMode(!darkMode)} />
+                <Navigation />
                 <main className="flex-1">
                 <Suspense fallback={<LoadingSpinner />}>
                   <Switch>

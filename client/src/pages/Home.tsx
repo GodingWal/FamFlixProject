@@ -125,23 +125,24 @@ const fetchDashboardData = async (): Promise<DashboardData> => {
   }
 };
 
-const StatCard = ({ icon: Icon, title, value, description, color = "text-primary" }: {
+const StatCard = ({ icon: Icon, title, value, description, gradient }: {
   icon: any;
   title: string;
   value: string | number;
   description: string;
-  color?: string;
+  gradient: string;
 }) => (
-  <Card>
-    <CardContent className="p-6">
-      <div className="flex items-center space-x-4">
-        <div className={`p-3 rounded-full bg-primary/10 ${color}`}>
-          <Icon className="h-6 w-6" />
+  <Card className="relative overflow-hidden group hover:shadow-xl transition-all duration-300 border-0 shadow-lg">
+    <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-5 group-hover:opacity-10 transition-opacity`}></div>
+    <CardContent className="p-8 relative">
+      <div className="space-y-4">
+        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg`}>
+          <Icon className="h-7 w-7 text-white" />
         </div>
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-2xl font-bold">{value}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">{title}</p>
+          <p className="text-3xl font-bold text-gray-900">{value}</p>
+          <p className="text-sm text-gray-500">{description}</p>
         </div>
       </div>
     </CardContent>
@@ -241,98 +242,161 @@ const Home = () => {
   if (!data) return null;
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Welcome Header */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">
-              Welcome back, {user?.displayName || user?.username}!
+    <div className="min-h-screen">
+      {/* Hero Section */}
+      <div className="relative bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white overflow-hidden">
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+        
+        {/* Decorative elements */}
+        <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
+        <div className="absolute bottom-10 right-10 w-32 h-32 bg-purple-300/20 rounded-full blur-2xl"></div>
+        <div className="absolute top-1/2 left-1/4 w-16 h-16 bg-pink-300/20 rounded-full blur-xl"></div>
+        
+        <div className="relative max-w-7xl mx-auto px-6 py-20">
+          <div className="text-center space-y-8">
+            <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
+              Welcome back,
+              <span className="block bg-gradient-to-r from-yellow-300 to-pink-300 bg-clip-text text-transparent">
+                {user?.displayName || user?.username}!
+              </span>
             </h1>
-            <p className="text-muted-foreground">
-              Ready to create more magical moments for your family?
+            <p className="text-xl md:text-2xl text-indigo-100 max-w-3xl mx-auto leading-relaxed">
+              Create magical personalized videos and stories that bring your family together through the power of AI
             </p>
+            
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-6 mt-12">
+              <Link href="/people/new">
+                <Button size="lg" className="bg-white text-indigo-700 hover:bg-indigo-50 shadow-lg px-8 py-4 text-lg font-semibold">
+                  <Plus className="h-6 w-6 mr-3" />
+                  Add Family Member
+                </Button>
+              </Link>
+              <Link href="/templates">
+                <Button size="lg" variant="outline" className="border-2 border-white text-white hover:bg-white/10 px-8 py-4 text-lg">
+                  <Video className="h-6 w-6 mr-3" />
+                  Create Video
+                </Button>
+              </Link>
+              {user?.role === 'admin' && (
+                <Link href="/dashboard">
+                  <Button size="lg" variant="outline" className="border-2 border-yellow-300 text-yellow-300 hover:bg-yellow-300/10">
+                    <TrendingUp className="h-5 w-5 mr-2" />
+                    Admin Panel
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
-          {user?.role === 'admin' && (
-            <Link href="/dashboard">
-              <Button variant="outline">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Admin Dashboard
-              </Button>
-            </Link>
-          )}
         </div>
       </div>
 
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          icon={Users}
-          title="Family Members"
-          value={data.stats.totalPeople}
-          description="Profiles created"
-          color="text-indigo-600"
-        />
-        <StatCard
-          icon={Video}
-          title="Videos Created"
-          value={data.stats.totalVideos}
-          description="Personalized content"
-          color="text-purple-600"
-        />
-        <StatCard
-          icon={BookOpen}
-          title="Stories Available"
-          value={data.stats.totalStories}
-          description="Voice narrations"
-          color="text-pink-600"
-        />
-        <StatCard
-          icon={AudioWaveform}
-          title="Voice Quality"
-          value={`${Math.round(data.stats.voiceQuality)}%`}
-          description="Family voices trained"
-          color="text-green-600"
-        />
-      </div>
+      <div className="max-w-7xl mx-auto px-6 py-16 space-y-16">
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Star className="h-5 w-5 text-yellow-500" />
-            <span>Quick Actions</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Statistics Cards */}
+        <div className="space-y-6">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">Your FamFlix Journey</h2>
+            <p className="text-gray-600 text-lg">Track your family's personalized content creation progress</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard
+              icon={Users}
+              title="Family Members"
+              value={data.stats.totalPeople}
+              description="Profiles created"
+              gradient="from-blue-500 to-indigo-600"
+            />
+            <StatCard
+              icon={Video}
+              title="Videos Created"
+              value={data.stats.totalVideos}
+              description="Personalized content"
+              gradient="from-purple-500 to-pink-600"
+            />
+            <StatCard
+              icon={BookOpen}
+              title="Stories Available"
+              value={data.stats.totalStories}
+              description="Voice narrations"
+              gradient="from-pink-500 to-rose-600"
+            />
+            <StatCard
+              icon={AudioWaveform}
+              title="Voice Quality"
+              value={`${Math.round(data.stats.voiceQuality)}%`}
+              description="Family voices trained"
+              gradient="from-green-500 to-emerald-600"
+            />
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="space-y-6">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">Get Started Today</h2>
+            <p className="text-gray-600 text-lg">Choose an action to begin creating magical content for your family</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Link href="/people/new">
-              <Button variant="outline" className="w-full h-20 flex-col space-y-2">
-                <Plus className="h-6 w-6" />
-                <span>Add Family Member</span>
-              </Button>
+              <Card className="group hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50">
+                <CardContent className="p-8 text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Plus className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Add Family Member</h3>
+                    <p className="text-gray-600">Create profiles for your loved ones</p>
+                  </div>
+                </CardContent>
+              </Card>
             </Link>
+            
             <Link href="/voice-training">
-              <Button variant="outline" className="w-full h-20 flex-col space-y-2">
-                <Mic className="h-6 w-6" />
-                <span>Record Voice</span>
-              </Button>
+              <Card className="group hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 shadow-lg bg-gradient-to-br from-purple-50 to-pink-50">
+                <CardContent className="p-8 text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Mic className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Record Voice</h3>
+                    <p className="text-gray-600">Train AI with family voices</p>
+                  </div>
+                </CardContent>
+              </Card>
             </Link>
+            
             <Link href="/templates">
-              <Button variant="outline" className="w-full h-20 flex-col space-y-2">
-                <Video className="h-6 w-6" />
-                <span>Create Video</span>
-              </Button>
+              <Card className="group hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 shadow-lg bg-gradient-to-br from-pink-50 to-rose-50">
+                <CardContent className="p-8 text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Video className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Create Video</h3>
+                    <p className="text-gray-600">Personalize educational content</p>
+                  </div>
+                </CardContent>
+              </Card>
             </Link>
+            
             <Link href="/stories">
-              <Button variant="outline" className="w-full h-20 flex-col space-y-2">
-                <BookOpen className="h-6 w-6" />
-                <span>Listen to Stories</span>
-              </Button>
+              <Card className="group hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 shadow-lg bg-gradient-to-br from-green-50 to-emerald-50">
+                <CardContent className="p-8 text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <BookOpen className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Listen to Stories</h3>
+                    <p className="text-gray-600">Enjoy personalized narrations</p>
+                  </div>
+                </CardContent>
+              </Card>
             </Link>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
       {/* Family Profiles */}
       <section>

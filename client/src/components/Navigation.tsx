@@ -22,20 +22,11 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import famFlixLogo from "../assets/FamFlix.png";
 import { useMobile } from "@/hooks/use-mobile";
 
-interface NavigationProps {
-  toggleDarkMode?: () => void;
-}
-
-export default function Navigation({ toggleDarkMode }: NavigationProps) {
+export default function Navigation() {
   const { user, logoutMutation } = useAuth();
-  const { setTheme, theme } = useTheme();
   const [location] = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isMobile = useMobile();
-
-  const handleThemeToggle = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
 
   // Don't show navigation on landing or auth pages
   if (!user || location === '/' || location === '/auth') {
