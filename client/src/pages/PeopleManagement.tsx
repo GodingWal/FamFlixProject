@@ -132,6 +132,15 @@ const PeopleManagement = () => {
     error 
   } = useQuery<Person[]>({
     queryKey: [`/api/users/${user?.id}/people`],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${user?.id}/people`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch people: ${res.statusText}`);
+      }
+      return res.json();
+    },
     enabled: !!user,
     retry: 1,
     retryDelay: 1000,
@@ -146,6 +155,15 @@ const PeopleManagement = () => {
     isLoading: isLoadingFaces,
   } = useQuery<any[]>({
     queryKey: [`/api/people/${selectedPerson?.id}/faceImages`],
+    queryFn: async () => {
+      const res = await fetch(`/api/people/${selectedPerson?.id}/faceImages`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch face images: ${res.statusText}`);
+      }
+      return res.json();
+    },
     enabled: !!selectedPerson,
   });
 
@@ -155,6 +173,15 @@ const PeopleManagement = () => {
     isLoading: isLoadingVoices,
   } = useQuery<any[]>({
     queryKey: [`/api/people/${selectedPerson?.id}/voiceRecordings`],
+    queryFn: async () => {
+      const res = await fetch(`/api/people/${selectedPerson?.id}/voiceRecordings`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch voice recordings: ${res.statusText}`);
+      }
+      return res.json();
+    },
     enabled: !!selectedPerson,
   });
 
