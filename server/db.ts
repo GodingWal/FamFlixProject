@@ -9,6 +9,8 @@ neonConfig.webSocketConstructor = ws;
 
 // Check if DATABASE_URL is set
 if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is not set. Please check your environment variables.');
+  console.error('Available environment variables:', Object.keys(process.env));
   throw new Error('DATABASE_URL is not set. Please check your environment variables.');
 }
 

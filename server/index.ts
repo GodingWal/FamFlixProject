@@ -5,6 +5,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { initDatabase } from "./db";
 import { healthCheck } from "./middleware/security";
+import { simpleHealthCheck, detailedHealthCheck } from "./health";
 import { initializeRedis, checkCacheHealth } from "./encryption";
 import { 
   productionSecurity, 
@@ -29,6 +30,17 @@ const io = new Server(httpServer, {
   }
 });
 
+// Enhanced error handling for production
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
 // Export io for use in other modules
 export { io };
 
@@ -46,8 +58,10 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 // Health check endpoints
-app.get('/health', healthCheck);
-app.get('/api/health', healthCheck);
+app.get('/health', simpleHealthCheck);
+app.get('/api/health', simpleHealthCheck);
+app.get('/health/detailed', detailedHealthCheck);
+app.get('/api/health/detailed', detailedHealthCheck);
 
 // Request timing and monitoring middleware
 app.use((req, res, next) => {
@@ -95,6 +109,10 @@ app.use((req, res, next) => {
 (async () => {
   try {
     // Initialize database tables
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL environment variable is required for production");
+    }
+    
     await initDatabase();
     log("Database initialized successfully");
     
@@ -294,6 +312,31 @@ app.use((req, res, next) => {
     });
   } catch (error) {
     log(`Failed to start server: ${(error as Error).message}`, "error");
-    process.exit(1);
+    console.error('Full server startup error:', error);
+    
+    // In production, try to at least serve a basic error page
+    if (process.env.NODE_ENV === 'production') {
+      app.get('*', (req, res) => {
+        res.status(500).send(`
+          <!DOCTYPE html>
+          <html>
+          <head><title>FamFlix - Service Unavailable</title></head>
+          <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>🔧 FamFlix is temporarily unavailable</h1>
+            <p>We're experiencing technical difficulties. Please try again in a few minutes.</p>
+            <p>Error: ${(error as Error).message}</p>
+            <p><small>Time: ${new Date().toISOString()}</small></p>
+          </body>
+          </html>
+        `);
+      });
+      
+      const port = Number(process.env.PORT) || 5000;
+      httpServer.listen(port, '0.0.0.0', () => {
+        log(`Emergency server running on port ${port}`, "express");
+      });
+    } else {
+      process.exit(1);
+    }
   }
 })();
