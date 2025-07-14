@@ -2609,7 +2609,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       const recentVideos = allVideos.slice(0, 5);
       
       // Fetch available stories from database
-      const stories = await storage.getStories();
+      const stories = await storage.getAllAnimatedStories();
       
       // Calculate voice quality based on voice recordings
       let voiceQuality = 0;
