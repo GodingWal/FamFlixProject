@@ -403,3 +403,5 @@ export function SmartVoiceTraining() {
     </div>
   );
 }
+
+export default SmartVoiceTraining;

@@ -387,3 +387,5 @@ export function AIStoryGenerator() {
     </div>
   );
 }
+
+export default AIStoryGenerator;
