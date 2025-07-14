@@ -7,6 +7,7 @@ import {
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 import { z } from "zod";
 
 // Define the type for our authentication context
@@ -78,6 +79,7 @@ export const AuthContext = createContext<AuthContextType>(defaultContext);
 // Provider component to wrap the app with authentication context
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   
   // Query for the current user
   const {
@@ -128,8 +130,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Login successful",
         description: `Welcome back, ${userData.displayName || userData.username}!`,
       });
-      // Redirect to homepage after successful login
-      window.location.href = '/home';
+      // Use router navigation instead of window.location to avoid full page reload
+      navigate('/home');
     },
     onError: (error: Error) => {
       toast({
@@ -186,8 +188,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Logged out",
         description: "You have been successfully logged out.",
       });
-      // Redirect to landing page after logout
-      window.location.href = '/';
+      // Use router navigation instead of window.location
+      navigate('/');
     },
     onError: (error: Error) => {
       toast({
