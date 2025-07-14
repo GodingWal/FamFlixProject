@@ -409,11 +409,11 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
   // Enhanced admin route monitoring with Socket.IO
   app.use('/api/admin/*', (req: Request, res: Response, next: NextFunction) => {
     // Log admin access attempts
-    if (req.isAuthenticated()) {
+    if (req.user && req.user.role === 'admin') {
       log(`Admin access: ${req.user.username} accessing ${req.path} from ${req.ip}`, 'auth');
       
       // Emit admin activity for real-time monitoring
-      if (io && req.user.role === 'admin') {
+      if (io) {
         io.emit('admin-activity', {
           userId: req.user.id,
           username: req.user.username,
