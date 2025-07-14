@@ -2608,22 +2608,28 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       const allVideos = await storage.getProcessedVideosByUserId(userId);
       const recentVideos = allVideos.slice(0, 5);
       
-      // Fetch available stories (mock data for now since getStories may not exist)
-      const stories = [
-        { id: 1, title: "The Magic Forest Adventure", category: "adventure", ageRange: "4-6", duration: 300 },
-        { id: 2, title: "Counting with Friends", category: "educational", ageRange: "2-4", duration: 180 },
-        { id: 3, title: "Goodnight Sleepy Animals", category: "bedtime", ageRange: "2-6", duration: 240 },
-        { id: 4, title: "The Brave Little Explorer", category: "adventure", ageRange: "6-8", duration: 360 }
-      ];
+      // Fetch available stories from database
+      const stories = await storage.getStories();
       
+      // Calculate voice quality based on voice recordings
+      let voiceQuality = 0;
+      if (people.length > 0) {
+        const peopleWithVoices = await Promise.all(
+          people.map(async (person) => {
+            const recordings = await storage.getVoiceRecordingsByPersonId(person.id);
+            return recordings.length > 0;
+          })
+        );
+        const peopleWithVoiceCount = peopleWithVoices.filter(Boolean).length;
+        voiceQuality = (peopleWithVoiceCount / people.length) * 100;
+      }
+
       // Calculate statistics
       const stats = {
         totalPeople: people.length,
         totalVideos: allVideos.length,
         totalStories: stories.length,
-        voiceQuality: people.length > 0 
-          ? people.filter(p => p.hasVoiceClone).length / people.length * 100 
-          : 0
+        voiceQuality: Math.round(voiceQuality)
       };
 
       res.json({
