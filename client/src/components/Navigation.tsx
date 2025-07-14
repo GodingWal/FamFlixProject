@@ -27,10 +27,10 @@ export default function Navigation() {
   const [location] = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isMobile = useMobile();
-  const { setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   const handleThemeToggle = () => {
-    setTheme((prev) => prev === 'light' ? 'dark' : 'light');
+    setTheme(theme === 'light' ? 'dark' : 'light');
   };
 
   // Don't show navigation on landing or auth pages
