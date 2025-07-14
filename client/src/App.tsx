@@ -21,6 +21,8 @@ const VideoLibrary = lazy(() => import('./pages/VideoLibrary'));
 const SmartVoiceTraining = lazy(() => import('./pages/SmartVoiceTraining'));
 const AIStoryGenerator = lazy(() => import('./pages/AIStoryGenerator'));
 const SavedVideos = lazy(() => import('./pages/SavedVideos'));
+const AdminVideoTemplates = lazy(() => import('./pages/AdminVideoTemplates'));
+const AdminStoriesPage = lazy(() => import('./pages/AdminStoriesPage'));
 
 // Loading component with FamFlix branding
 const LoadingSpinner = () => (
@@ -73,6 +75,8 @@ export default function App() {
                     <Route path="/ai-stories" component={AIStoryGenerator} />
                     <Route path="/smart-voice" component={SmartVoiceTraining} />
                     <Route path="/saved" component={SavedVideos} />
+                    <Route path="/admin/templates" component={AdminVideoTemplates} />
+                    <Route path="/admin/stories" component={AdminStoriesPage} />
                     <Route>
                       <div className="flex items-center justify-center min-h-screen">
                         <Card className="max-w-md mx-auto">

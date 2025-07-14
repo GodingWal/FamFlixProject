@@ -685,3 +685,5 @@ export function AdminStoriesPage() {
     </div>
   );
 }
+
+export default AdminStoriesPage;

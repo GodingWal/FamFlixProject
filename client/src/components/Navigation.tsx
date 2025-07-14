@@ -89,14 +89,28 @@ export default function Navigation() {
 
       {/* User Menu */}
       <div className="flex items-center gap-3">
-        {/* Admin Dashboard Link */}
+        {/* Admin Links */}
         {user.role === 'admin' && !isMobile && (
-          <Link href="/dashboard">
-            <Button variant="outline" size="sm" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Dashboard
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard">
+              <Button variant="outline" size="sm" className="gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Dashboard
+              </Button>
+            </Link>
+            <Link href="/admin/templates">
+              <Button variant="outline" size="sm" className="gap-2">
+                <Video className="h-4 w-4" />
+                Manage Videos
+              </Button>
+            </Link>
+            <Link href="/admin/stories">
+              <Button variant="outline" size="sm" className="gap-2">
+                <BookOpen className="h-4 w-4" />
+                Manage Stories
+              </Button>
+            </Link>
+          </div>
         )}
 
         {/* User Info */}
@@ -179,9 +193,10 @@ export default function Navigation() {
         })}
       </div>
 
-      {/* Admin Dashboard */}
+      {/* Admin Section */}
       {user.role === 'admin' && (
-        <div className="pt-4 border-t">
+        <div className="pt-4 border-t space-y-2">
+          <p className="text-sm font-medium text-muted-foreground px-3">Admin Panel</p>
           <Link href="/dashboard">
             <Button
               variant="outline"
@@ -189,7 +204,27 @@ export default function Navigation() {
               onClick={() => setIsMenuOpen(false)}
             >
               <BarChart3 className="h-5 w-5" />
-              Admin Dashboard
+              Dashboard
+            </Button>
+          </Link>
+          <Link href="/admin/templates">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-3 h-12"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Video className="h-5 w-5" />
+              Manage Videos
+            </Button>
+          </Link>
+          <Link href="/admin/stories">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-3 h-12"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <BookOpen className="h-5 w-5" />
+              Manage Stories
             </Button>
           </Link>
         </div>
