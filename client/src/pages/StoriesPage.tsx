@@ -312,3 +312,5 @@ export function StoriesPage() {
     </ErrorBoundary>
   );
 }
+
+export default StoriesPage;
