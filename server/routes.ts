@@ -6,6 +6,8 @@ import { body, validationResult } from 'express-validator';
 import helmet from 'helmet';
 import passport from 'passport';
 import { storage } from "./storage"; // Use the storage interface
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import { 
   insertUserSchema, 
   insertFaceImageSchema, 
@@ -2608,8 +2610,9 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       const allVideos = await storage.getProcessedVideosByUserId(userId);
       const recentVideos = allVideos.slice(0, 5);
       
-      // Fetch available stories from database
-      const stories = await storage.getAllAnimatedStories();
+      // Fetch available stories from database directly using raw SQL
+      const storiesResult = await db.execute(sql`SELECT * FROM animated_stories`);
+      const stories = storiesResult.rows;
       
       // Calculate voice quality based on voice recordings
       let voiceQuality = 0;
