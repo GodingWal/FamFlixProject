@@ -69,12 +69,7 @@ export function DeploymentReadiness() {
         message: process.env.OPENAI_API_KEY ? "OpenAI API key configured" : "OpenAI API key not detected",
         critical: false
       },
-      {
-        name: "ElevenLabs Integration",
-        status: process.env.ELEVENLABS_API_KEY ? 'pass' : 'warning',
-        message: process.env.ELEVENLABS_API_KEY ? "ElevenLabs API key configured" : "ElevenLabs API key not detected",
-        critical: false
-      },
+
       {
         name: "Performance Monitoring",
         status: 'pass',

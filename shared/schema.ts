@@ -74,9 +74,7 @@ export const voiceRecordings = pgTable("voice_recordings", {
   isDefault: boolean("is_default").default(false), // Whether this is the default voice for this person
   mlProcessed: boolean("ml_processed").default(false), // Whether this recording has been processed by ML models
   voiceEmbedding: jsonb("voice_embedding"), // JSON data for voice embedding vectors stored after ML processing
-  elevenLabsVoiceId: text("elevenlabs_voice_id"), // Store the cloned voice ID
-  voiceCloneStatus: text("voice_clone_status").default("pending"), // pending, processing, completed, failed
-  voiceCloneError: text("voice_clone_error"), // Store any error messages
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

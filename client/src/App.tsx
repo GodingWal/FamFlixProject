@@ -15,7 +15,7 @@ const AuthPage = lazy(() => import('./pages/auth-page'));
 const Home = lazy(() => import('./pages/Home'));
 const SystemDashboard = lazy(() => import('./pages/SystemDashboard'));
 const PeopleManagement = lazy(() => import('./pages/PeopleManagement'));
-const VoiceSynthesis = lazy(() => import('./pages/VoiceSynthesis'));
+
 const StoriesPage = lazy(() => import('./pages/StoriesPage'));
 const VideoLibrary = lazy(() => import('./pages/VideoLibrary'));
 const SmartVoiceTraining = lazy(() => import('./pages/SmartVoiceTraining'));
@@ -67,7 +67,7 @@ export default function App() {
                     <Route path="/home" component={Home} />
                     <Route path="/dashboard" component={SystemDashboard} />
                     <Route path="/people" component={PeopleManagement} />
-                    <Route path="/voice-synthesis" component={VoiceSynthesis} />
+
                     <Route path="/stories" component={StoriesPage} />
                     <Route path="/templates" component={VideoLibrary} />
                     <Route path="/library" component={VideoLibrary} />

@@ -72,7 +72,7 @@ export interface IStorage {
   createVoiceRecording(voiceRecording: InsertVoiceRecording): Promise<VoiceRecording>;
   deleteVoiceRecording(id: number): Promise<boolean>;
   setDefaultVoiceRecording(id: number): Promise<VoiceRecording | undefined>;
-  updateVoiceCloneStatus(id: number, status: string, elevenLabsVoiceId?: string, error?: string): Promise<VoiceRecording | undefined>;
+
   
   // Video template operations
   getVideoTemplate(id: number): Promise<VideoTemplate | undefined>;
@@ -520,24 +520,7 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
-  async updateVoiceCloneStatus(id: number, status: string, elevenLabsVoiceId?: string, error?: string): Promise<VoiceRecording | undefined> {
-    try {
-      const updateData: any = { voiceCloneStatus: status };
-      if (elevenLabsVoiceId) updateData.elevenLabsVoiceId = elevenLabsVoiceId;
-      if (error) updateData.voiceCloneError = error;
 
-      const result = await db
-        .update(voiceRecordings)
-        .set(updateData)
-        .where(eq(voiceRecordings.id, id))
-        .returning();
-      
-      return result[0];
-    } catch (error) {
-      console.error("Error updating voice clone status:", error);
-      return undefined;
-    }
-  }
   
   // Video template operations
   async getVideoTemplate(id: number): Promise<VideoTemplate | undefined> {
