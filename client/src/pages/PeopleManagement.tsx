@@ -559,11 +559,11 @@ const PeopleManagement = () => {
                         <div className="text-xs text-muted-foreground flex items-center">
                           <span className="flex items-center mr-3">
                             <Camera className="w-3 h-3 mr-1" /> 
-                            {/* Number of faces would go here */}
+                            {selectedPerson?.id === person.id ? (faceImages?.length || 0) : '—'}
                           </span>
                           <span className="flex items-center">
                             <Mic className="w-3 h-3 mr-1" /> 
-                            {/* Number of voices would go here */}
+                            {selectedPerson?.id === person.id ? (voiceRecordings?.length || 0) : '—'}
                           </span>
                         </div>
                       </div>
@@ -622,12 +622,32 @@ const PeopleManagement = () => {
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="flex items-center">
+                      <div className="flex items-center gap-2">
                         <CardTitle>{selectedPerson.name}</CardTitle>
                         {renderRelationshipBadge(selectedPerson.relationship)}
+                        {/* Voice training status badge */}
+                        {voiceRecordings && voiceRecordings.length > 0 && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Mic className="h-3 w-3 mr-1" />
+                            Voice Trained
+                          </Badge>
+                        )}
+                        {/* Face images status badge */}
+                        {faceImages && faceImages.length > 0 && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Camera className="h-3 w-3 mr-1" />
+                            Face Trained
+                          </Badge>
+                        )}
                       </div>
                       <CardDescription>
                         Added on {new Date(selectedPerson.createdAt).toLocaleDateString()}
+                        {voiceRecordings && voiceRecordings.length > 0 && (
+                          <span className="ml-2">• {voiceRecordings.length} voice recording{voiceRecordings.length !== 1 ? 's' : ''}</span>
+                        )}
+                        {faceImages && faceImages.length > 0 && (
+                          <span className="ml-2">• {faceImages.length} face image{faceImages.length !== 1 ? 's' : ''}</span>
+                        )}
                       </CardDescription>
                     </div>
                   </div>
@@ -645,9 +665,19 @@ const PeopleManagement = () => {
                 <TabsList className="grid grid-cols-2">
                   <TabsTrigger value="faces">
                     <Camera className="h-4 w-4 mr-2" /> Face Images
+                    {faceImages && faceImages.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {faceImages.length}
+                      </Badge>
+                    )}
                   </TabsTrigger>
                   <TabsTrigger value="voices">
                     <Mic className="h-4 w-4 mr-2" /> Voice Recordings
+                    {voiceRecordings && voiceRecordings.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {voiceRecordings.length}
+                      </Badge>
+                    )}
                   </TabsTrigger>
                 </TabsList>
               </CardHeader>
