@@ -26,6 +26,7 @@ export const people = pgTable("people", {
   name: text("name").notNull(),
   relationship: text("relationship"), // e.g., "parent", "grandparent", "sibling", etc.
   avatarUrl: text("avatar_url"), // Optional small profile image 
+  elevenlabsVoiceId: text("elevenlabs_voice_id"), // ElevenLabs voice ID for cloned voice
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

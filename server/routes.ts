@@ -747,6 +747,165 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
   // Generate story content using OpenAI with fallback templates
 
   // Clone speech using ElevenLabs voice cloning
+  app.post('/api/voice/clone-speech', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { text, voiceRecordingId, personId } = req.body;
+      
+      if (!text || !voiceRecordingId) {
+        return res.status(400).json({ error: 'Text and voiceRecordingId are required' });
+      }
+
+      // Get the voice recording
+      const voiceRecording = await storage.getVoiceRecording(voiceRecordingId);
+      if (!voiceRecording) {
+        return res.status(404).json({ error: 'Voice recording not found' });
+      }
+
+      // Check if this person has a cloned voice already
+      const person = await storage.getPerson(personId);
+      if (!person) {
+        return res.status(404).json({ error: 'Person not found' });
+      }
+
+      let elevenlabsVoiceId = person.elevenlabsVoiceId;
+
+      // If no cloned voice exists, create one first
+      if (!elevenlabsVoiceId) {
+        // Get all voice recordings for this person to create a voice clone
+        const allVoiceRecordings = await storage.getVoiceRecordingsByPersonId(personId);
+        
+        if (allVoiceRecordings.length === 0) {
+          return res.status(400).json({ error: 'No voice recordings found for this person' });
+        }
+
+        // Create voice clone using the first available recording
+        const audioUrl = allVoiceRecordings[0].audioUrl;
+        if (!audioUrl) {
+          return res.status(400).json({ error: 'No audio URL found in voice recording' });
+        }
+
+        const cloneResult = await createElevenlabsVoiceClone(person.name, audioUrl);
+        if (!cloneResult.success) {
+          return res.status(500).json({ error: 'Failed to create voice clone: ' + cloneResult.error });
+        }
+
+        elevenlabsVoiceId = cloneResult.voiceId;
+        
+        // Update person with the new voice ID
+        const updateData = { elevenlabsVoiceId };
+        await storage.updatePerson(personId, updateData);
+      }
+
+      // Generate speech using the cloned voice
+      const speechResult = await generateElevenlabsSpeech(text, elevenlabsVoiceId);
+      if (!speechResult.success) {
+        return res.status(500).json({ error: 'Failed to generate speech: ' + speechResult.error });
+      }
+
+      res.json({
+        audioUrl: speechResult.audioUrl,
+        voiceId: elevenlabsVoiceId
+      });
+
+    } catch (error: any) {
+      log(`Voice clone speech error: ${error.message}`, 'express');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Helper function to create ElevenLabs voice clone
+  async function createElevenlabsVoiceClone(voiceName: string, audioUrl: string) {
+    try {
+      const elevenlabsApiKey = process.env.ELEVENLABS_API_KEY;
+      if (!elevenlabsApiKey) {
+        return { success: false, error: 'ElevenLabs API key not configured' };
+      }
+
+      // Download the audio file
+      const audioResponse = await fetch(audioUrl);
+      if (!audioResponse.ok) {
+        return { success: false, error: 'Failed to download audio file' };
+      }
+
+      const audioBuffer = await audioResponse.arrayBuffer();
+      
+      // Use form-data package for Node.js compatibility
+      const FormDataNode = require('form-data');
+      const formData = new FormDataNode();
+      formData.append('name', voiceName);
+      formData.append('files', Buffer.from(audioBuffer), {
+        filename: 'voice.wav',
+        contentType: 'audio/wav'
+      });
+      formData.append('description', `Cloned voice for ${voiceName}`);
+
+      const response = await fetch('https://api.elevenlabs.io/v1/voices/add', {
+        method: 'POST',
+        headers: {
+          'xi-api-key': elevenlabsApiKey,
+          ...formData.getHeaders(),
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { success: false, error: `ElevenLabs error: ${errorText}` };
+      }
+
+      const result = await response.json();
+      return { success: true, voiceId: result.voice_id };
+
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Helper function to generate speech using ElevenLabs
+  async function generateElevenlabsSpeech(text: string, voiceId: string) {
+    try {
+      const elevenlabsApiKey = process.env.ELEVENLABS_API_KEY;
+      if (!elevenlabsApiKey) {
+        return { success: false, error: 'ElevenLabs API key not configured' };
+      }
+
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': elevenlabsApiKey,
+        },
+        body: JSON.stringify({
+          text: text,
+          model_id: 'eleven_monolingual_v1',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.5
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { success: false, error: `ElevenLabs synthesis error: ${errorText}` };
+      }
+
+      // Save the audio file
+      const audioBuffer = await response.arrayBuffer();
+      const filename = `elevenlabs_${voiceId}_${Date.now()}.mp3`;
+      const audioPath = path.join(process.cwd(), 'public', 'cloned-voice', filename);
+      
+      // Ensure directory exists
+      await fs.mkdir(path.dirname(audioPath), { recursive: true });
+      await fs.writeFile(audioPath, Buffer.from(audioBuffer));
+
+      return { success: true, audioUrl: `/cloned-voice/${filename}` };
+
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
 
   // Combine voice recordings endpoint
 

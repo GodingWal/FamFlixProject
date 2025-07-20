@@ -60,29 +60,46 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
     try {
       const randomPrompt = kidStoryPrompts[Math.floor(Math.random() * kidStoryPrompts.length)];
       
-      // Get the voice recording to play back the actual recorded voice
-      const voiceResponse = await apiRequest('GET', `/api/voiceRecordings/${voiceRecordingId}`);
-      
-      if (!voiceResponse.ok) {
-        throw new Error('Failed to get voice recording');
-      }
-
-      const voiceData = await voiceResponse.json();
+      // Generate story content
+      const storyContent = `Once upon a time, ${randomPrompt}. This is a short story told in ${personName}'s voice to demonstrate the voice cloning technology.`;
       
       const newStory: GeneratedStory = {
         id: Date.now().toString(),
         title: randomPrompt,
-        content: `This is a preview of ${personName}'s recorded voice. Voice recordings can be used to personalize stories and content.`,
-        audioUrl: voiceData.audioUrl,
-        isGenerating: false
+        content: storyContent,
+        isGenerating: true
       };
 
       setStories(prev => [newStory, ...prev.slice(0, 4)]); // Keep only 5 stories
       setCurrentStory(newStory);
+
+      // Generate voice clone using ElevenLabs
+      console.log('Generating voice clone for person:', personId, 'with recording:', voiceRecordingId);
+      const voiceResponse = await apiRequest('POST', '/api/voice/clone-speech', {
+        text: storyContent,
+        voiceRecordingId,
+        personId
+      });
+
+      if (!voiceResponse.ok) {
+        throw new Error('Failed to generate cloned voice');
+      }
+
+      const voiceData = await voiceResponse.json();
+      
+      // Update story with generated audio
+      const updatedStory: GeneratedStory = {
+        ...newStory,
+        audioUrl: voiceData.audioUrl,
+        isGenerating: false
+      };
+
+      setStories(prev => prev.map(s => s.id === newStory.id ? updatedStory : s));
+      setCurrentStory(updatedStory);
       
       toast({
-        title: "Voice Preview Ready!",
-        description: `Play back ${personName}'s recorded voice`
+        title: "Voice Clone Ready!",
+        description: `${personName}'s cloned voice has generated the story`
       });
       
     } catch (error: any) {
