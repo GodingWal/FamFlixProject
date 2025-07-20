@@ -6,7 +6,6 @@ import { useTheme } from './theme-provider';
 import { 
   Home, 
   Users, 
-  Mic, 
   Video, 
   BookOpen,
   BarChart3,
@@ -41,7 +40,6 @@ export default function Navigation() {
   const navItems = [
     { path: "/home", label: "Home", icon: Home },
     { path: "/people", label: "Family", icon: Users },
-    { path: "/voice-training", label: "Voice Training", icon: Mic },
     { path: "/library", label: "Videos", icon: Video },
     { path: "/stories", label: "Stories", icon: BookOpen },
   ];

@@ -322,6 +322,7 @@ FamFlix is a full-stack web application that allows users to personalize educati
 - **Prominent voice training access** - voice training accessible via "Voice Recordings" tab in family member profiles
 - **Dashboard voice metrics** - homepage displays voice quality statistics and recording counts per family member
 - **Streamlined user experience** - voice training workflow fully integrated into family member creation and management
+- **Navigation cleanup** - removed redundant "Voice Training" navigation link since training is integrated into family profiles
 
 Changelog:
 - June 15, 2025. Initial setup
