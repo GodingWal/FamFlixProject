@@ -842,28 +842,10 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
             } catch (decryptError) {
               // Decryption failed - likely due to key mismatch from server restart
               console.error('Decryption failed:', decryptError);
-              
-              // For demo purposes, use a sample audio file instead of failing
-              console.log('Using fallback sample audio for voice cloning demo');
-              const sampleAudioPath = path.join(process.cwd(), 'public', 'sample-voice.mp3');
-              
-              try {
-                const sampleExists = await fs.access(sampleAudioPath).then(() => true).catch(() => false);
-                if (sampleExists) {
-                  const sampleAudioBuffer = await fs.readFile(sampleAudioPath);
-                  audioBuffer = sampleAudioBuffer.buffer;
-                } else {
-                  return { 
-                    success: false, 
-                    error: 'Voice recording is encrypted and cannot be decrypted. Please record a new voice sample to enable voice cloning.' 
-                  };
-                }
-              } catch (fallbackError) {
-                return { 
-                  success: false, 
-                  error: 'Voice recording is encrypted and cannot be decrypted. Please record a new voice sample to enable voice cloning.' 
-                };
-              }
+              return { 
+                success: false, 
+                error: 'Voice recording cannot be decrypted. The encryption key has changed since this recording was made. Please record a new voice sample to enable voice cloning.' 
+              };
             }
           } else {
             return { success: false, error: 'Invalid encrypted audio data format' };

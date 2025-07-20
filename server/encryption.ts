@@ -3,7 +3,8 @@ import Redis from 'ioredis';
 import { log } from './vite';
 
 // Enhanced encryption with proper key management
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || randomBytes(32);
+// Use a fixed key for development to ensure consistency across restarts
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || Buffer.from('a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd', 'hex');
 const ALGORITHM = 'aes-256-gcm';
 
 // Redis client with connection handling

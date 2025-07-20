@@ -82,7 +82,8 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
       });
 
       if (!voiceResponse.ok) {
-        throw new Error('Failed to generate cloned voice');
+        const errorData = await voiceResponse.json();
+        throw new Error(errorData.error || 'Failed to generate cloned voice');
       }
 
       const voiceData = await voiceResponse.json();
@@ -105,9 +106,11 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
     } catch (error: any) {
       let errorMessage = error.message || "Failed to generate story";
       
-      // Handle voice clone not ready error
+      // Handle specific errors
       if (error.message?.includes('Voice clone not ready')) {
         errorMessage = "Voice clone is still processing. Please wait a few moments and try again.";
+      } else if (error.message?.includes('cannot be decrypted') || error.message?.includes('encryption key')) {
+        errorMessage = "Your voice recording cannot be decrypted. Please record a new voice sample to enable voice cloning.";
       }
       
       toast({
