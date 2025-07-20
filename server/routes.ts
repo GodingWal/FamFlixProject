@@ -757,7 +757,9 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
   // Public Stories endpoint for users
   app.get('/api/stories', async (_req: Request, res: Response) => {
     try {
+      log(`Public stories endpoint called`, 'express');
       const result = await db.execute(sql`SELECT * FROM animated_stories WHERE is_active = true ORDER BY created_at DESC`);
+      log(`Found ${result.rows.length} active stories`, 'express');
       res.json(result.rows);
     } catch (error: any) {
       log(`Get stories error: ${error.message}`, 'express');

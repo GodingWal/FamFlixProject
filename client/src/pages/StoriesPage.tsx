@@ -38,8 +38,15 @@ export function StoriesPage() {
   const { toast } = useToast();
 
   // Fetch available stories
-  const { data: stories, isLoading: storiesLoading } = useQuery({
+  const { data: stories, isLoading: storiesLoading, error: storiesError } = useQuery({
     queryKey: ['/api/stories'],
+  });
+
+  // Debug logging
+  console.log('Stories query state:', { 
+    isLoading: storiesLoading, 
+    error: storiesError, 
+    stories: stories ? stories.length : 0 
   });
 
   // Fetch user's people for narrator selection
