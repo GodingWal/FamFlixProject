@@ -37,9 +37,21 @@ export function StoriesPage() {
   const [selectedNarrator, setSelectedNarrator] = useState<number | null>(null);
   const { toast } = useToast();
 
-  // Fetch available stories
+  // Fetch available stories with explicit query function
   const { data: stories, isLoading: storiesLoading, error: storiesError } = useQuery({
     queryKey: ['/api/stories'],
+    queryFn: async () => {
+      console.log('Fetching stories from /api/stories');
+      const response = await fetch('/api/stories', {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stories: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Stories fetched:', data);
+      return data;
+    },
   });
 
   // Debug logging
