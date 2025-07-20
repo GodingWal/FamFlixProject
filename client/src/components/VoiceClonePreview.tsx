@@ -46,64 +46,44 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
   const { toast } = useToast();
 
   const generateRandomStory = async () => {
+    if (!voiceRecordingId) {
+      toast({
+        title: "No Voice Recording",
+        description: "Please record your voice first to preview stories",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsGenerating(true);
     
     try {
       const randomPrompt = kidStoryPrompts[Math.floor(Math.random() * kidStoryPrompts.length)];
       
-      // Generate story content using OpenAI
-      const storyResponse = await apiRequest('POST', '/api/voice/generate-story', {
-        prompt: randomPrompt,
-        personName,
-        maxLength: 200 // Keep stories short for preview
-      });
-
-      if (!storyResponse.ok) {
-        throw new Error('Failed to generate story');
+      // Get the voice recording to play back the actual recorded voice
+      const voiceResponse = await apiRequest('GET', `/api/voiceRecordings/${voiceRecordingId}`);
+      
+      if (!voiceResponse.ok) {
+        throw new Error('Failed to get voice recording');
       }
 
-      const storyData = await storyResponse.json();
+      const voiceData = await voiceResponse.json();
       
       const newStory: GeneratedStory = {
         id: Date.now().toString(),
-        title: storyData.title,
-        content: storyData.content,
-        isGenerating: true
+        title: randomPrompt,
+        content: `This is a preview of ${personName}'s recorded voice. Voice recordings can be used to personalize stories and content.`,
+        audioUrl: voiceData.audioUrl,
+        isGenerating: false
       };
 
       setStories(prev => [newStory, ...prev.slice(0, 4)]); // Keep only 5 stories
       setCurrentStory(newStory);
-
-      // Generate voice audio
-      if (voiceRecordingId) {
-        console.log('Using voice recording ID:', voiceRecordingId, 'for person:', personId, 'with text:', storyData.content.substring(0, 50) + '...');
-        const voiceResponse = await apiRequest('POST', '/api/voice/clone-speech', {
-          text: storyData.content,
-          voiceRecordingId,
-          personId
-        });
-
-        if (voiceResponse.ok) {
-          const voiceData = await voiceResponse.json();
-          
-          // Update story with audio URL
-          const updatedStory = {
-            ...newStory,
-            audioUrl: voiceData.audioUrl,
-            isGenerating: false
-          };
-          
-          setStories(prev => prev.map(s => s.id === newStory.id ? updatedStory : s));
-          setCurrentStory(updatedStory);
-          
-          toast({
-            title: "Story Ready!",
-            description: `${personName}'s voice is ready to tell "${storyData.title}"`
-          });
-        } else {
-          throw new Error('Failed to generate voice');
-        }
-      }
+      
+      toast({
+        title: "Voice Preview Ready!",
+        description: `Play back ${personName}'s recorded voice`
+      });
       
     } catch (error: any) {
       let errorMessage = error.message || "Failed to generate story";
