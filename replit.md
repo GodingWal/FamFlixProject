@@ -304,7 +304,7 @@ FamFlix is a full-stack web application that allows users to personalize educati
 - **Fixed React Query integration** - resolved "Missing queryFn" errors by adding explicit query functions
 - **Enhanced people fetching** - added proper fetch functions with authentication credentials
 - **Confirmed person creation functionality** - API successfully creates people with proper UI updates
-- **Admin credentials restored** - Username: GodingWal, Password: password123
+- **Admin credentials restored** - Username: GodingWal, Password: PASSWORD123
 
 ### Deployment Health Check System (July 13, 2025)
 - **Fixed deployment build error** - resolved missing health.ts module import issue in server/index.ts
