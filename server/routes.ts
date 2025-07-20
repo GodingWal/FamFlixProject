@@ -237,6 +237,19 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
   // Serve voice preview files FIRST (before any other middleware)
 
+  // Public Stories endpoint for users (no authentication required)
+  app.get('/api/stories', async (_req: Request, res: Response) => {
+    try {
+      log(`Public stories endpoint called`, 'express');
+      const result = await db.execute(sql`SELECT * FROM animated_stories WHERE is_active = true ORDER BY created_at DESC`);
+      log(`Found ${result.rows.length} active stories`, 'express');
+      res.json(result.rows);
+    } catch (error: any) {
+      log(`Get stories error: ${error.message}`, 'express');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Users
   app.post('/api/users', async (req: Request, res: Response) => {
     try {
@@ -750,19 +763,6 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
         clientSecret: paymentIntent.client_secret,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Public Stories endpoint for users
-  app.get('/api/stories', async (_req: Request, res: Response) => {
-    try {
-      log(`Public stories endpoint called`, 'express');
-      const result = await db.execute(sql`SELECT * FROM animated_stories WHERE is_active = true ORDER BY created_at DESC`);
-      log(`Found ${result.rows.length} active stories`, 'express');
-      res.json(result.rows);
-    } catch (error: any) {
-      log(`Get stories error: ${error.message}`, 'express');
       res.status(500).json({ error: error.message });
     }
   });
