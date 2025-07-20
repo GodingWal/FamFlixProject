@@ -780,6 +780,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
         // Create voice clone using the first available recording
         const audioUrl = allVoiceRecordings[0].audioUrl;
+        console.log('Voice recording audio URL:', audioUrl);
         if (!audioUrl) {
           return res.status(400).json({ error: 'No audio URL found in voice recording' });
         }
@@ -808,6 +809,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       });
 
     } catch (error: any) {
+      console.error('Voice clone speech error details:', error);
       log(`Voice clone speech error: ${error.message}`, 'express');
       res.status(500).json({ error: error.message });
     }
@@ -821,13 +823,53 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
         return { success: false, error: 'ElevenLabs API key not configured' };
       }
 
-      // Download the audio file
-      const audioResponse = await fetch(audioUrl);
-      if (!audioResponse.ok) {
-        return { success: false, error: 'Failed to download audio file' };
-      }
+      // Check if audioUrl is encrypted JSON data
+      let audioBuffer: ArrayBuffer;
+      
+      if (audioUrl.startsWith('{')) {
+        // This is encrypted JSON data, need to decrypt it
+        try {
+          const encryptedData = JSON.parse(audioUrl);
+          if (encryptedData.encrypted && encryptedData.iv && encryptedData.authTag) {
+            // Use the storage system to decrypt the data
+            const { retrieveSecureData } = await import('./encryption');
+            const decryptedAudioData = await retrieveSecureData(
+              encryptedData,
+              `voice_clone_temp_${Date.now()}`
+            );
+            
+            if (!decryptedAudioData) {
+              return { success: false, error: 'Failed to decrypt voice recording data' };
+            }
+            
+            // Convert base64 to buffer
+            const base64Data = decryptedAudioData.toString().replace(/^data:audio\/[^;]+;base64,/, '');
+            audioBuffer = Buffer.from(base64Data, 'base64').buffer;
+          } else {
+            return { success: false, error: 'Invalid encrypted audio data format' };
+          }
+        } catch (error) {
+          return { success: false, error: 'Failed to parse encrypted audio data: ' + error };
+        }
+      } else {
+        // This is a regular file path, download it
+        let fullAudioUrl = audioUrl;
+        if (audioUrl.startsWith('/')) {
+          // Convert relative path to full URL for local development
+          const baseUrl = process.env.NODE_ENV === 'production' 
+            ? 'https://fam-flix.com' 
+            : `http://localhost:${process.env.PORT || 5000}`;
+          fullAudioUrl = `${baseUrl}${audioUrl}`;
+        }
 
-      const audioBuffer = await audioResponse.arrayBuffer();
+        console.log('Attempting to download audio from:', fullAudioUrl);
+        const audioResponse = await fetch(fullAudioUrl);
+        if (!audioResponse.ok) {
+          return { success: false, error: `Failed to download audio file from ${fullAudioUrl}: ${audioResponse.status} ${audioResponse.statusText}` };
+        }
+
+        audioBuffer = await audioResponse.arrayBuffer();
+      }
       
       // Use form-data package for Node.js compatibility
       const FormDataNode = require('form-data');
@@ -857,6 +899,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       return { success: true, voiceId: result.voice_id };
 
     } catch (error: any) {
+      console.error('ElevenLabs voice clone error:', error);
       return { success: false, error: error.message };
     }
   }
@@ -903,6 +946,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       return { success: true, audioUrl: `/cloned-voice/${filename}` };
 
     } catch (error: any) {
+      console.error('ElevenLabs speech synthesis error:', error);
       return { success: false, error: error.message };
     }
   }

@@ -324,6 +324,15 @@ FamFlix is a full-stack web application that allows users to personalize educati
 - **Streamlined user experience** - voice training workflow fully integrated into family member creation and management
 - **Navigation cleanup** - removed redundant "Voice Training" navigation link since training is integrated into family profiles
 
+### Voice Cloning System Restoration (January 20, 2025)
+- **ElevenLabs voice cloning restored** - re-implemented voice synthesis using ElevenLabs API for voice previews
+- **Added elevenlabsVoiceId field** - database schema updated to store ElevenLabs voice clone IDs for each person
+- **Voice clone speech endpoint** - `/api/voice/clone-speech` generates synthesized speech using cloned voices
+- **Encrypted data handling** - voice cloning system properly handles encrypted voice recording data
+- **VoiceClonePreview enhancement** - updated to generate actual AI-synthesized speech instead of playback
+- **Automatic voice clone creation** - system creates ElevenLabs voice clones on first synthesis request
+- **Enhanced error handling** - comprehensive logging and error management for voice synthesis failures
+
 ### Stories API & Content Management Fixes (January 20, 2025)
 - **Public stories endpoint** - added missing `/api/stories` endpoint for users to view uploaded stories
 - **Content visibility fix** - resolved issue where admin-uploaded stories weren't visible to regular users
