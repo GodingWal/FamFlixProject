@@ -324,6 +324,12 @@ FamFlix is a full-stack web application that allows users to personalize educati
 - **Streamlined user experience** - voice training workflow fully integrated into family member creation and management
 - **Navigation cleanup** - removed redundant "Voice Training" navigation link since training is integrated into family profiles
 
+### Stories API & Content Management Fixes (January 20, 2025)
+- **Public stories endpoint** - added missing `/api/stories` endpoint for users to view uploaded stories
+- **Content visibility fix** - resolved issue where admin-uploaded stories weren't visible to regular users
+- **API separation** - admin stories via `/api/admin/stories`, public stories via `/api/stories` with active filter
+- **Complete people management API** - implemented all missing people endpoints for family member management
+
 Changelog:
 - June 15, 2025. Initial setup
 - June 15, 2025. Voice alignment system implemented and tested
