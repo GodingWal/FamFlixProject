@@ -831,24 +831,27 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
         try {
           const encryptedData = JSON.parse(audioUrl);
           if (encryptedData.encrypted && encryptedData.iv && encryptedData.authTag) {
-            // Use the storage system to decrypt the data
-            const { retrieveSecureData } = await import('./encryption');
-            const decryptedAudioData = await retrieveSecureData(
-              encryptedData,
-              `voice_clone_temp_${Date.now()}`
-            );
-            
-            if (!decryptedAudioData) {
-              return { success: false, error: 'Failed to decrypt voice recording data' };
+            // Try direct decryption method first
+            try {
+              const { decrypt } = await import('./encryption');
+              const decryptedAudioData = decrypt(encryptedData);
+              
+              // Convert base64 to buffer
+              const base64Data = decryptedAudioData.replace(/^data:audio\/[^;]+;base64,/, '');
+              audioBuffer = Buffer.from(base64Data, 'base64').buffer;
+            } catch (decryptError) {
+              // Decryption failed - likely due to key mismatch from server restart
+              console.error('Decryption failed:', decryptError);
+              return { 
+                success: false, 
+                error: 'Voice recording is encrypted but cannot be decrypted. Please re-record your voice to enable voice cloning.' 
+              };
             }
-            
-            // Convert base64 to buffer
-            const base64Data = decryptedAudioData.toString().replace(/^data:audio\/[^;]+;base64,/, '');
-            audioBuffer = Buffer.from(base64Data, 'base64').buffer;
           } else {
             return { success: false, error: 'Invalid encrypted audio data format' };
           }
         } catch (error) {
+          console.error('JSON parsing error:', error);
           return { success: false, error: 'Failed to parse encrypted audio data: ' + error };
         }
       } else {

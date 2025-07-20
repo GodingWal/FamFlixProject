@@ -332,6 +332,8 @@ FamFlix is a full-stack web application that allows users to personalize educati
 - **VoiceClonePreview enhancement** - updated to generate actual AI-synthesized speech instead of playback
 - **Automatic voice clone creation** - system creates ElevenLabs voice clones on first synthesis request
 - **Enhanced error handling** - comprehensive logging and error management for voice synthesis failures
+- **Encryption key fix** - resolved decryption issues by setting consistent encryption key for voice data
+- **User guidance** - clear error messages guide users to re-record voices when encryption keys don't match
 
 ### Stories API & Content Management Fixes (January 20, 2025)
 - **Public stories endpoint** - added missing `/api/stories` endpoint for users to view uploaded stories
