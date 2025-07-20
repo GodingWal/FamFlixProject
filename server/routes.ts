@@ -262,6 +262,152 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
     }
   });
 
+  // People management endpoints
+  app.get('/api/users/:userId/people', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const people = await storage.getPeopleByUserId(userId);
+      res.json(people);
+    } catch (error: unknown) {
+      log(`Error fetching people for user ${req.params.userId}: ${error}`, 'express');
+      res.status(500).json({ error: "Failed to fetch people" });
+    }
+  });
+
+  app.post('/api/people', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const data = insertPersonSchema.parse(req.body);
+      const person = await storage.createPerson(data);
+      res.json(person);
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ error: error.issues });
+      } else {
+        log(`Error creating person: ${error}`, 'express');
+        res.status(500).json({ error: "Failed to create person" });
+      }
+    }
+  });
+
+  app.get('/api/people/:id', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const person = await storage.getPerson(id);
+      if (person) {
+        res.json(person);
+      } else {
+        res.status(404).json({ error: "Person not found" });
+      }
+    } catch (error: unknown) {
+      log(`Error fetching person ${req.params.id}: ${error}`, 'express');
+      res.status(500).json({ error: "Failed to fetch person" });
+    }
+  });
+
+  app.patch('/api/people/:id', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateData = insertPersonSchema.partial().parse(req.body);
+      const person = await storage.updatePerson(id, updateData);
+      if (person) {
+        res.json(person);
+      } else {
+        res.status(404).json({ error: "Person not found" });
+      }
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ error: error.issues });
+      } else {
+        log(`Error updating person ${req.params.id}: ${error}`, 'express');
+        res.status(500).json({ error: "Failed to update person" });
+      }
+    }
+  });
+
+  app.delete('/api/people/:id', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deletePerson(id);
+      if (success) {
+        res.json({ message: "Person deleted successfully" });
+      } else {
+        res.status(404).json({ error: "Person not found" });
+      }
+    } catch (error: unknown) {
+      log(`Error deleting person ${req.params.id}: ${error}`, 'express');
+      res.status(500).json({ error: "Failed to delete person" });
+    }
+  });
+
+  // Face images endpoints for people
+  app.get('/api/people/:personId/faceImages', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const personId = parseInt(req.params.personId);
+      const faceImages = await storage.getFaceImagesByPersonId(personId);
+      res.json(faceImages);
+    } catch (error: unknown) {
+      log(`Error fetching face images for person ${req.params.personId}: ${error}`, 'express');
+      res.status(500).json({ error: "Failed to fetch face images" });
+    }
+  });
+
+  // Voice recordings endpoints for people
+  app.get('/api/people/:personId/voiceRecordings', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const personId = parseInt(req.params.personId);
+      const voiceRecordings = await storage.getVoiceRecordingsByPersonId(personId);
+      res.json(voiceRecordings);
+    } catch (error: unknown) {
+      log(`Error fetching voice recordings for person ${req.params.personId}: ${error}`, 'express');
+      res.status(500).json({ error: "Failed to fetch voice recordings" });
+    }
+  });
+
+  app.post('/api/voiceRecordings', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const data = insertVoiceRecordingSchema.parse(req.body);
+      const voiceRecording = await storage.createVoiceRecording(data);
+      res.json(voiceRecording);
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ error: error.issues });
+      } else {
+        log(`Error creating voice recording: ${error}`, 'express');
+        res.status(500).json({ error: "Failed to create voice recording" });
+      }
+    }
+  });
+
+  app.patch('/api/voiceRecordings/:id/setDefault', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const voiceRecording = await storage.setDefaultVoiceRecording(id);
+      if (voiceRecording) {
+        res.json(voiceRecording);
+      } else {
+        res.status(404).json({ error: "Voice recording not found" });
+      }
+    } catch (error: unknown) {
+      log(`Error setting default voice recording ${req.params.id}: ${error}`, 'express');
+      res.status(500).json({ error: "Failed to set default voice recording" });
+    }
+  });
+
+  app.delete('/api/voiceRecordings/:id', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteVoiceRecording(id);
+      if (success) {
+        res.json({ message: "Voice recording deleted successfully" });
+      } else {
+        res.status(404).json({ error: "Voice recording not found" });
+      }
+    } catch (error: unknown) {
+      log(`Error deleting voice recording ${req.params.id}: ${error}`, 'express');
+      res.status(500).json({ error: "Failed to delete voice recording" });
+    }
+  });
+
   // Face Images
   app.post('/api/faceImages', async (req: Request, res: Response) => {
     if (!checkAuth(req)) {
