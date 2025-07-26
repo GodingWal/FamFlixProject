@@ -79,13 +79,10 @@ export const voiceRecordings = pgTable("voice_recordings", {
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   personId: integer("person_id").references(() => people.id, { onDelete: "cascade" }).notNull(),
   audioUrl: text("audio_url").notNull(),
-  audioData: text("audio_data"), // Base64 encoded audio data for ML processing
+  audioData: text("audio_data"), // Base64 encoded audio data for ElevenLabs voice cloning
   name: text("name").notNull(),
   duration: integer("duration"), // in seconds
   isDefault: boolean("is_default").default(false), // Whether this is the default voice for this person
-  mlProcessed: boolean("ml_processed").default(false), // Whether this recording has been processed by ML models
-  voiceEmbedding: jsonb("voice_embedding"), // JSON data for voice embedding vectors stored after ML processing
-
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -340,19 +337,14 @@ export const insertFaceVideoSchema = createInsertSchema(faceVideos).omit({
   errorMessage: true
 });
 
-// The original voice recording schema
-const originalVoiceRecordingSchema = createInsertSchema(voiceRecordings).omit({
+// Voice recording schema with proper validation
+export const insertVoiceRecordingSchema = createInsertSchema(voiceRecordings).omit({
   id: true,
   createdAt: true,
-  mlProcessed: true,
-  voiceEmbedding: true
-});
-
-// Voice recording schema with proper validation
-export const insertVoiceRecordingSchema = originalVoiceRecordingSchema.extend({
+}).extend({
   // Duration is required in the database but can be optional in input
   duration: z.number().optional().default(0),
-  // audioData is optional (used for ML processing)
+  // audioData is optional (used for ElevenLabs voice cloning)
   audioData: z.string().optional(),
   // audioUrl is required in database - we'll generate it from audioData if not provided
   audioUrl: z.string().min(1, "Audio URL is required"),

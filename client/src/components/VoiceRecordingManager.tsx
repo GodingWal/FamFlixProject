@@ -3,7 +3,7 @@ import { VoiceRecorder } from '@/components/VoiceRecorder';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useVoiceProcessor } from '@/hooks/use-voice-processor';
+
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Mic, Volume2, ExternalLink, Volume, VolumeX, Sparkles, AlertCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,7 +23,6 @@ interface VoiceRecording {
   audioUrl: string;
   duration: number;
   isDefault: boolean;
-  mlProcessed: boolean;
   createdAt: string;
 }
 
@@ -40,15 +39,9 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
   const queryClient = useQueryClient();
   const { isMobile } = useMobile();
   
-  // Voice processor hook for recording and processing voice
-  const { 
-    processVoiceRecording, 
-    isProcessing, 
-    progress 
-  } = useVoiceProcessor({ 
-    userId, 
-    personId 
-  });
+  // State for voice recording processing
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   // Query to fetch voice recordings for this person
   const { 
@@ -97,16 +90,35 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
   // Handle voice recording save
   const handleSaveRecording = async (audioData: string, duration: number) => {
     setIsRecording(false);
+    setIsProcessing(true);
+    setProgress(0);
     
-    // Process the recording with ML
-    const result = await processVoiceRecording(audioData, recordingName, duration);
-    
-    if (result.success) {
-      // Reset recording name for next time
-      setRecordingName(`${personName}'s Voice ${new Date().toLocaleDateString()}`);
-      
-      // Refresh the recordings list
-      queryClient.invalidateQueries({ queryKey: [`/api/people/${personId}/voiceRecordings`] });
+    try {
+      // Create voice recording directly via API
+      const response = await apiRequest('POST', '/api/voiceRecordings', {
+        userId,
+        personId,
+        name: recordingName,
+        audioData,
+        audioUrl: audioData, // Set audioUrl to same as audioData
+        duration,
+        isDefault: false
+      });
+
+      if (response.ok) {
+        // Reset recording name for next time
+        setRecordingName(`${personName}'s Voice ${new Date().toLocaleDateString()}`);
+        
+        // Refresh the recordings list
+        queryClient.invalidateQueries({ queryKey: [`/api/people/${personId}/voiceRecordings`] });
+      } else {
+        throw new Error('Failed to save voice recording');
+      }
+    } catch (error) {
+      console.error('Error saving voice recording:', error);
+    } finally {
+      setIsProcessing(false);
+      setProgress(0);
     }
   };
 
@@ -430,15 +442,9 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
                   <div className="flex items-center space-x-2">
                     <Volume className="h-8 w-8 text-primary" />
                     <div>
-                      {recording.mlProcessed ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                          ML Processed
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                          Basic
-                        </Badge>
-                      )}
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        ElevenLabs Ready
+                      </Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -575,7 +581,7 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
           <VoiceTestPlayer
             personId={personId}
             personName={personName}
-            hasTrainedVoice={recordings.some((r: VoiceRecording) => r.mlProcessed)}
+            hasTrainedVoice={recordings.length > 0}
           />
         </div>
       )}

@@ -51,7 +51,7 @@ interface LiveMetrics {
   activeUsers: number;
   sessionsToday: number;
   avgEngagement: number;
-  voiceProcessing: number;
+  voiceCloning: number;
   systemHealth: {
     cpu: number;
     memory: number;
@@ -86,7 +86,7 @@ export function LiveAnalytics() {
     activeUsers: 42,
     sessionsToday: 156,
     avgEngagement: 78,
-    voiceProcessing: 12,
+    voiceCloning: 12,
     systemHealth: {
       cpu: 45,
       memory: 67,
@@ -238,8 +238,8 @@ export function LiveAnalytics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Voice Processing</p>
-                <p className="text-2xl font-bold text-orange-600">{metrics.voiceProcessing}</p>
+                <p className="text-sm text-gray-600">Voice Cloning</p>
+                <p className="text-2xl font-bold text-orange-600">{metrics.voiceCloning}</p>
               </div>
               <Signal className="h-8 w-8 text-orange-600 opacity-80" />
             </div>

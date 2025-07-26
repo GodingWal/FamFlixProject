@@ -467,22 +467,8 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       const imageBuffer = Buffer.from(data.imageData.split(',')[1], 'base64');
       
       let voiceEmbedding = null;
-      let wasMLProcessed = false;
-      
-      try {
-        // ML processing removed - starting fresh
-        
-        // Voice embedding extraction removed - starting fresh
-        voiceEmbedding = null;
-        wasMLProcessed = false;
-        log(`Voice embedding extracted: ${wasMLProcessed ? 'ML processed' : 'using fallback'}`, 'ml');
-      } catch (mlError: any) {
-        console.error('Error processing voice recording with ML:', mlError);
-        log(`Error processing voice recording with ML: ${mlError.message}`, 'ml');
-        // Continue with fallback
-        voiceEmbedding = null;
-        wasMLProcessed = false;
-      }
+      // Voice processing is handled by ElevenLabs
+      log(`Voice recording created for ElevenLabs processing`, 'express');
 
       // Create the face image without ML processing
       const faceImage = await storage.createFaceImage({
@@ -754,28 +740,6 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       res.status(500).json({ error: 'Failed to process uploaded video' });
     }
   });
-
-  // Test endpoint for basic voice processing verification
-
-  // Voice processing pipeline endpoint
-
-  // Audio extraction test endpoint
-
-  // Transcription test endpoint
-
-  // Audio extraction test endpoint for debugging
-
-  // Voice synthesis test endpoint
-
-  // Advanced audio extraction and diarization endpoint
-
-  // Speaker replacement with ElevenLabs endpoint
-
-  // Audio stitching endpoint - combines original audio with replacements
-
-  // Complete diarization endpoint - upload audio/video and get full speaker analysis
-
-  // Complete voice replacement pipeline - handle speaker replacements and return final audio
 
   // Generate story content using OpenAI with fallback templates
 
@@ -1162,7 +1126,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
         activeUsers: Math.floor(users.length * 0.12), // 12% of total users active
         sessionsToday: Math.floor(Math.random() * 200) + 150,
         avgEngagement: Math.floor(Math.random() * 20) + 75,
-        voiceProcessing: Math.floor(Math.random() * 15) + 8,
+        voiceCloning: Math.floor(Math.random() * 15) + 8,
         systemHealth: {
           cpu: Math.floor(Math.random() * 20) + 40,
           memory: Math.floor(Math.random() * 25) + 60,

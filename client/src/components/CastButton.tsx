@@ -59,7 +59,7 @@ const CastButton = ({ videoUrl, videoTitle }: CastButtonProps) => {
           {isCasting ? "Casting" : "Cast to TV"}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="bg-background border border-border shadow-lg">
         {castDevices.length > 0 ? (
           castDevices.map((device) => (
             <DropdownMenuItem 

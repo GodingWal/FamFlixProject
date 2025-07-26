@@ -685,22 +685,106 @@ class MockStorage implements IStorage {
   }
 
   // All methods return empty results or throw errors
-  async getUser(): Promise<User | undefined> { return undefined; }
-  async getUserByUsername(): Promise<User | undefined> { return undefined; }
-  async getUserByEmail(): Promise<User | undefined> { return undefined; }
+  async getUser(): Promise<User | undefined> { 
+    // Return default admin user for development
+    return {
+      id: 1,
+      username: 'admin',
+      email: 'admin@famflix.com',
+      displayName: 'Admin User',
+      role: 'admin',
+      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // 'password'
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      subscriptionStatus: 'active',
+      
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  }
+  async getUserByUsername(): Promise<User | undefined> { 
+    // Return default admin user for development
+    return {
+      id: 1,
+      username: 'admin',
+      email: 'admin@famflix.com',
+      displayName: 'Admin User',
+      role: 'admin',
+      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // 'password'
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      subscriptionStatus: 'active',
+      
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  }
+  async getUserByEmail(): Promise<User | undefined> { 
+    // Return default admin user for development
+    return {
+      id: 1,
+      username: 'admin',
+      email: 'admin@famflix.com',
+      displayName: 'Admin User',
+      role: 'admin',
+      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // 'password'
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      subscriptionStatus: 'active',
+      
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  }
   async getAllUsers(): Promise<User[]> { return []; }
   async createUser(): Promise<User> { throw new Error('Database not available'); }
   async updateUserRole(): Promise<User | undefined> { return undefined; }
   async updateUserSubscription(): Promise<User | undefined> { return undefined; }
   async updateStripeInfo(): Promise<User | undefined> { return undefined; }
   
-  async getPerson(): Promise<Person | undefined> { return undefined; }
-  async getPeopleByUserId(): Promise<Person[]> { return []; }
-  async createPerson(): Promise<Person> { throw new Error('Database not available'); }
+  async getPerson(): Promise<Person | undefined> { 
+    // Return a mock person for development
+    return {
+      id: 1,
+      userId: 1,
+      name: 'Mock Person',
+      relationship: 'Family Member',
+      avatarUrl: null,
+      elevenlabsVoiceId: null,
+      createdAt: new Date()
+    };
+  }
+  async getPeopleByUserId(): Promise<Person[]> { 
+    // Return empty array for development - no people by default
+    return [];
+  }
+  async createPerson(personData: InsertPerson): Promise<Person> { 
+    // Return a mock person for development using the provided data
+    return {
+      id: Math.floor(Math.random() * 1000) + 1,
+      userId: personData.userId,
+      name: personData.name,
+      relationship: personData.relationship,
+      avatarUrl: null,
+      elevenlabsVoiceId: null,
+            createdAt: new Date()
+    };
+  }
   async updatePerson(): Promise<Person | undefined> { return undefined; }
   async deletePerson(): Promise<boolean> { return false; }
   
-  async getFaceImage(): Promise<FaceImage | undefined> { return undefined; }
+  async getFaceImage(): Promise<FaceImage | undefined> { 
+    // Return a mock face image for development
+    return {
+      id: 1,
+      personId: 1,
+      userId: 1,
+      name: 'Mock Face',
+      imageUrl: 'https://via.placeholder.com/300x300?text=Face+Image',
+      isDefault: true,
+      createdAt: new Date()
+    };
+  }
   async getFaceImagesByUserId(): Promise<FaceImage[]> { return []; }
   async getFaceImagesByPersonId(): Promise<FaceImage[]> { return []; }
   async createFaceImage(): Promise<FaceImage> { throw new Error('Database not available'); }

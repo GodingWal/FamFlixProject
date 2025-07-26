@@ -5,7 +5,7 @@ FamFlix is an advanced AI-powered platform that creates personalized educational
 ## 🚀 Features
 
 - **AI Face Swapping**: Replace actors' faces with family photos using advanced deep learning models
-- **Voice Synthesis**: Convert voices using multiple AI models (Tacotron+WaveNet, YourTTS, SV2TTS)
+- **Voice Synthesis**: Convert voices using ElevenLabs voice cloning technology
 - **Speech Alignment**: Intelligent voice synchronization with original video timing
 - **Multi-Profile Management**: Create and manage multiple family member profiles
 - **Template Library**: Curated collection of educational video templates
@@ -30,8 +30,7 @@ FamFlix is an advanced AI-powered platform that creates personalized educational
 
 ### AI/ML Stack
 - **Face Processing**: DeepFakes/Faceswap models with OpenCV
-- **Voice Processing**: Tacotron 2, YourTTS, SV2TTS models
-- **Audio Analysis**: LibROSA for feature extraction
+- **Voice Processing**: ElevenLabs voice cloning API
 - **Video Processing**: FFmpeg for media manipulation
 
 ## 📋 Prerequisites
@@ -55,7 +54,7 @@ cd famflix
 npm install
 ```
 
-3. **Install Python dependencies**
+3. **Install Python dependencies (optional - only needed for face processing)**
 ```bash
 pip install fastapi uvicorn librosa numpy opencv-python-headless soundfile pydantic python-multipart
 ```
@@ -77,13 +76,10 @@ VITE_STRIPE_PUBLIC_KEY=pk_test_...
 npm run db:push
 ```
 
-6. **Start the development servers**
+6. **Start the development server**
 ```bash
-# Terminal 1: Start the main application
+# Start the main application
 npm run dev
-
-# Terminal 2: Start the Python ML service
-python server/ml/voice/fastapi_server.py
 ```
 
 The application will be available at `http://localhost:5000`
@@ -98,9 +94,6 @@ famflix/
 │   │   ├── pages/          # Application pages
 │   │   └── lib/            # Utilities and hooks
 ├── server/                 # Node.js backend
-│   ├── ml/                 # Machine learning modules
-│   │   ├── face/           # Face processing models
-│   │   └── voice/          # Voice processing models
 │   ├── routes.ts           # API endpoints
 │   ├── auth.ts             # Authentication logic
 │   └── storage.ts          # Database operations
@@ -120,6 +113,10 @@ famflix/
 2. **Database URL**:
    - Local PostgreSQL: `postgresql://user:password@localhost:5432/famflix`
    - Or use NeonDB for cloud hosting
+
+3. **ElevenLabs API Key** (for voice cloning):
+   - Get from [ElevenLabs Dashboard](https://elevenlabs.io/)
+   - Add `ELEVENLABS_API_KEY` to your environment variables
 
 ### Optional Keys
 
@@ -177,24 +174,15 @@ Run the test suite:
 npm test
 ```
 
-Test voice processing:
-```bash
-node test-voice-sync.js
-```
+
 
 ## 🔧 Configuration
 
-### ML Model Configuration
-Models are automatically selected based on quality requirements:
-- **High Quality**: Tacotron 2 + WaveNet
-- **Standard**: YourTTS (faster, good for preview)
-- **Emotion Control**: SV2TTS
-
-### Voice Alignment Settings
-Configure in `server/ml/voice/speechAlignment.ts`:
-- `preserveTiming`: Maintain original speech timing
-- `stretchToFit`: Adjust voice duration to match template
-- `fadeTransitions`: Smooth audio transitions
+### Voice Configuration
+Voice processing is handled entirely by ElevenLabs:
+- **Voice Cloning**: Uses ElevenLabs voice cloning API for high-quality voice synthesis
+- **Voice Settings**: Configurable stability and similarity boost parameters
+- **Audio Quality**: High-quality MP3 output with configurable settings
 - `noiseReduction`: Apply noise filtering
 
 ## 🤝 Contributing

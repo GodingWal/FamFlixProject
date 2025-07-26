@@ -14,7 +14,7 @@ import AudioRecorder from "@/components/AudioRecorder";
 import { VoiceRecordingManager } from "@/components/VoiceRecordingManager";
 import FaceTrainingGuide from "@/components/FaceTrainingGuide";
 import VoiceTrainingGuide from "@/components/VoiceTrainingGuide";
-import VoicePreview from "@/components/VoicePreview";
+
 
 // UI Components
 import {
@@ -137,6 +137,11 @@ const PeopleManagement = () => {
         credentials: "include",
       });
       if (!res.ok) {
+        // In development mode, return empty array instead of throwing error
+        if (res.status === 503 && res.statusText.includes('Database')) {
+          console.log('Database not available in development mode - returning empty people list');
+          return [];
+        }
         throw new Error(`Failed to fetch people: ${res.statusText}`);
       }
       return res.json();
@@ -160,6 +165,11 @@ const PeopleManagement = () => {
         credentials: "include",
       });
       if (!res.ok) {
+        // In development mode, return empty array instead of throwing error
+        if (res.status === 503 && res.statusText.includes('Database')) {
+          console.log('Database not available in development mode - returning empty face images list');
+          return [];
+        }
         throw new Error(`Failed to fetch face images: ${res.statusText}`);
       }
       return res.json();
@@ -178,6 +188,11 @@ const PeopleManagement = () => {
         credentials: "include",
       });
       if (!res.ok) {
+        // In development mode, return empty array instead of throwing error
+        if (res.status === 503 && res.statusText.includes('Database')) {
+          console.log('Database not available in development mode - returning empty voice recordings list');
+          return [];
+        }
         throw new Error(`Failed to fetch voice recordings: ${res.statusText}`);
       }
       return res.json();
@@ -189,6 +204,13 @@ const PeopleManagement = () => {
   const createPersonMutation = useMutation({
     mutationFn: async (personData: InsertPerson) => {
       const res = await apiRequest("POST", "/api/people", personData);
+      if (!res.ok) {
+        // In development mode, show a helpful message instead of error
+        if (res.status === 500 && res.statusText.includes('Database')) {
+          throw new Error('Database not available in development mode. Person creation requires a database connection.');
+        }
+        throw new Error(`Failed to create person: ${res.statusText}`);
+      }
       return await res.json();
     },
     onSuccess: () => {
@@ -203,7 +225,7 @@ const PeopleManagement = () => {
     },
     onError: (error: Error) => {
       toast({
-        title: "Error",
+        title: "Development Mode",
         description: error.message,
         variant: "destructive",
       });
@@ -844,11 +866,7 @@ const PeopleManagement = () => {
                         }}
                       />
                       
-                      <VoicePreview 
-                        personId={selectedPerson.id}
-                        personName={selectedPerson.name}
-                        voiceRecordingCount={voiceRecordings?.length || 0}
-                      />
+
                     </>
                   )}
                 </TabsContent>

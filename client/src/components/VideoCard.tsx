@@ -1,7 +1,7 @@
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Play, Lock, CreditCard } from "lucide-react";
+import { Clock, Play, Lock, CreditCard, Sparkles, Download, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { VideoTemplate, ProcessedVideo } from "@shared/schema";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -44,18 +44,42 @@ const VideoCard = ({ video, type, onSelect }: VideoCardProps) => {
     if (!isProcessed) return null;
     
     const processedVideo = video as ProcessedVideo;
-    switch(processedVideo.status) {
-      case "pending":
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Pending</Badge>;
-      case "processing":
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800">Processing</Badge>;
-      case "completed":
-        return <Badge variant="outline" className="bg-green-100 text-green-800">Completed</Badge>;
-      case "failed":
-        return <Badge variant="outline" className="bg-red-100 text-red-800">Failed</Badge>;
-      default:
-        return null;
-    }
+    const statusConfig = {
+      pending: {
+        variant: "outline" as const,
+        className: "bg-yellow-500/10 text-yellow-700 border-yellow-200",
+        icon: <Clock className="h-3 w-3 mr-1" />,
+        text: "Pending"
+      },
+      processing: {
+        variant: "outline" as const,
+        className: "bg-blue-500/10 text-blue-700 border-blue-200",
+        icon: <Loader2 className="h-3 w-3 mr-1 animate-spin" />,
+        text: "Processing"
+      },
+      completed: {
+        variant: "outline" as const,
+        className: "bg-green-500/10 text-green-700 border-green-200",
+        icon: <CheckCircle className="h-3 w-3 mr-1" />,
+        text: "Completed"
+      },
+      failed: {
+        variant: "outline" as const,
+        className: "bg-red-500/10 text-red-700 border-red-200",
+        icon: <AlertCircle className="h-3 w-3 mr-1" />,
+        text: "Failed"
+      }
+    };
+    
+    const config = statusConfig[processedVideo.status as keyof typeof statusConfig];
+    if (!config) return null;
+    
+    return (
+      <Badge variant={config.variant} className={`${config.className} flex items-center`}>
+        {config.icon}
+        {config.text}
+      </Badge>
+    );
   };
   
   // For navigation
@@ -67,18 +91,38 @@ const VideoCard = ({ video, type, onSelect }: VideoCardProps) => {
       const processedVideo = video as ProcessedVideo;
       if (processedVideo.status === "completed") {
         return (
-          <Link href={`/player/${video.id}`}>
-            <Button className="w-full gap-2">
-              <Play size={16} />
-              Watch Video
+          <div className="space-y-2">
+            <Link href={`/player/${video.id}`} className="block">
+              <Button className="w-full gap-2 button-gradient group">
+                <Play size={16} className="group-hover:scale-110 transition-transform" />
+                Watch Video
+              </Button>
+            </Link>
+            <Button variant="outline" className="w-full gap-2 group">
+              <Download size={16} className="group-hover:translate-y-0.5 transition-transform" />
+              Download
             </Button>
-          </Link>
+          </div>
         );
       } else {
         return (
           <Button disabled={true} className="w-full gap-2">
-            <Play size={16} />
-            {processedVideo.status === "failed" ? "Processing Failed" : "Processing..."}
+            {processedVideo.status === "processing" ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Processing...
+              </>
+            ) : processedVideo.status === "failed" ? (
+              <>
+                <AlertCircle size={16} />
+                Processing Failed
+              </>
+            ) : (
+              <>
+                <Clock size={16} />
+                Pending...
+              </>
+            )}
           </Button>
         );
       }
@@ -89,22 +133,20 @@ const VideoCard = ({ video, type, onSelect }: VideoCardProps) => {
       // If it's a premium template, show the purchase button
       if (template.isPremium) {
         return (
-          <div className="space-y-2">
-            {template.price && (
-              <div className="flex justify-between items-center">
-                <Badge variant="outline" className="flex items-center bg-yellow-100 text-yellow-800 font-medium">
-                  <Lock size={12} className="mr-1" />
-                  Premium
-                </Badge>
-                <span className="font-bold text-primary">${template.price.toFixed(2)}</span>
-              </div>
-            )}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <Badge className="flex items-center bg-gradient-to-r from-yellow-500 to-amber-500 text-white border-0 shadow-md">
+                <Sparkles size={12} className="mr-1" />
+                Premium
+              </Badge>
+              <span className="font-bold text-2xl gradient-text">${template.price?.toFixed(2)}</span>
+            </div>
             <Button 
               onClick={() => navigate(`/checkout/${template.id}`)}
-              className="w-full gap-2 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600"
+              className="w-full gap-2 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white shadow-lg hover:shadow-xl transition-all group"
             >
-              <CreditCard size={16} />
-              Purchase
+              <CreditCard size={16} className="group-hover:scale-110 transition-transform" />
+              Purchase Now
             </Button>
           </div>
         );
@@ -144,16 +186,17 @@ const VideoCard = ({ video, type, onSelect }: VideoCardProps) => {
           <div className="space-y-2">
             <Button 
               onClick={() => onSelect && onSelect(template.id)} 
-              className="w-full gap-2"
+              className="w-full gap-2 button-gradient group"
             >
+              <Sparkles size={16} className="group-hover:rotate-12 transition-transform" />
               Use This Template
             </Button>
             <Link href="/simple-preview">
               <Button 
                 variant="outline" 
-                className="w-full gap-2"
+                className="w-full gap-2 group hover:border-primary"
               >
-                <Play size={16} />
+                <Play size={16} className="group-hover:scale-110 transition-transform" />
                 Preview Original
               </Button>
             </Link>
@@ -212,54 +255,83 @@ const VideoCard = ({ video, type, onSelect }: VideoCardProps) => {
   const videoData = getVideoData();
   
   return (
-    <Card className="h-full flex flex-col overflow-hidden transition-all duration-200 hover:shadow-lg hover:scale-[1.02] cursor-pointer">
-      <div className="relative group">
+    <Card className="h-full flex flex-col overflow-hidden card-hover cursor-pointer border-0 shadow-lg group">
+      <div className="relative group/image overflow-hidden">
         <img 
           src={videoData.thumbnailUrl} 
           alt={videoData.title} 
-          className="w-full aspect-video object-cover transition-all duration-300 group-hover:brightness-90"
+          className="w-full aspect-video object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-90"
         />
-        {/* Play button overlay on hover */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/30">
-          <div className="bg-black/70 text-white rounded-full p-3">
-            <Play size={24} />
+        
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        
+        {/* Play button overlay */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+          <div className="bg-white/90 backdrop-blur-sm text-primary rounded-full p-4 shadow-2xl transform scale-0 group-hover:scale-100 transition-transform duration-300">
+            <Play size={28} className="fill-current" />
           </div>
         </div>
-        <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md flex items-center text-xs">
+        
+        {/* Duration badge */}
+        <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-md flex items-center text-xs font-medium">
           <Clock size={12} className="mr-1" />
           {formatDuration(videoData.duration)}
         </div>
+        
+        {/* Category badge */}
         {!isProcessed && (
-          <div className="absolute top-2 left-2">
-            <Badge variant="secondary" className="bg-primary/80 text-white">
+          <div className="absolute top-3 left-3">
+            <Badge className="bg-primary/90 backdrop-blur-sm text-white border-0 shadow-md">
               {videoData.category}
             </Badge>
           </div>
         )}
+        
+        {/* Premium indicator */}
+        {!isProcessed && isVideoTemplate(video) && video.isPremium && (
+          <div className="absolute top-3 right-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-lg animate-pulse-glow">
+              <Sparkles size={16} className="text-white" />
+            </div>
+          </div>
+        )}
       </div>
-      <CardContent className="flex-grow pt-4">
-        <div className="flex justify-between items-start">
-          <h3 className="font-semibold text-lg">{videoData.title}</h3>
+      
+      <CardContent className="flex-grow p-5">
+        <div className="flex justify-between items-start mb-3">
+          <h3 className="font-bold text-lg line-clamp-1 group-hover:text-primary transition-colors">
+            {videoData.title}
+          </h3>
           {getStatusBadge()}
         </div>
-        <div className="flex items-center mt-1 mb-2">
-          {!isProcessed && (
-            <Badge variant="outline" className="text-xs mr-2">
-              {videoData.ageRange} years
-            </Badge>
-          )}
-          {getStatusBadge() && (
+        
+        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+          {videoData.description}
+        </p>
+        
+        <div className="flex items-center justify-between gap-2">
+          {!isProcessed ? (
+            <>
+              <Badge variant="outline" className="text-xs">
+                {videoData.ageRange} years
+              </Badge>
+              <div className="flex items-center gap-1">
+                {[...Array(5)].map((_, i) => (
+                  <span key={i} className="text-yellow-400 text-xs">★</span>
+                ))}
+                <span className="text-xs text-muted-foreground ml-1">5.0</span>
+              </div>
+            </>
+          ) : (
             <span className="text-xs text-muted-foreground">
-              {isProcessed ? 'Created ' : 'Added '} 
-              {new Date((video as any).createdAt).toLocaleDateString()}
+              Created {new Date((video as any).createdAt).toLocaleDateString()}
             </span>
           )}
         </div>
-        <p className="text-sm text-muted-foreground line-clamp-2">
-          {videoData.description}
-        </p>
       </CardContent>
-      <CardFooter className="pt-0">
+      
+      <CardFooter className="p-5 pt-0">
         {actionButton()}
       </CardFooter>
     </Card>

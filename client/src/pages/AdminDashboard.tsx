@@ -40,7 +40,7 @@ interface AdminStats {
   contentStats: {
     stories: number;
     videoTemplates: number;
-    voiceClones: number;
+    voiceCloning: number;
     activeContent: number;
   };
   peakHours: any[];
@@ -78,7 +78,7 @@ export function AdminDashboard() {
     contentStats: {
       stories: 0,
       videoTemplates: 0,
-      voiceClones: 0,
+      voiceCloning: 0,
       activeContent: 0
     },
     peakHours: [],
@@ -204,8 +204,8 @@ export function AdminDashboard() {
             />
             
             <AnalyticsCard
-              title="Voice Clones"
-              value={stats.contentStats?.voiceClones || 0}
+              title="Voice Cloning"
+              value={stats.contentStats?.voiceCloning || 0}
               description="User voice profiles"
               icon={Sparkles}
               variant="success"

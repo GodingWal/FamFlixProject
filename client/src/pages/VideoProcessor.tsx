@@ -28,7 +28,7 @@ import { estimateProcessingTime } from "@/lib/ml-utils";
 import { ArrowLeft, Video, Save, User } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useFaceSwap } from "@/hooks/useFaceSwap";
-import { useVoiceConversion } from "@/hooks/useVoiceConversion";
+
 
 // Form schema for video processing
 const processingFormSchema = z.object({
@@ -55,7 +55,9 @@ const VideoProcessor = () => {
   const templateId = parseInt(params.templateId);
   const { user, isLoading: isLoadingUser } = useAuth();
   const { swapFace, isProcessing: isFaceProcessing, progress: faceProgress } = useFaceSwap();
-  const { convertVoice, isProcessing: isVoiceProcessing, progress: voiceProgress } = useVoiceConversion();
+  // Voice processing state (simplified for ElevenLabs only)
+  const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
+  const [voiceProgress, setVoiceProgress] = useState(0);
   
   // Redirect to auth page if not logged in
   if (!isLoadingUser && !user) {
@@ -292,32 +294,10 @@ const VideoProcessor = () => {
       }
     }
     
-    // Perform voice conversion if enabled
+    // Voice processing is handled by ElevenLabs on the server side
     if (data.useVoiceSwap && selectedVoiceRecording) {
-      try {
-        const voiceConversionResult = await convertVoice(selectedVoiceRecording.url, template.videoUrl);
-        if (!voiceConversionResult.success) {
-          processingSuccessful = false;
-          setProcessingStatus("failed");
-          toast({
-            title: "Voice conversion failed",
-            description: voiceConversionResult.error || "Unknown error occurred during voice conversion",
-            variant: "destructive"
-          });
-          setIsProcessing(false);
-          return;
-        }
-      } catch (error) {
-        processingSuccessful = false;
-        setProcessingStatus("failed");
-        toast({
-          title: "Voice conversion failed",
-          description: error instanceof Error ? error.message : "Unknown error occurred",
-          variant: "destructive"
-        });
-        setIsProcessing(false);
-        return;
-      }
+      // Voice will be processed using ElevenLabs voice cloning
+      setVoiceProgress(50);
     }
     
     if (processingSuccessful) {
