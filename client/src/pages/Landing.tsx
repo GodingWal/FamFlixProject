@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, Video, Users, Sparkles, Star, Award, CheckCircle2, Menu, X } from 'lucide-react';
+import { ArrowRight, Video, Users, Sparkles, Star, Award, CheckCircle2, Menu, X, Play, Zap, Shield, Globe, Heart } from 'lucide-react';
 import famFlixLogo from "../assets/FamFlix.png";
 import { useMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -16,6 +16,7 @@ export default function Landing() {
   const [activeTab, setActiveTab] = useState('how-it-works');
   const isMobile = useMobile();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   
   // If user is logged in, redirect to homepage using useEffect to avoid state updates during render
   useEffect(() => {
@@ -25,21 +26,33 @@ export default function Landing() {
     }
   }, [user, navigate]);
 
+  // Handle scroll effect for navbar
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden bg-gradient-to-br from-background via-secondary/5 to-primary/5">
-      {/* Background decoration */}
+      {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '3s' }}></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-primary/5 to-purple-500/5 rounded-full blur-3xl"></div>
       </div>
       
-      {/* Navigation */}
-      <header className="w-full glass-effect sticky top-0 z-50">
+      {/* Navigation - Enhanced */}
+      <header className={`w-full sticky top-0 z-50 transition-all duration-300 ${
+        scrolled ? 'glass-morphism shadow-lg' : 'bg-transparent'
+      }`}>
         <div className="container mx-auto flex items-center justify-between h-20 px-6">
           <div className="flex items-center">
-            <div className="flex items-center cursor-pointer group">
+            <div className="flex items-center cursor-pointer group animate-fade-in">
               <div className="logo-container">
-                <img src={famFlixLogo} alt="FamFlix Logo" className="h-12 w-auto" />
+                <img src={famFlixLogo} alt="FamFlix Logo" className="h-12 w-auto transition-transform group-hover:scale-110" />
               </div>
               <span className="logo-text ml-3">
                 <span className="logo-text-fam">Fam</span>
@@ -50,15 +63,15 @@ export default function Landing() {
           
           {/* Desktop Navigation */}
           {!isMobile && (
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-8 animate-fade-in" style={{ animationDelay: '0.2s' }}>
               <nav className="flex items-center gap-8">
-                <Button variant="ghost" className="font-medium text-foreground/70 hover:text-primary transition-colors" onClick={() => {
+                <Button variant="ghost" className="font-medium text-foreground/70 hover:text-primary transition-all duration-300 hover:scale-105" onClick={() => {
                   const howItWorksSection = document.getElementById('how-it-works');
                   howItWorksSection?.scrollIntoView({ behavior: 'smooth' });
                 }}>
                   How It Works
                 </Button>
-                <Button variant="ghost" className="font-medium text-foreground/70 hover:text-primary transition-colors" onClick={() => {
+                <Button variant="ghost" className="font-medium text-foreground/70 hover:text-primary transition-all duration-300 hover:scale-105" onClick={() => {
                   const pricingSection = document.getElementById('pricing');
                   pricingSection?.scrollIntoView({ behavior: 'smooth' });
                 }}>
@@ -66,11 +79,12 @@ export default function Landing() {
                 </Button>
               </nav>
               <div className="flex items-center gap-3">
-                <Button onClick={() => navigate('/auth')} variant="ghost" className="font-medium">
+                <Button onClick={() => navigate('/auth')} variant="ghost" className="font-medium hover:scale-105 transition-transform">
                   Login
                 </Button>
-                <Button onClick={() => navigate('/auth')} className="modern-button font-medium px-6">
+                <Button onClick={() => navigate('/auth')} className="button-gradient font-medium px-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all">
                   Get Started
+                  <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
             </div>
@@ -80,19 +94,18 @@ export default function Landing() {
           {isMobile && (
             <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" className="animate-fade-in">
                   <Menu size={24} />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[85%] sm:w-[350px] bg-background p-0">
+              <SheetContent side="right" className="w-[85%] sm:w-[350px] bg-background/95 backdrop-blur-lg p-0 border-0">
                 <div className="flex flex-col h-full">
-                  <div className="bg-primary text-primary-foreground py-4 px-6">
+                  <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground py-6 px-6">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center">
                         <img src={famFlixLogo} alt="FamFlix Logo" className="h-8 w-auto" />
                         <span className="text-lg font-bold logo-text ml-2">
-                          <span className="logo-text-fam">Fam</span>
-                          <span className="logo-text-flix">Flix</span>
+                          <span className="text-white">FamFlix</span>
                         </span>
                       </div>
                       <Button variant="ghost" size="icon" onClick={() => setIsMenuOpen(false)} className="text-primary-foreground hover:bg-primary/80">
@@ -101,10 +114,10 @@ export default function Landing() {
                     </div>
                   </div>
                   
-                  <div className="flex flex-col gap-1 py-4">
+                  <div className="flex flex-col gap-2 py-6">
                     <Button 
                       variant="ghost" 
-                      className="w-full justify-start h-12 px-6"
+                      className="w-full justify-start h-12 px-6 hover:bg-secondary/50"
                       onClick={() => {
                         const howItWorksSection = document.getElementById('how-it-works');
                         howItWorksSection?.scrollIntoView({ behavior: 'smooth' });
@@ -115,7 +128,7 @@ export default function Landing() {
                     </Button>
                     <Button 
                       variant="ghost" 
-                      className="w-full justify-start h-12 px-6"
+                      className="w-full justify-start h-12 px-6 hover:bg-secondary/50"
                       onClick={() => {
                         const pricingSection = document.getElementById('pricing');
                         pricingSection?.scrollIntoView({ behavior: 'smooth' });
@@ -124,8 +137,8 @@ export default function Landing() {
                     >
                       Pricing
                     </Button>
-                    <div className="border-t my-2"></div>
-                    <div className="px-6 py-2 space-y-2">
+                    <div className="border-t my-4"></div>
+                    <div className="px-6 py-2 space-y-3">
                       <Button 
                         onClick={() => navigate('/auth')} 
                         variant="outline" 
@@ -135,7 +148,7 @@ export default function Landing() {
                       </Button>
                       <Button 
                         onClick={() => navigate('/auth')} 
-                        className="w-full h-12"
+                        className="w-full h-12 button-gradient"
                       >
                         Sign Up
                       </Button>
@@ -148,45 +161,44 @@ export default function Landing() {
         </div>
       </header>
       
-      {/* Hero Section */}
+      {/* Hero Section - Enhanced */}
       <section className="w-full py-16 md:py-32 lg:py-40 container relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div className="flex flex-col gap-8">
-            <div className="flex items-center gap-3">
-              <Badge className="w-fit bg-gradient-to-r from-primary/20 to-purple-500/20 text-primary border-primary/30 px-4 py-2 text-sm font-medium">
+            <div className="flex items-center gap-3 animate-slide-up">
+              <Badge className="w-fit bg-gradient-to-r from-primary/20 to-purple-500/20 text-primary border-primary/30 px-4 py-2 text-sm font-medium shadow-lg">
                 <Sparkles className="w-3 h-3 mr-1" />
                 AI-Powered Learning
               </Badge>
               <div className="flex items-center gap-1">
-                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                ))}
                 <span className="text-sm text-muted-foreground ml-1">5.0</span>
               </div>
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight">
+            <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight animate-slide-up" style={{ animationDelay: '0.1s' }}>
               Make Learning 
-              <span className="block gradient-text">Personal</span>
+              <span className="block gradient-text-animated">Personal</span>
               <span className="block text-4xl md:text-5xl text-muted-foreground font-normal mt-2">
                 with your face & voice
               </span>
             </h1>
             
-            <p className="text-xl text-muted-foreground max-w-[600px] leading-relaxed">
+            <p className="text-xl text-muted-foreground max-w-[600px] leading-relaxed animate-slide-up" style={{ animationDelay: '0.2s' }}>
               Transform educational videos by replacing actors with familiar faces and voices. 
               Create engaging, personalized learning experiences that children actually love.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 mt-6">
+            <div className="flex flex-col sm:flex-row gap-4 mt-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
               <Button 
                 onClick={() => navigate('/auth')} 
                 size="lg" 
-                className="modern-button gap-3 h-14 px-8 text-lg font-semibold"
+                className="button-gradient gap-3 h-14 px-8 text-lg font-semibold shadow-xl hover:shadow-2xl hover:scale-105 transition-all group"
               >
-                Start Creating <ArrowRight className="h-5 w-5" />
+                Start Creating 
+                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Button>
               <Button 
                 onClick={() => {
@@ -195,18 +207,18 @@ export default function Landing() {
                 }} 
                 variant="outline" 
                 size="lg"
-                className="h-14 px-8 text-lg font-medium border-2"
+                className="h-14 px-8 text-lg font-medium border-2 hover:bg-secondary/50 hover:scale-105 transition-all"
               >
                 <Video className="h-5 w-5 mr-2" />
                 Watch Demo
               </Button>
             </div>
             
-            <div className="flex items-center gap-6 mt-8 pt-6 border-t border-border/50">
+            <div className="flex items-center gap-6 mt-8 pt-6 border-t border-border/50 animate-fade-in" style={{ animationDelay: '0.4s' }}>
               <div className="flex items-center gap-3">
                 <div className="flex -space-x-3">
                   {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-xs text-white font-semibold border-2 border-background">
+                    <div key={i} className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-xs text-white font-semibold border-2 border-background shadow-md">
                       {String.fromCharCode(64 + i)}
                     </div>
                   ))}
@@ -226,19 +238,19 @@ export default function Landing() {
             </div>
           </div>
           
-          <div className="lg:block relative">
-            <div className="relative aspect-video rounded-2xl overflow-hidden glow-effect bg-gradient-to-br from-card to-muted border-2 border-border/20">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-purple-500/5"></div>
+          <div className="lg:block relative animate-fade-in" style={{ animationDelay: '0.5s' }}>
+            <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl bg-gradient-to-br from-card to-muted border-2 border-border/20 group">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-purple-500/10 group-hover:opacity-70 transition-opacity"></div>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="relative">
-                  <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-2xl border border-white/20">
+                  <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-2xl border border-white/20 group-hover:scale-110 transition-transform">
                     <Video className="h-12 w-12 text-white" />
                   </div>
                   <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
                 </div>
               </div>
               <div className="absolute bottom-6 left-6 right-6">
-                <div className="glass-effect rounded-xl p-4">
+                <div className="glass-morphism rounded-xl p-4">
                   <p className="text-center font-semibold text-sm">Interactive Demo</p>
                   <p className="text-center text-xs text-muted-foreground mt-1">See FamFlix in action</p>
                 </div>
@@ -246,24 +258,27 @@ export default function Landing() {
             </div>
             
             {/* Floating elements */}
-            <div className="absolute -top-6 -left-6 w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg animate-bounce">
+            <div className="absolute -top-6 -left-6 w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg animate-float">
               AI
             </div>
-            <div className="absolute -bottom-4 -right-4 w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl flex items-center justify-center text-white shadow-lg">
+            <div className="absolute -bottom-4 -right-4 w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl flex items-center justify-center text-white shadow-lg animate-float" style={{ animationDelay: '2s' }}>
               <Users className="w-6 h-6" />
+            </div>
+            <div className="absolute top-1/2 -left-12 w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white shadow-lg animate-float" style={{ animationDelay: '4s' }}>
+              <Zap className="w-5 h-5" />
             </div>
           </div>
         </div>
       </section>
       
-      {/* How It Works Section */}
+      {/* How It Works Section - Enhanced */}
       <section id="how-it-works" className="w-full py-20 md:py-32 container relative">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-secondary/20 to-transparent rounded-3xl"></div>
         
         <div className="relative flex flex-col gap-16 items-center text-center">
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-in">
             <h2 className="text-4xl md:text-6xl font-bold tracking-tight">
-              How <span className="gradient-text">FamFlix</span> Works
+              How <span className="gradient-text-animated">FamFlix</span> Works
             </h2>
             <p className="text-xl text-muted-foreground max-w-[700px] leading-relaxed">
               Transform education in three simple steps. Create personalized content that makes learning memorable and engaging.
@@ -272,15 +287,15 @@ export default function Landing() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl">
             {/* Step 1 */}
-            <Card className="floating-card relative overflow-hidden border-2 border-border/20">
+            <Card className="card-hover relative overflow-hidden border-0 shadow-xl animate-slide-up">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-purple-600"></div>
               <CardContent className="p-8">
                 <div className="flex flex-col items-center text-center space-y-6">
                   <div className="relative">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
                       <Users className="h-10 w-10 text-primary" />
                     </div>
-                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-bold">
+                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-full flex items-center justify-center text-sm font-bold shadow-lg">
                       1
                     </div>
                   </div>
@@ -298,8 +313,8 @@ export default function Landing() {
                       'Record 30 seconds of speech',
                       'Add multiple family members'
                     ].map((item, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-primary"></div>
+                      <div key={i} className="flex items-center gap-3 group">
+                        <div className="w-2 h-2 rounded-full bg-primary group-hover:scale-150 transition-transform"></div>
                         <span className="text-sm">{item}</span>
                       </div>
                     ))}
@@ -309,15 +324,15 @@ export default function Landing() {
             </Card>
 
             {/* Step 2 */}
-            <Card className="floating-card relative overflow-hidden border-2 border-border/20">
+            <Card className="card-hover relative overflow-hidden border-0 shadow-xl animate-slide-up" style={{ animationDelay: '0.1s' }}>
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 to-pink-600"></div>
               <CardContent className="p-8">
                 <div className="flex flex-col items-center text-center space-y-6">
                   <div className="relative">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
                       <Sparkles className="h-10 w-10 text-purple-600" />
                     </div>
-                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-lg">
                       2
                     </div>
                   </div>
@@ -335,8 +350,8 @@ export default function Landing() {
                       'Filter by age and subject',
                       'Assign family member roles'
                     ].map((item, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-purple-600"></div>
+                      <div key={i} className="flex items-center gap-3 group">
+                        <div className="w-2 h-2 rounded-full bg-purple-600 group-hover:scale-150 transition-transform"></div>
                         <span className="text-sm">{item}</span>
                       </div>
                     ))}
@@ -346,15 +361,15 @@ export default function Landing() {
             </Card>
 
             {/* Step 3 */}
-            <Card className="floating-card relative overflow-hidden border-2 border-border/20">
+            <Card className="card-hover relative overflow-hidden border-0 shadow-xl animate-slide-up" style={{ animationDelay: '0.2s' }}>
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-600 to-red-500"></div>
               <CardContent className="p-8">
                 <div className="flex flex-col items-center text-center space-y-6">
                   <div className="relative">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-pink-500/20 to-red-500/20 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-pink-500/20 to-red-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
                       <Video className="h-10 w-10 text-pink-600" />
                     </div>
-                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-pink-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-r from-pink-600 to-pink-500 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-lg">
                       3
                     </div>
                   </div>
@@ -372,8 +387,8 @@ export default function Landing() {
                       'Cast to smart TV',
                       'Download for offline viewing'
                     ].map((item, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-pink-600"></div>
+                      <div key={i} className="flex items-center gap-3 group">
+                        <div className="w-2 h-2 rounded-full bg-pink-600 group-hover:scale-150 transition-transform"></div>
                         <span className="text-sm">{item}</span>
                       </div>
                     ))}
@@ -386,17 +401,18 @@ export default function Landing() {
           <Button 
             onClick={() => navigate('/auth')} 
             size="lg" 
-            className="modern-button mt-8 px-12 h-14 text-lg font-semibold"
+            className="button-gradient mt-8 px-12 h-14 text-lg font-semibold shadow-xl hover:shadow-2xl hover:scale-105 transition-all group"
           >
-            Start Your Journey <ArrowRight className="ml-2 h-5 w-5" />
+            Start Your Journey 
+            <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
           </Button>
         </div>
       </section>
       
-      {/* Benefits Section */}
+      {/* Benefits Section - Enhanced */}
       <section className="w-full py-12 md:py-24 bg-secondary/10">
         <div className="container">
-          <div className="flex flex-col gap-8 items-center text-center mb-12">
+          <div className="flex flex-col gap-8 items-center text-center mb-12 animate-fade-in">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tighter">
               Benefits of Personalized Learning
             </h2>
@@ -408,40 +424,48 @@ export default function Landing() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
               {
-                icon: <Star className="h-10 w-10 text-primary" />,
+                icon: <Star className="h-10 w-10" />,
                 title: "Increased Engagement",
-                description: "Children pay more attention when they see and hear familiar faces and voices in educational content."
+                description: "Children pay more attention when they see and hear familiar faces and voices in educational content.",
+                gradient: "from-yellow-500 to-orange-500"
               },
               {
-                icon: <Award className="h-10 w-10 text-primary" />,
+                icon: <Award className="h-10 w-10" />,
                 title: "Better Knowledge Retention",
-                description: "Personalized content creates stronger emotional connections, helping children remember what they learn."
+                description: "Personalized content creates stronger emotional connections, helping children remember what they learn.",
+                gradient: "from-blue-500 to-cyan-500"
               },
               {
-                icon: <Users className="h-10 w-10 text-primary" />,
+                icon: <Heart className="h-10 w-10" />,
                 title: "Strengthened Family Bonds",
-                description: "Learning becomes a shared family experience even when parents can't be physically present."
+                description: "Learning becomes a shared family experience even when parents can't be physically present.",
+                gradient: "from-pink-500 to-rose-500"
               },
               {
-                icon: <CheckCircle2 className="h-10 w-10 text-primary" />,
-                title: "Diverse Learning Content",
-                description: "Access hundreds of educational videos across multiple subjects and age groups."
+                icon: <Shield className="h-10 w-10" />,
+                title: "Safe & Secure",
+                description: "Your family's data is protected with enterprise-grade security and never shared with third parties.",
+                gradient: "from-green-500 to-emerald-500"
               },
               {
-                icon: <Sparkles className="h-10 w-10 text-primary" />,
-                title: "Customized Learning Journey",
-                description: "Tailor educational content to your child's interests and learning style."
+                icon: <Globe className="h-10 w-10" />,
+                title: "Multilingual Support",
+                description: "Create content in multiple languages to support diverse learning needs and heritage preservation.",
+                gradient: "from-purple-500 to-violet-500"
               },
               {
-                icon: <Video className="h-10 w-10 text-primary" />,
-                title: "Accessible Anywhere",
-                description: "Watch personalized videos on any device or cast to your TV for a bigger screen experience."
+                icon: <Zap className="h-10 w-10" />,
+                title: "Instant Creation",
+                description: "Advanced AI processing creates personalized videos in minutes, not hours or days.",
+                gradient: "from-red-500 to-pink-500"
               }
             ].map((benefit, index) => (
-              <Card key={index} className="h-full">
+              <Card key={index} className="h-full card-hover border-0 shadow-lg overflow-hidden group animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
                 <CardHeader>
-                  <div className="mb-2">{benefit.icon}</div>
-                  <CardTitle>{benefit.title}</CardTitle>
+                  <div className={`w-14 h-14 bg-gradient-to-br ${benefit.gradient} rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
+                    {benefit.icon}
+                  </div>
+                  <CardTitle className="text-xl">{benefit.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">{benefit.description}</p>
@@ -452,9 +476,9 @@ export default function Landing() {
         </div>
       </section>
       
-      {/* Pricing Section */}
+      {/* Pricing Section - Enhanced */}
       <section id="pricing" className="w-full py-12 md:py-24 lg:py-32 container">
-        <div className="flex flex-col gap-8 items-center text-center mb-12">
+        <div className="flex flex-col gap-8 items-center text-center mb-12 animate-fade-in">
           <h2 className="text-3xl md:text-4xl font-bold tracking-tighter">
             Simple, Transparent Pricing
           </h2>
@@ -464,7 +488,7 @@ export default function Landing() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          <Card className="border-muted">
+          <Card className="border-0 shadow-lg card-hover animate-slide-up">
             <CardHeader>
               <CardTitle>Free</CardTitle>
               <div className="text-4xl font-bold mt-4">$0</div>
@@ -493,11 +517,11 @@ export default function Landing() {
             </CardFooter>
           </Card>
           
-          <Card className="border-primary relative">
-            <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-4 py-1 rounded-bl-lg rounded-tr-lg text-sm font-medium">
+          <Card className="border-0 shadow-xl card-hover relative animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground px-6 py-2 rounded-full text-sm font-medium shadow-lg">
               Most Popular
             </div>
-            <CardHeader>
+            <CardHeader className="pt-8">
               <CardTitle>Premium</CardTitle>
               <div className="text-4xl font-bold mt-4">$9.99<span className="text-lg text-muted-foreground"> /month</span></div>
               <CardDescription className="mt-2">Best for families</CardDescription>
@@ -521,13 +545,13 @@ export default function Landing() {
               </ul>
             </CardContent>
             <CardFooter>
-              <Button onClick={() => navigate('/auth')} className="w-full">
+              <Button onClick={() => navigate('/auth')} className="w-full button-gradient shadow-lg hover:shadow-xl">
                 Get Premium
               </Button>
             </CardFooter>
           </Card>
           
-          <Card className="border-muted">
+          <Card className="border-0 shadow-lg card-hover animate-slide-up" style={{ animationDelay: '0.2s' }}>
             <CardHeader>
               <CardTitle>Family Pack</CardTitle>
               <div className="text-4xl font-bold mt-4">$19.99<span className="text-lg text-muted-foreground"> /month</span></div>
@@ -562,35 +586,45 @@ export default function Landing() {
         </div>
       </section>
       
-      {/* CTA Section */}
-      <section className="w-full py-12 md:py-24 bg-primary">
-        <div className="container">
-          <div className="flex flex-col gap-8 items-center text-center text-primary-foreground">
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tighter">
+      {/* CTA Section - Enhanced */}
+      <section className="w-full py-16 md:py-24 bg-gradient-to-r from-primary to-primary/80 relative overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute inset-0">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-24 -translate-x-24"></div>
+        </div>
+        
+        <div className="container relative">
+          <div className="flex flex-col gap-8 items-center text-center text-primary-foreground animate-fade-in">
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tighter">
               Ready to Make Learning Personal?
             </h2>
-            <p className="text-xl max-w-[600px]">
+            <p className="text-xl max-w-[600px] text-white/90">
               Join thousands of families who are enhancing their children's education with personalized videos.
             </p>
             <Button 
               onClick={() => navigate('/auth')} 
               variant="secondary" 
               size="lg" 
-              className="gap-2 text-primary"
+              className="gap-2 text-primary h-14 px-8 text-lg font-semibold shadow-xl hover:shadow-2xl hover:scale-105 transition-all group"
             >
-              Get Started Today <ArrowRight className="h-4 w-4" />
+              Get Started Today 
+              <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </Button>
           </div>
         </div>
       </section>
       
-      {/* Footer */}
-      <footer className="w-full py-12 bg-background">
+      {/* Footer - Enhanced */}
+      <footer className="w-full py-12 bg-secondary/10 border-t">
         <div className="container">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Video className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">FamFlix</span>
+            <div className="flex items-center gap-3">
+              <img src={famFlixLogo} alt="FamFlix" className="h-8" />
+              <span className="logo-text text-xl">
+                <span className="logo-text-fam">Fam</span>
+                <span className="logo-text-flix">Flix</span>
+              </span>
             </div>
             <div className="flex gap-8">
               <a href="#" className="text-muted-foreground hover:text-primary transition-colors">Terms</a>

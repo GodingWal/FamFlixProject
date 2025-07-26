@@ -6,6 +6,7 @@ import VideoCard from "@/components/VideoCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import {
   Tabs,
@@ -20,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Filter, Sparkles } from "lucide-react";
+import { Search, Filter, Sparkles, Crown, X, Film, TrendingUp } from "lucide-react";
 
 const VideoLibrary = () => {
   const [, navigate] = useLocation();
@@ -75,36 +76,62 @@ const VideoLibrary = () => {
   
   return (
     <div className="page-container">
-      <h1 className="text-3xl font-bold mb-6">Video Library</h1>
+      {/* Page Header */}
+      <div className="mb-8 animate-fade-in">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-4xl font-bold gradient-text">Video Library</h1>
+          <Badge className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground border-0 shadow-md">
+            <TrendingUp className="h-3 w-3 mr-1" />
+            {videoTemplates?.length || 0} Videos
+          </Badge>
+        </div>
+        <p className="text-muted-foreground text-lg">
+          Choose from our collection of educational templates to create personalized family videos
+        </p>
+      </div>
       
-      {/* Content type tabs */}
+      {/* Content type tabs - Enhanced */}
       <Tabs defaultValue="all" className="mb-8" onValueChange={setActiveTab}>
-        <TabsList className="mb-6 w-full justify-center">
-          <TabsTrigger value="all" className="flex-1">All Content</TabsTrigger>
-          <TabsTrigger value="free" className="flex-1">Free</TabsTrigger>
-          <TabsTrigger value="premium" className="flex items-center gap-1 flex-1">
-            <Sparkles size={14} className="text-yellow-500" />
+        <TabsList className="mb-6 w-full max-w-md mx-auto glass-morphism border-0 p-1">
+          <TabsTrigger value="all" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+            All Content
+          </TabsTrigger>
+          <TabsTrigger value="free" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+            Free
+          </TabsTrigger>
+          <TabsTrigger value="premium" className="flex items-center gap-1 flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+            <Crown size={14} className="text-yellow-500" />
             Premium
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="all">
-          {/* Search and filters */}
-          <div className="flex flex-col gap-4 mb-6">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <TabsContent value="all" className="animate-fade-in">
+          {/* Search and filters - Enhanced */}
+          <div className="flex flex-col gap-4 mb-8">
+            <div className="relative w-full max-w-2xl mx-auto">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
               <Input
                 type="text"
-                placeholder="Search videos..."
+                placeholder="Search videos by title or description..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-full"
+                className="pl-12 pr-12 h-12 text-base input-modern rounded-full shadow-lg"
               />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 rounded-full"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
             
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-3 justify-center">
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="flex-1 min-w-[140px]">
+                <SelectTrigger className="w-[180px] h-10 shadow-md hover:shadow-lg transition-shadow">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -118,7 +145,7 @@ const VideoLibrary = () => {
               </Select>
               
               <Select value={ageFilter} onValueChange={setAgeFilter}>
-                <SelectTrigger className="flex-1 min-w-[140px]">
+                <SelectTrigger className="w-[180px] h-10 shadow-md hover:shadow-lg transition-shadow">
                   <SelectValue placeholder="Age Range" />
                 </SelectTrigger>
                 <SelectContent>
@@ -133,70 +160,110 @@ const VideoLibrary = () => {
               
               {(categoryFilter !== "all-categories" || ageFilter !== "all-ages" || searchQuery) && (
                 <Button 
-                  variant="ghost" 
+                  variant="outline" 
                   onClick={() => {
                     setSearchQuery("");
                     setCategoryFilter("all-categories");
                     setAgeFilter("all-ages");
                   }}
-                  className="ml-auto"
+                  className="h-10 px-4 hover:bg-destructive/10 hover:text-destructive hover:border-destructive transition-colors"
                 >
-                  Clear
+                  <X className="h-4 w-4 mr-1" />
+                  Clear All
                 </Button>
               )}
             </div>
           </div>
           
-          {/* Video grid */}
+          {/* Video grid - Enhanced */}
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Card key={i} className="overflow-hidden">
-                  <div className="w-full aspect-video bg-muted animate-pulse" />
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <Card key={i} className="overflow-hidden border-0 shadow-lg">
+                  <div className="w-full aspect-video bg-gradient-to-br from-secondary to-muted animate-pulse" />
                   <CardContent className="pt-4">
-                    <div className="h-6 w-3/4 bg-muted animate-pulse rounded mb-3" />
-                    <div className="h-4 bg-muted animate-pulse rounded mb-2" />
-                    <div className="h-4 w-4/5 bg-muted animate-pulse rounded" />
+                    <div className="h-6 w-3/4 bg-secondary animate-pulse rounded-md mb-3" />
+                    <div className="h-4 bg-secondary animate-pulse rounded-md mb-2" />
+                    <div className="h-4 w-4/5 bg-secondary animate-pulse rounded-md" />
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : filteredTemplates?.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredTemplates.map((template) => (
-                <VideoCard 
-                  key={template.id} 
-                  video={template} 
-                  type="template"
-                  onSelect={handleSelectTemplate}
-                />
+              {filteredTemplates.map((template, index) => (
+                <div key={template.id} className="animate-slide-up" style={{ animationDelay: `${index * 0.05}s` }}>
+                  <VideoCard 
+                    video={template} 
+                    type="template"
+                    onSelect={handleSelectTemplate}
+                  />
+                </div>
               ))}
             </div>
           ) : (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Filter className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="text-xl font-medium mb-2">No videos found</h3>
-                <p className="text-muted-foreground">
-                  Try adjusting your search or filters to find videos.
+            <Card className="border-0 shadow-xl card-gradient">
+              <CardContent className="py-16 text-center">
+                <div className="w-20 h-20 bg-gradient-to-br from-secondary to-muted rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Film className="h-10 w-10 text-muted-foreground" />
+                </div>
+                <h3 className="text-2xl font-bold mb-3">No videos found</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Try adjusting your search or filters to find videos. We're constantly adding new content!
                 </p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setSearchQuery("");
+                    setCategoryFilter("all-categories");
+                    setAgeFilter("all-ages");
+                  }}
+                  className="mt-6"
+                >
+                  Reset Filters
+                </Button>
               </CardContent>
             </Card>
           )}
         </TabsContent>
         
-        <TabsContent value="free">
+        <TabsContent value="free" className="animate-fade-in">
+          {/* Free content section - Enhanced */}
+          <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-200/50">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="p-3 rounded-full bg-green-500/20">
+                <Sparkles size={24} className="text-green-600" />
+              </div>
+              <div className="text-center sm:text-left">
+                <h3 className="font-bold text-lg">Free Content Library</h3>
+                <p className="text-sm text-muted-foreground">
+                  Get started with our selection of free templates. Perfect for trying out FamFlix!
+                </p>
+              </div>
+            </div>
+          </div>
+          
           {/* Search and filters for free content */}
-          <div className="flex flex-col gap-4 mb-6">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <div className="flex flex-col gap-4 mb-8">
+            <div className="relative w-full max-w-2xl mx-auto">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
               <Input
                 type="text"
                 placeholder="Search free videos..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-full h-11"
+                className="pl-12 pr-12 h-12 text-base input-modern rounded-full shadow-lg"
               />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 rounded-full"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
             
             <div className="flex flex-col sm:flex-row gap-2">
@@ -247,66 +314,84 @@ const VideoLibrary = () => {
           {/* Video grid */}
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Card key={i} className="overflow-hidden">
-                  <div className="w-full aspect-video bg-muted animate-pulse" />
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i} className="overflow-hidden border-0 shadow-lg">
+                  <div className="w-full aspect-video bg-gradient-to-br from-secondary to-muted animate-pulse" />
                   <CardContent className="pt-4">
-                    <div className="h-6 w-3/4 bg-muted animate-pulse rounded mb-3" />
-                    <div className="h-4 bg-muted animate-pulse rounded mb-2" />
-                    <div className="h-4 w-4/5 bg-muted animate-pulse rounded" />
+                    <div className="h-6 w-3/4 bg-secondary animate-pulse rounded-md mb-3" />
+                    <div className="h-4 bg-secondary animate-pulse rounded-md mb-2" />
+                    <div className="h-4 w-4/5 bg-secondary animate-pulse rounded-md" />
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : filteredTemplates?.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredTemplates.map((template) => (
-                <VideoCard 
-                  key={template.id} 
-                  video={template} 
-                  type="template"
-                  onSelect={handleSelectTemplate}
-                />
+              {filteredTemplates.map((template, index) => (
+                <div key={template.id} className="animate-slide-up" style={{ animationDelay: `${index * 0.05}s` }}>
+                  <VideoCard 
+                    video={template} 
+                    type="template"
+                    onSelect={handleSelectTemplate}
+                  />
+                </div>
               ))}
             </div>
           ) : (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Filter className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="text-xl font-medium mb-2">No free videos found</h3>
-                <p className="text-muted-foreground">
-                  Try adjusting your search or filters to find videos.
+            <Card className="border-0 shadow-xl">
+              <CardContent className="py-16 text-center">
+                <div className="w-20 h-20 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Film className="h-10 w-10 text-green-600" />
+                </div>
+                <h3 className="text-2xl font-bold mb-3">No free videos found</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Try adjusting your search or filters to find free videos.
                 </p>
               </CardContent>
             </Card>
           )}
         </TabsContent>
         
-        <TabsContent value="premium">
-          {/* Premium content information */}
-          <div className="mb-6 p-4 border rounded-lg bg-yellow-50 border-yellow-200 flex flex-col sm:flex-row items-center gap-4">
-            <div className="p-3 rounded-full bg-yellow-100 mb-2 sm:mb-0">
-              <Sparkles size={24} className="text-yellow-600" />
-            </div>
-            <div className="text-center sm:text-left">
-              <h3 className="font-semibold text-lg">Premium Content</h3>
-              <p className="text-sm text-muted-foreground">
-                Purchase premium templates to create personalized videos with advanced features.
-              </p>
+        <TabsContent value="premium" className="animate-fade-in">
+          {/* Premium content information - Enhanced */}
+          <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border border-yellow-200/50 shadow-lg">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="p-4 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 shadow-lg">
+                <Crown size={28} className="text-white" />
+              </div>
+              <div className="text-center sm:text-left flex-1">
+                <h3 className="font-bold text-xl mb-1">Premium Content</h3>
+                <p className="text-muted-foreground">
+                  Unlock advanced templates with professional features and effects for the ultimate personalized experience.
+                </p>
+              </div>
+              <Button className="bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white shadow-lg">
+                Upgrade to Premium
+              </Button>
             </div>
           </div>
           
           {/* Search and filters for premium content */}
-          <div className="flex flex-col gap-4 mb-6">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <div className="flex flex-col gap-4 mb-8">
+            <div className="relative w-full max-w-2xl mx-auto">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
               <Input
                 type="text"
                 placeholder="Search premium videos..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-full h-11"
+                className="pl-12 pr-12 h-12 text-base input-modern rounded-full shadow-lg border-yellow-200"
               />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 rounded-full"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
             
             <div className="flex flex-col sm:flex-row gap-2">
@@ -357,35 +442,38 @@ const VideoLibrary = () => {
           {/* Video grid */}
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Card key={i} className="overflow-hidden">
-                  <div className="w-full aspect-video bg-muted animate-pulse" />
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i} className="overflow-hidden border-0 shadow-lg">
+                  <div className="w-full aspect-video bg-gradient-to-br from-yellow-500/20 to-amber-500/20 animate-pulse" />
                   <CardContent className="pt-4">
-                    <div className="h-6 w-3/4 bg-muted animate-pulse rounded mb-3" />
-                    <div className="h-4 bg-muted animate-pulse rounded mb-2" />
-                    <div className="h-4 w-4/5 bg-muted animate-pulse rounded" />
+                    <div className="h-6 w-3/4 bg-secondary animate-pulse rounded-md mb-3" />
+                    <div className="h-4 bg-secondary animate-pulse rounded-md mb-2" />
+                    <div className="h-4 w-4/5 bg-secondary animate-pulse rounded-md" />
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : filteredTemplates?.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredTemplates.map((template) => (
-                <VideoCard 
-                  key={template.id} 
-                  video={template} 
-                  type="template"
-                  onSelect={handleSelectTemplate}
-                />
+              {filteredTemplates.map((template, index) => (
+                <div key={template.id} className="animate-slide-up" style={{ animationDelay: `${index * 0.05}s` }}>
+                  <VideoCard 
+                    video={template} 
+                    type="template"
+                    onSelect={handleSelectTemplate}
+                  />
+                </div>
               ))}
             </div>
           ) : (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Filter className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="text-xl font-medium mb-2">No premium videos found</h3>
-                <p className="text-muted-foreground">
-                  Try adjusting your search or filters to find videos.
+            <Card className="border-0 shadow-xl bg-gradient-to-br from-yellow-500/5 to-amber-500/5">
+              <CardContent className="py-16 text-center">
+                <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                  <Crown className="h-10 w-10 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold mb-3">No premium videos found</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Check back soon! We're adding new premium content regularly.
                 </p>
               </CardContent>
             </Card>
