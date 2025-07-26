@@ -163,6 +163,31 @@ export const processedVideoPeople = pgTable("processed_video_people", {
   role: text("role"), // "main", "supporting", etc.
 });
 
+// Animated stories table
+export const animatedStories = pgTable("animated_stories", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull(),
+  ageRange: text("age_range").notNull(),
+  duration: integer("duration").notNull(), // in seconds
+  scenes: jsonb("scenes"), // Animation scene data
+  isPremium: boolean("is_premium").default(false),
+  isFeatured: boolean("is_featured").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// User story sessions
+export const userStorySessions = pgTable("user_story_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  storyId: integer("story_id").references(() => animatedStories.id, { onDelete: "cascade" }).notNull(),
+  playCount: integer("play_count").default(0).notNull(),
+  lastPlayed: timestamp("last_played").defaultNow().notNull(),
+  completed: boolean("completed").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Now define all relations
 
 // User relations
@@ -172,6 +197,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   faceVideos: many(faceVideos),
   voiceRecordings: many(voiceRecordings),
   processedVideos: many(processedVideos),
+  userStorySessions: many(userStorySessions),
 }));
 
 // People relations
@@ -249,31 +275,6 @@ export const processedVideosRelations = relations(processedVideos, ({ one, many 
   }),
   people: many(processedVideoPeople)
 }));
-
-// Animated stories table
-export const animatedStories = pgTable("animated_stories", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  category: text("category").notNull(),
-  ageRange: text("age_range").notNull(),
-  duration: integer("duration").notNull(), // in seconds
-  scenes: jsonb("scenes"), // Animation scene data
-  isPremium: boolean("is_premium").default(false),
-  isFeatured: boolean("is_featured").default(false),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// User story sessions table
-export const userStorySessions = pgTable("user_story_sessions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
-  storyId: integer("story_id").references(() => animatedStories.id, { onDelete: "cascade" }).notNull(),
-  playCount: integer("play_count").default(0).notNull(),
-  lastPlayed: timestamp("last_played").defaultNow().notNull(),
-  completed: boolean("completed").default(false),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
 
 // Processed videos people (junction table) relations
 export const processedVideoPeopleRelations = relations(processedVideoPeople, ({ one }) => ({

@@ -116,13 +116,13 @@ export function ContentManager({ contentType = 'all', showActions = true }: Cont
     },
   });
 
-  const bulkUpdateMutation = useMutation({
+  const bulkActionMutation = useMutation({
     mutationFn: ({ action, ids }: { action: string; ids: number[] }) =>
       apiRequest('POST', '/api/admin/content/bulk', { action, ids }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/content'] });
+      toast({ title: "Bulk action completed successfully" });
       setSelectedItems([]);
-      toast({ title: "Bulk operation completed" });
     },
   });
 
@@ -142,7 +142,7 @@ export function ContentManager({ contentType = 'all', showActions = true }: Cont
       toast({ title: "No items selected", variant: "destructive" });
       return;
     }
-    bulkUpdateMutation.mutate({ action, ids: selectedItems });
+    bulkActionMutation.mutate({ action, ids: selectedItems });
   };
 
   const getStatusColor = (status: string) => {
