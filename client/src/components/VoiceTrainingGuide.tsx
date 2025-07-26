@@ -111,7 +111,7 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
       const response = await apiRequest("POST", "/api/voice/combine-recordings", {
         personId: personId
       });
-      return response;
+      return response.json();  // Parse the JSON response
     },
     onSuccess: (data) => {
       toast({
@@ -133,11 +133,12 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
   const createVoiceRecordingMutation = useMutation({
     mutationFn: async (voiceData: { 
       audioData: string, 
+      audioUrl?: string,  // Add audioUrl as optional field
       name: string, 
       personId: number, 
       userId: number, 
       duration: number, 
-      type: string,
+      type?: string,
       isDefault: boolean 
     }) => {
       const res = await apiRequest("POST", "/api/voiceRecordings", voiceData);

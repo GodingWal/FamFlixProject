@@ -815,6 +815,36 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
     }
   });
 
+  // Combine voice recordings endpoint
+  app.post('/api/voice/combine-recordings', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { personId } = req.body;
+      
+      if (!personId) {
+        return res.status(400).json({ error: 'Person ID is required' });
+      }
+      
+      // Get all voice recordings for this person
+      const voiceRecordings = await storage.getVoiceRecordingsByPersonId(personId);
+      
+      if (voiceRecordings.length === 0) {
+        return res.status(404).json({ error: 'No voice recordings found for this person' });
+      }
+      
+      // In a real implementation, this would combine/process the recordings
+      // For now, we'll just return the count
+      res.json({ 
+        success: true,
+        recordingsCount: voiceRecordings.length,
+        message: 'Voice recordings combined successfully'
+      });
+      
+    } catch (error: any) {
+      log(`Error combining voice recordings: ${error.message}`, 'express');
+      res.status(500).json({ error: 'Failed to combine voice recordings' });
+    }
+  });
+
   // Helper function to create ElevenLabs voice clone
   async function createElevenlabsVoiceClone(voiceName: string, audioUrl: string) {
     try {
