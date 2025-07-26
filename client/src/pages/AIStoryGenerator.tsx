@@ -62,12 +62,10 @@ export function AIStoryGenerator() {
 
   const generateStoryMutation = useMutation({
     mutationFn: (request: StoryRequest) =>
-      apiRequest('/api/ai/generate-story', {
-        method: 'POST',
-        body: JSON.stringify(request),
-      }),
-    onSuccess: (story) => {
-      setGeneratedStory(story);
+      apiRequest('POST', '/api/ai/generate-story', request),
+          onSuccess: async (response) => {
+        const story = await response.json();
+        setGeneratedStory(story);
       toast({ title: "Story generated successfully!" });
     },
     onError: (error: any) => {
@@ -81,18 +79,15 @@ export function AIStoryGenerator() {
 
   const saveStoryMutation = useMutation({
     mutationFn: (story: GeneratedStory) =>
-      apiRequest('/api/admin/stories', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: story.title,
-          description: story.description,
-          content: story.script.map(s => s.dialogue).join(' '),
-          category: story.category,
-          ageRange: story.ageRange,
-          duration: story.duration,
-          script: story.script,
-          isAIGenerated: true,
-        }),
+      apiRequest('POST', '/api/admin/stories', {
+        title: story.title,
+        description: story.description,
+        content: story.script.map(s => s.dialogue).join(' '),
+        category: story.category,
+        ageRange: story.ageRange,
+        duration: story.duration,
+        script: story.script,
+        isAIGenerated: true,
       }),
     onSuccess: () => {
       toast({ title: "Story saved to library!" });
@@ -324,8 +319,8 @@ export function AIStoryGenerator() {
                   {generatedStory.script.map((scene, index) => (
                     <div key={index} className="p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge size="sm">{scene.character}</Badge>
-                        <Badge size="sm" variant="secondary">{scene.emotion}</Badge>
+                        <Badge>{scene.character}</Badge>
+                        <Badge variant="secondary">{scene.emotion}</Badge>
                         <span className="text-xs text-gray-500">{scene.timing}s</span>
                       </div>
                       <p className="text-sm">{scene.dialogue}</p>

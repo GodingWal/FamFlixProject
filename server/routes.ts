@@ -14,7 +14,10 @@ import {
   insertVoiceRecordingSchema,
   insertProcessedVideoSchema,
   insertPersonSchema,
-  insertVideoTemplateSchema
+  insertVideoTemplateSchema,
+  insertFaceVideoSchema,
+  insertAnimatedStorySchema,
+  insertUserStorySessionSchema
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { setupAuth, generateTokens, requireRole } from "./auth";
@@ -48,11 +51,11 @@ const apiLimiter = new RateLimiterMemory({
 // Rate limiting middleware
 const rateLimitMiddleware = (limiter: RateLimiterMemory) => async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await limiter.consume(req.ip);
+    await limiter.consume(req.ip || 'unknown');
     next();
   } catch (rejRes) {
-    const remainingPoints = rejRes.remainingPoints || 0;
-    const msBeforeNext = rejRes.msBeforeNext || 1000;
+    const remainingPoints = (rejRes as any).remainingPoints || 0;
+    const msBeforeNext = (rejRes as any).msBeforeNext || 1000;
     
     res.set('Retry-After', Math.round(msBeforeNext / 1000).toString());
     res.set('X-RateLimit-Limit', limiter.points.toString());
@@ -146,6 +149,29 @@ const isAdmin = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export async function registerRoutes(app: Express, io?: SocketServer): Promise<Server> {
+  // Check if database is available
+  if (!db) {
+    log('Database not available - some features will be disabled', 'express');
+    
+    // Add a middleware to handle database-dependent routes
+    app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+      // Allow health check and basic routes
+      if (req.path === '/health' || req.path === '/me' || req.path.startsWith('/auth')) {
+        return next();
+      }
+      
+      // For database-dependent routes, return service unavailable
+      if (req.path.includes('/stories') || req.path.includes('/admin') || req.path.includes('/users')) {
+        return res.status(503).json({ 
+          error: 'Database service is not available',
+          message: 'Please check your DATABASE_URL configuration'
+        });
+      }
+      
+      next();
+    });
+  }
+
   // Setup authentication
   // Security headers
   app.use(helmet({
@@ -240,6 +266,13 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
   // Public Stories endpoint for users (no authentication required)
   app.get('/api/stories', async (_req: Request, res: Response) => {
     try {
+      if (!db) {
+        return res.status(503).json({ 
+          error: 'Database service is not available',
+          message: 'Please check your DATABASE_URL configuration'
+        });
+      }
+      
       log(`Public stories endpoint called`, 'express');
       const result = await db.execute(sql`SELECT * FROM animated_stories WHERE is_active = true ORDER BY created_at DESC`);
       log(`Found ${result.rows.length} active stories`, 'express');
@@ -798,6 +831,9 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       }
 
       // Generate speech using the cloned voice
+      if (!elevenlabsVoiceId) {
+        return res.status(500).json({ error: 'Voice ID is null' });
+      }
       const speechResult = await generateElevenlabsSpeech(text, elevenlabsVoiceId);
       if (!speechResult.success) {
         return res.status(500).json({ error: 'Failed to generate speech: ' + speechResult.error });
@@ -958,6 +994,10 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
   app.post('/api/create-payment-intent', async (req: Request, res: Response) => {
     try {
+      if (!stripe) {
+        return res.status(503).json({ error: 'Payment processing is not available' });
+      }
+      
       const { amount, currency = 'usd' } = req.body;
       
       const paymentIntent = await stripe.paymentIntents.create({
@@ -976,6 +1016,13 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
   // Admin Stories Management Routes
   app.get('/api/admin/stories', isAdmin, async (_req: Request, res: Response) => {
     try {
+      if (!db) {
+        return res.status(503).json({ 
+          error: 'Database service is not available',
+          message: 'Please check your DATABASE_URL configuration'
+        });
+      }
+      
       const result = await db.execute(sql`SELECT * FROM animated_stories ORDER BY created_at DESC`);
       res.json(result.rows);
     } catch (error: any) {
@@ -986,6 +1033,13 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
   app.post('/api/admin/stories', isAdmin, async (req: Request, res: Response) => {
     try {
+      if (!db) {
+        return res.status(503).json({ 
+          error: 'Database service is not available',
+          message: 'Please check your DATABASE_URL configuration'
+        });
+      }
+      
       const { title, content, category, ageRange, duration, animationType, animationData } = req.body;
       
       const result = await db.execute(sql`
@@ -1003,6 +1057,13 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
   app.patch('/api/admin/stories/:id', isAdmin, async (req: Request, res: Response) => {
     try {
+      if (!db) {
+        return res.status(503).json({ 
+          error: 'Database service is not available',
+          message: 'Please check your DATABASE_URL configuration'
+        });
+      }
+      
       const id = parseInt(req.params.id);
       const updates = req.body;
       
@@ -1031,7 +1092,7 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       values.push(id);
       
       const query = `UPDATE animated_stories SET ${setParts.join(', ')} WHERE id = $${valueIndex} RETURNING *`;
-      const result = await db.execute(sql.raw(query, values));
+      const result = await db.execute(sql.raw(query));
       
       res.json(result.rows[0]);
     } catch (error: any) {
@@ -1042,6 +1103,13 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
 
   app.delete('/api/admin/stories/:id', isAdmin, async (req: Request, res: Response) => {
     try {
+      if (!db) {
+        return res.status(503).json({ 
+          error: 'Database service is not available',
+          message: 'Please check your DATABASE_URL configuration'
+        });
+      }
+      
       const id = parseInt(req.params.id);
       
       const result = await db.execute(sql`DELETE FROM animated_stories WHERE id = ${id} RETURNING *`);
@@ -1327,8 +1395,15 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
       const recentVideos = allVideos.slice(0, 5);
       
       // Fetch available stories from database directly using raw SQL
-      const storiesResult = await db.execute(sql`SELECT * FROM animated_stories`);
-      const stories = storiesResult.rows;
+      let stories: any[] = [];
+      if (db) {
+        try {
+          const storiesResult = await db.execute(sql`SELECT * FROM animated_stories`);
+          stories = storiesResult.rows;
+        } catch (error) {
+          log(`Error fetching stories: ${error}`, 'express');
+        }
+      }
       
       // Calculate voice quality based on voice recordings
       let voiceQuality = 0;

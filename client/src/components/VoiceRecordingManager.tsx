@@ -400,7 +400,7 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
               <VoiceClonePreview
                 personId={personId}
                 personName={personName}
-                voiceRecordingId={recordings.find(r => r.voiceCloneStatus === 'completed')?.id || recordings.find(r => r.isDefault)?.id || recordings[0]?.id}
+                voiceRecordingId={recordings.find((r: any) => r.voiceCloneStatus === 'completed')?.id || recordings.find((r: any) => r.isDefault)?.id || recordings[0]?.id}
                 className="mb-6"
               />
             )}

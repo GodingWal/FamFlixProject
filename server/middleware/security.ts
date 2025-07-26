@@ -10,7 +10,7 @@ export function rateLimit(maxRequests: number = 100, windowMs: number = 60000) {
     const now = Date.now();
     
     // Clean up expired entries
-    for (const [key, value] of requestCounts.entries()) {
+    for (const [key, value] of Array.from(requestCounts.entries())) {
       if (now > value.resetTime) {
         requestCounts.delete(key);
       }

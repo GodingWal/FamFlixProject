@@ -45,8 +45,13 @@ export const detailedHealthCheck = async (req: Request, res: Response) => {
   try {
     // Check database connectivity
     try {
-      await db.execute("SELECT 1");
-      healthStatus.services.database = "healthy";
+      if (db) {
+        await db.execute("SELECT 1");
+        healthStatus.services.database = "healthy";
+      } else {
+        healthStatus.services.database = "unavailable";
+        // Database being unavailable is not critical in development mode
+      }
     } catch (dbError) {
       console.error("Database health check failed:", dbError);
       healthStatus.services.database = "unhealthy";

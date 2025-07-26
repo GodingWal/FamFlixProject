@@ -16,7 +16,7 @@ import {
   SkipBack,
   SkipForward
 } from "lucide-react";
-import type { AnimatedStory } from "@/shared/schema";
+import type { AnimatedStory } from "../../../shared/schema";
 
 interface AnimatedStoryPlayerProps {
   story: AnimatedStory;
@@ -46,7 +46,7 @@ export function AnimatedStoryPlayer({ story, narratorId, onClose }: AnimatedStor
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [currentScene, setCurrentScene] = useState<AnimationScene | null>(null);
   
-  const audioRef = useRef<HTMLAudio | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const animationFrameRef = useRef<number>();
   const { toast } = useToast();
 
@@ -62,7 +62,7 @@ export function AnimatedStoryPlayer({ story, narratorId, onClose }: AnimatedStor
       });
       return response;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setAudioUrl(data.audioUrl);
       setIsGeneratingAudio(false);
       toast({

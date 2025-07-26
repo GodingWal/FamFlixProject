@@ -9,29 +9,39 @@ neonConfig.webSocketConstructor = ws;
 
 // Check if DATABASE_URL is set
 if (!process.env.DATABASE_URL) {
-  console.error('DATABASE_URL is not set. Please check your environment variables.');
-  console.error('Available environment variables:', Object.keys(process.env));
-  throw new Error('DATABASE_URL is not set. Please check your environment variables.');
+  console.warn('DATABASE_URL is not set. Running in development mode without database connection.');
+  console.warn('To enable database features, set the DATABASE_URL environment variable.');
 }
 
-// Create the database connection pool
-export const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
-  max: 5,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-});
+// Create the database connection pool only if DATABASE_URL is available
+export const pool = process.env.DATABASE_URL 
+  ? new Pool({ 
+      connectionString: process.env.DATABASE_URL,
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    })
+  : null;
 
-// Test database connection
-pool.query('SELECT NOW()')
-  .then(() => log('PostgreSQL database connection successful', 'db'))
-  .catch(err => log(`PostgreSQL database connection error: ${err.message}`, 'db'));
+// Test database connection if pool exists
+if (pool) {
+  pool.query('SELECT NOW()')
+    .then(() => log('PostgreSQL database connection successful', 'db'))
+    .catch(err => log(`PostgreSQL database connection error: ${err.message}`, 'db'));
+} else {
+  log('Database connection not available - running in development mode', 'db');
+}
 
-// Initialize Drizzle with the schema
-export const db = drizzle(pool, { schema });
+// Initialize Drizzle with the schema (only if pool exists)
+export const db = pool ? drizzle(pool, { schema }) : null;
 
 // Initialize database for the application
 export async function initDatabase() {
+  if (!db) {
+    log('Database not available - skipping initialization', 'db');
+    return true;
+  }
+  
   log('Initializing database tables...', 'db');
   
   try {

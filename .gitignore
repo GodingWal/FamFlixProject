@@ -162,13 +162,6 @@ venv.bak/
 .pytest_cache/
 .coverage
 
-# Replit specific
-.replit
-replit.nix
-.upm/
-uv.lock
-pyproject.toml
-
 # Large assets
 *.tar.gz
 *.zip

@@ -116,7 +116,7 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
     onSuccess: (data) => {
       toast({
         title: "Enhanced voice clone created!",
-        description: `Combined ${data.recordingsCount} cleaned recordings into a high-quality voice clone.`,
+        description: `Combined ${(data as any).recordingsCount} cleaned recordings into a high-quality voice clone.`,
       });
       setIsComplete(true);
     },
@@ -204,7 +204,6 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
       // Save the recording with proper audioUrl field
       createVoiceRecordingMutation.mutate({
         audioData: base64data,
-        audioUrl: base64data, // Backend requires audioUrl field
         name: voicePrompts[currentStep].title,
         personId: personId,
         userId: userId,

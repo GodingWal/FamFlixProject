@@ -188,13 +188,13 @@ export function DeploymentReadiness() {
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{check.name}</span>
                         {check.critical && (
-                          <Badge variant="outline" size="sm">Critical</Badge>
+                          <Badge variant="outline">Critical</Badge>
                         )}
                       </div>
                       <p className="text-sm text-gray-600">{check.message}</p>
                     </div>
                   </div>
-                  <Badge className={getStatusColor(check.status)} size="sm">
+                  <Badge className={getStatusColor(check.status)}>
                     {check.status.toUpperCase()}
                   </Badge>
                 </div>

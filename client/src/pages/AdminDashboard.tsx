@@ -26,6 +26,27 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 
+interface AdminStats {
+  overview: {
+    totalUsers: number;
+    activeUsers: number;
+    totalContent: number;
+    revenue: number;
+    totalSessions: number;
+    avgSessionDuration: number;
+  };
+  categoryBreakdown: any[];
+  popularContent: any[];
+  contentStats: {
+    stories: number;
+    videoTemplates: number;
+    voiceClones: number;
+    activeContent: number;
+  };
+  peakHours: any[];
+  userEngagement: any[];
+}
+
 export function AdminDashboard() {
   const [dateRange, setDateRange] = useState("30d");
   const [contentFilter, setContentFilter] = useState("all");
@@ -43,7 +64,26 @@ export function AdminDashboard() {
     );
   }
 
-  const stats = analytics || {};
+  const stats: AdminStats = (analytics as AdminStats) || {
+    overview: {
+      totalUsers: 0,
+      activeUsers: 0,
+      totalContent: 0,
+      revenue: 0,
+      totalSessions: 0,
+      avgSessionDuration: 0
+    },
+    categoryBreakdown: [],
+    popularContent: [],
+    contentStats: {
+      stories: 0,
+      videoTemplates: 0,
+      voiceClones: 0,
+      activeContent: 0
+    },
+    peakHours: [],
+    userEngagement: []
+  };
 
   return (
     <div className="container mx-auto px-4 py-6 sm:py-8 pb-20 sm:pb-8">

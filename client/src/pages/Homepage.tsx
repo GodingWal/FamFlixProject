@@ -39,14 +39,42 @@ export default function Homepage() {
   const { user, logoutMutation } = useAuth();
   const [activeSection, setActiveSection] = useState('overview');
 
-  const { data: people } = useQuery({
+  const { data: people = [] } = useQuery({
     queryKey: [`/api/users/${user?.id}/people`],
     enabled: !!user?.id,
+    queryFn: async () => {
+      try {
+        const response = await fetch(`/api/users/${user?.id}/people`, {
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          return [];
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Failed to fetch people:', error);
+        return [];
+      }
+    },
   });
 
-  const { data: processedVideos } = useQuery({
+  const { data: processedVideos = [] } = useQuery({
     queryKey: [`/api/users/${user?.id}/processedVideos`],
     enabled: !!user?.id,
+    queryFn: async () => {
+      try {
+        const response = await fetch(`/api/users/${user?.id}/processedVideos`, {
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          return [];
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Failed to fetch processed videos:', error);
+        return [];
+      }
+    },
   });
 
   const stats: DashboardStats = {

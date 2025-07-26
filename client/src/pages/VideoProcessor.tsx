@@ -484,26 +484,26 @@ const VideoProcessor = () => {
           {/* Template preview */}
           <Card>
             <CardContent className="pt-6">
-              <h2 className="text-xl font-bold mb-4">{template.title}</h2>
+              <h2 className="text-xl font-bold mb-4">{template?.title}</h2>
               <div className="aspect-video bg-muted rounded-md overflow-hidden mb-4">
                 <img 
-                  src={template.thumbnailUrl} 
-                  alt={template.title} 
+                  src={template?.thumbnailUrl} 
+                  alt={template?.title} 
                   className="w-full h-full object-cover"
                 />
               </div>
               <p className="text-sm text-muted-foreground mb-4">
-                {template.description}
+                {template?.description}
               </p>
               <div className="flex flex-wrap gap-2">
                 <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                  {template.category}
+                  {template?.category}
                 </span>
                 <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                  {template.ageRange} years
+                  {template?.ageRange} years
                 </span>
                 <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                  {Math.floor(template.duration / 60)}:{(template.duration % 60).toString().padStart(2, '0')}
+                  {template ? `${Math.floor(template.duration / 60)}:${(template.duration % 60).toString().padStart(2, '0')}` : ''}
                 </span>
               </div>
             </CardContent>

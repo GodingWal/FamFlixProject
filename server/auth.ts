@@ -11,6 +11,9 @@ import { storage } from './storage';
 import { insertUserSchema, User as SelectUser } from '@shared/schema';
 import { log } from './vite';
 import { z } from 'zod';
+import crypto from 'crypto';
+import { passwordResetTokens } from '@shared/schema';
+import { pool } from './db';
 
 // Extend Express.User interface to use our User type
 declare global {
@@ -89,8 +92,8 @@ export function setupAuth(app: Express) {
   
   // Set up session handling
   app.use(session(sessionSettings));
-  app.use(passport.initialize());
-  app.use(passport.session());
+  app.use(passport.initialize() as any);
+  app.use(passport.session() as any);
 
   // Configure Local Strategy for username/password authentication
   passport.use(
@@ -427,5 +430,71 @@ export function setupAuth(app: Express) {
       req.user = user;
       next();
     })(req, res, next);
+  });
+
+  // Password reset request endpoint
+  app.post('/api/request-password-reset', async (req, res) => {
+    try {
+      const { username, email } = req.body;
+      if (!username && !email) {
+        return res.status(400).json({ message: 'Username or email is required' });
+      }
+      // Find user by username or email
+      let user = null;
+      if (username) {
+        user = await storage.getUserByUsername(username);
+      } else if (email) {
+        user = await storage.getUserByEmail(email);
+      }
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      // Generate secure token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 1000 * 60 * 30); // 30 minutes
+      await storage.createPasswordResetToken({
+        userId: user.id,
+        token,
+        expiresAt,
+      });
+      // TODO: Send email with token link (for now, log to console)
+      console.log(`Password reset link for user ${user.username}: http://localhost:5000/reset-password?token=${token}`);
+      return res.json({ message: 'Password reset link sent (check your email or ask admin)' });
+    } catch (error) {
+      log(`Password reset request error: ${(error as Error).message}`, 'auth');
+      return res.status(500).json({ message: 'Failed to request password reset' });
+    }
+  });
+
+  // Password reset completion endpoint
+  app.post('/api/reset-password', async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      if (!token || !newPassword) {
+        return res.status(400).json({ message: 'Token and new password are required' });
+      }
+      // Find token
+      const resetToken = await storage.getPasswordResetTokenByToken(token);
+      if (!resetToken || new Date(resetToken.expiresAt) < new Date()) {
+        return res.status(400).json({ message: 'Invalid or expired token' });
+      }
+      // Get user
+      const user = await storage.getUser(resetToken.userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      // Hash new password
+      const hashedPassword = await hashPassword(newPassword);
+      // Update user with new password - we'll need to add a method for this
+      // For now, we'll use a direct database update
+      if (pool) {
+        await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, user.id]);
+      }
+      await storage.markPasswordResetTokenUsed(token);
+      return res.json({ message: 'Password has been reset successfully' });
+    } catch (error) {
+      log(`Password reset error: ${(error as Error).message}`, 'auth');
+      return res.status(500).json({ message: 'Failed to reset password' });
+    }
   });
 }

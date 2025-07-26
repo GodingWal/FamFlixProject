@@ -109,7 +109,7 @@ app.use((req, res, next) => {
 (async () => {
   try {
     // Initialize database tables
-    if (!process.env.DATABASE_URL) {
+    if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL environment variable is required for production");
     }
     
@@ -288,9 +288,9 @@ app.use((req, res, next) => {
       log(`Environment: ${process.env.NODE_ENV || 'development'}`, "express");
       log(`Socket.IO server initialized and ready`, "express");
       
-      // Log public URLs
-      if (process.env.REPLIT_DEV_DOMAIN) {
-        log(`Public URL: https://${process.env.REPLIT_DEV_DOMAIN}`, "express");
+      // Log public URLs if available
+      if (process.env.PUBLIC_URL) {
+        log(`Public URL: ${process.env.PUBLIC_URL}`, "express");
       }
     });
 

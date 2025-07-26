@@ -128,9 +128,11 @@ famflix/
 
 ## 🚀 Deployment
 
-### Replit Deployment (Recommended)
-1. Import this repository to Replit
-2. Configure environment variables in Replit Secrets
+### Deployment Options
+1. **Vercel**: Deploy with Vercel for serverless functions
+2. **Railway**: Deploy with Railway for full-stack applications
+3. **Render**: Deploy with Render for web services
+4. **DigitalOcean App Platform**: Deploy with DigitalOcean for scalable applications
 3. Click "Deploy" to create a production deployment
 
 ### Manual Deployment
@@ -209,14 +211,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- **Documentation**: Check `replit.md` for detailed technical information
+- **Documentation**: Check the codebase for detailed technical information
 - **Issues**: Create a GitHub issue for bugs or feature requests
 - **Discord**: Join our community for real-time support
 
 ## 🙏 Acknowledgments
 
 - OpenAI for AI/ML guidance
-- Replit for hosting and deployment platform
+- Vercel/Railway/Render for hosting and deployment platform
 - The open-source community for amazing tools and libraries
 
 ---

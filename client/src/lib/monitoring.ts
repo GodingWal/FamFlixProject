@@ -31,26 +31,11 @@ class PerformanceMonitor {
   }
 
   private observeWebVitals() {
-    // First Contentful Paint (FCP)
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        if (entry.name === 'first-contentful-paint') {
-          this.recordMetric('fcp', entry.startTime);
-        }
-      }
-    }).observe({ entryTypes: ['paint'] });
-
-    // Largest Contentful Paint (LCP)
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        this.recordMetric('lcp', entry.startTime);
-      }
-    }).observe({ entryTypes: ['largest-contentful-paint'] });
-
     // First Input Delay (FID)
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        this.recordMetric('fid', entry.processingStart - entry.startTime);
+        const firstInputEntry = entry as PerformanceEventTiming;
+        this.recordMetric('fid', firstInputEntry.processingStart - firstInputEntry.startTime);
       }
     }).observe({ entryTypes: ['first-input'] });
 
@@ -58,8 +43,9 @@ class PerformanceMonitor {
     new PerformanceObserver((list) => {
       let clsValue = 0;
       for (const entry of list.getEntries()) {
-        if (!entry.hadRecentInput) {
-          clsValue += entry.value;
+        const layoutShiftEntry = entry as any; // Use any for LayoutShift since it's not available in all TypeScript versions
+        if (!layoutShiftEntry.hadRecentInput) {
+          clsValue += layoutShiftEntry.value;
         }
       }
       if (clsValue > 0) {
@@ -86,9 +72,9 @@ class PerformanceMonitor {
       for (const entry of list.getEntries()) {
         const navEntry = entry as PerformanceNavigationTiming;
         
-        this.recordMetric('page_load_time', navEntry.loadEventEnd - navEntry.navigationStart);
-        this.recordMetric('dom_content_loaded', navEntry.domContentLoadedEventEnd - navEntry.navigationStart);
-        this.recordMetric('time_to_first_byte', navEntry.responseStart - navEntry.navigationStart);
+        this.recordMetric('page_load_time', navEntry.loadEventEnd - navEntry.fetchStart);
+        this.recordMetric('dom_content_loaded', navEntry.domContentLoadedEventEnd - navEntry.fetchStart);
+        this.recordMetric('time_to_first_byte', navEntry.responseStart - navEntry.fetchStart);
       }
     }).observe({ entryTypes: ['navigation'] });
   }

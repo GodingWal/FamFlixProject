@@ -61,7 +61,7 @@ export default function SystemDashboard() {
     refetchIntervalInBackground: true,
   });
 
-  const metrics: SystemMetrics = systemMetrics || {
+  const metrics: SystemMetrics = (systemMetrics as SystemMetrics) || {
     server: {
       uptime: 86400,
       memory: { used: 456, total: 1024 },

@@ -27,7 +27,7 @@ import { AnimatedStoryPlayer } from "@/components/AnimatedStoryPlayer";
 import { StorySkeleton } from "@/components/ui/skeleton-cards";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import type { AnimatedStory, UserStorySession, Person } from "@/shared/schema";
+import type { AnimatedStory, UserStorySession, Person } from "../../../shared/schema";
 
 export function StoriesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -62,13 +62,41 @@ export function StoriesPage() {
   });
 
   // Fetch user's people for narrator selection
-  const { data: people } = useQuery({
+  const { data: people = [] } = useQuery({
     queryKey: ['/api/me/people'],
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/me/people', {
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          return [];
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Failed to fetch people:', error);
+        return [];
+      }
+    },
   });
 
   // Fetch user's story sessions
-  const { data: sessions } = useQuery({
+  const { data: sessions = [] } = useQuery({
     queryKey: ['/api/story-sessions'],
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/story-sessions', {
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          return [];
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Failed to fetch story sessions:', error);
+        return [];
+      }
+    },
   });
 
   // Create story session mutation
@@ -105,13 +133,13 @@ export function StoriesPage() {
   ];
 
   const filteredStories = stories?.filter((story: AnimatedStory) => {
-    const matchesCategory = selectedCategory === "all" || story.category === selectedCategory;
-    const matchesAgeRange = selectedAgeRange === "all" || story.ageRange === selectedAgeRange;
-    const matchesSearch = searchTerm === "" || 
+    const matchesCategory = selectedCategory === 'all' || story.category === selectedCategory;
+    const matchesAgeRange = selectedAgeRange === 'all' || story.ageRange === selectedAgeRange;
+    const matchesSearch = !searchTerm || 
       story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       story.content.toLowerCase().includes(searchTerm.toLowerCase());
     
-    return matchesCategory && matchesAgeRange && matchesSearch && story.isActive;
+    return matchesCategory && matchesAgeRange && matchesSearch;
   }) || [];
 
   const handlePlayStory = (story: AnimatedStory) => {
@@ -273,7 +301,7 @@ export function StoriesPage() {
                     )}
                   </div>
                   <Badge variant="outline" className="text-xs flex-shrink-0">
-                    {story.ageRange || story.age_range}
+                    {story.ageRange}
                   </Badge>
                 </div>
                 <CardTitle className="text-lg sm:text-xl leading-tight">{story.title}</CardTitle>

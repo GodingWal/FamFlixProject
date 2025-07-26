@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2, User, Video } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 
 export default function AuthPage() {
   const { user, isLoading, loginMutation, registerMutation } = useAuth();
@@ -111,6 +112,38 @@ export default function AuthPage() {
       });
     }
   };
+
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetForm, setResetForm] = useState({ username: "", email: "" });
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+
+  const handleResetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setResetForm({ ...resetForm, [e.target.name]: e.target.value });
+  };
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetMessage(null);
+    try {
+      const res = await fetch("/api/request-password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(resetForm),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetMessage("If an account exists, a reset link has been sent.");
+      } else {
+        setResetMessage(data.message || "Failed to request password reset");
+      }
+    } catch (err) {
+      setResetMessage("Failed to request password reset");
+    } finally {
+      setResetLoading(false);
+    }
+  };
   
   // Redirect to home if already logged in
   if (user && !isLoading) {
@@ -174,6 +207,15 @@ export default function AuthPage() {
                       className="h-11 text-base"
                     />
                   </div>
+                  <div className="flex justify-end mt-2">
+                    <button
+                      type="button"
+                      className="text-sm text-primary underline hover:text-primary/80 focus:outline-none"
+                      onClick={() => setShowResetDialog(true)}
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                 </CardContent>
                 <CardFooter className="p-4 md:p-6">
                   <Button 
@@ -204,6 +246,48 @@ export default function AuthPage() {
                 </CardFooter>
               </form>
             </Card>
+            {/* Password Reset Dialog */}
+            <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Reset Password</DialogTitle>
+                  <DialogDescription>
+                    Enter your username or email to receive a password reset link.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleResetSubmit} className="space-y-4">
+                  <Input
+                    id="reset-username"
+                    name="username"
+                    placeholder="Username (optional)"
+                    value={resetForm.username}
+                    onChange={handleResetChange}
+                    className="h-11 text-base"
+                  />
+                  <Input
+                    id="reset-email"
+                    name="email"
+                    type="email"
+                    placeholder="Email (optional)"
+                    value={resetForm.email}
+                    onChange={handleResetChange}
+                    className="h-11 text-base"
+                  />
+                  <Button type="submit" className="w-full h-11" disabled={resetLoading}>
+                    {resetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Send Reset Link
+                  </Button>
+                  {resetMessage && (
+                    <div className="text-sm text-center mt-2 text-muted-foreground">{resetMessage}</div>
+                  )}
+                </form>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="ghost">Close</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
           
           {/* Registration Form */}

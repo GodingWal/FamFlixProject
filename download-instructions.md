@@ -4,7 +4,7 @@
 The `famflix-source.tar.gz` file contains:
 - All source code (client/, server/, shared/)
 - Configuration files (package.json, tsconfig.json, etc.)
-- Documentation (README.md, replit.md)
+- Documentation (README.md)
 - Essential config files
 
 ## What's Excluded (to reduce size)

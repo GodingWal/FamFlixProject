@@ -82,7 +82,7 @@ export function LiveAnalytics() {
     refetchIntervalInBackground: true,
   });
 
-  const metrics: LiveMetrics = liveMetrics || {
+  const metrics: LiveMetrics = (liveMetrics as LiveMetrics) || {
     activeUsers: 42,
     sessionsToday: 156,
     avgEngagement: 78,
@@ -306,7 +306,7 @@ export function LiveAnalytics() {
                     plugins: {
                       legend: {
                         position: 'bottom' as const,
-                        labels: { fontSize: 10 }
+                        labels: { font: { size: 10 } }
                       },
                     },
                   }}

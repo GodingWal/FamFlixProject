@@ -73,8 +73,22 @@ export function AdminVideoUpload() {
   const { toast } = useToast();
 
   // Fetch all video templates
-  const { data: templates, isLoading: templatesLoading } = useQuery({
+  const { data: templates = [], isLoading: templatesLoading } = useQuery({
     queryKey: ['/api/admin/videoTemplates'],
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/admin/videoTemplates', {
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          return [];
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Failed to fetch video templates:', error);
+        return [];
+      }
+    }
   });
 
   const createTemplateMutation = useMutation({
@@ -96,9 +110,17 @@ export function AdminVideoUpload() {
         formData.append('thumbnail', data.thumbnailFile);
       }
 
-      return apiRequest("POST", "/api/admin/videoTemplates", formData, {
-        'Content-Type': undefined, // Let browser set multipart boundary
+      const response = await fetch("/api/admin/videoTemplates", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
       });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to create template: ${response.statusText}`);
+      }
+      
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/videoTemplates'] });
@@ -236,11 +258,16 @@ export function AdminVideoUpload() {
       return;
     }
 
-    createTemplateMutation.mutate({
+    const mutationData: any = {
       ...data,
       videoFile,
-      thumbnailFile,
-    });
+    };
+    
+    if (thumbnailFile) {
+      mutationData.thumbnailFile = thumbnailFile;
+    }
+    
+    createTemplateMutation.mutate(mutationData);
   };
 
   const onEditSubmit = (data: VideoTemplateFormData) => {

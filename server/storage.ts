@@ -1,5 +1,6 @@
 import { 
   users, faceImages, faceVideos, voiceRecordings, videoTemplates, processedVideos, processedVideoPeople, people, profiles, templates,
+  animatedStories, userStorySessions,
   type User, type InsertUser, 
   type FaceImage, type InsertFaceImage,
   type FaceVideo, type InsertFaceVideo,
@@ -9,7 +10,11 @@ import {
   type ProcessedVideoPerson, type InsertProcessedVideoPerson,
   type Person, type InsertPerson,
   type Profile, type InsertProfile,
-  type Template, type InsertTemplate
+  type Template, type InsertTemplate,
+  type AnimatedStory, type InsertAnimatedStory,
+  type UserStorySession, type InsertUserStorySession,
+  type PasswordResetToken, type InsertPasswordResetToken,
+  passwordResetTokens
 } from "@shared/schema";
 import session from "express-session";
 import { db, pool } from './db';
@@ -110,6 +115,13 @@ export interface IStorage {
   createUserStorySession(session: InsertUserStorySession): Promise<UserStorySession>;
   updateUserStorySession(id: number, updateData: Partial<InsertUserStorySession>): Promise<UserStorySession | undefined>;
   deleteUserStorySession(id: number): Promise<boolean>;
+
+  // Password reset token operations
+  createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken>;
+  getPasswordResetTokenByToken(token: string): Promise<PasswordResetToken | undefined>;
+  getPasswordResetTokensByUserId(userId: number): Promise<PasswordResetToken[]>;
+  markPasswordResetTokenUsed(token: string): Promise<boolean>;
+  deleteExpiredPasswordResetTokens(): Promise<number>;
 }
 
 // New DatabaseStorage implementation with Drizzle ORM
@@ -119,8 +131,9 @@ export class DatabaseStorage implements IStorage {
   constructor() {
     // Set up the session store with PostgreSQL
     const PostgresStore = connectPg(session);
+    // Type assertion to suppress Pool type mismatch error
     this.sessionStore = new PostgresStore({
-      pool,
+      pool: (pool ?? undefined) as any,
       tableName: 'session',
       createTableIfMissing: true
     });
@@ -132,7 +145,7 @@ export class DatabaseStorage implements IStorage {
     const cached = cache.get<User>(cacheKey);
     if (cached) return cached;
 
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+    const [user] = await db!.select().from(users).where(eq(users.id, id));
     if (user) {
       cache.set(cacheKey, user, CacheTTL.MEDIUM);
     }
@@ -140,21 +153,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    const [user] = await db!.select().from(users).where(eq(users.username, username));
     return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const [user] = await db!.select().from(users).where(eq(users.email, email));
     return user;
   }
 
   async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(users.username);
+    return await db!.select().from(users).orderBy(users.username);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
+    const [user] = await db!
       .insert(users)
       .values(insertUser)
       .returning();
@@ -162,7 +175,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUserRole(id: number, role: string): Promise<User | undefined> {
-    const [user] = await db
+    const [user] = await db!
       .update(users)
       .set({ role })
       .where(eq(users.id, id))
@@ -171,7 +184,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUserSubscription(id: number, subscriptionStatus: string): Promise<User | undefined> {
-    const [user] = await db
+    const [user] = await db!
       .update(users)
       .set({ subscriptionStatus })
       .where(eq(users.id, id))
@@ -184,18 +197,17 @@ export class DatabaseStorage implements IStorage {
     if (stripeSubscriptionId) {
       updateData.stripeSubscriptionId = stripeSubscriptionId;
     }
-    
-    const [user] = await db
+    const [user] = await db!
       .update(users)
       .set(updateData)
       .where(eq(users.id, id))
       .returning();
     return user;
   }
-  
+
   // People operations
   async getPerson(id: number): Promise<Person | undefined> {
-    const [person] = await db.select().from(people).where(eq(people.id, id));
+    const [person] = await db!.select().from(people).where(eq(people.id, id));
     return person;
   }
 
@@ -204,25 +216,22 @@ export class DatabaseStorage implements IStorage {
     const cached = cache.get<Person[]>(cacheKey);
     if (cached) return cached;
 
-    const result = await db.select().from(people).where(eq(people.userId, userId)).orderBy(people.name);
+    const result = await db!.select().from(people).where(eq(people.userId, userId)).orderBy(people.name);
     cache.set(cacheKey, result, CacheTTL.MEDIUM);
     return result;
   }
 
   async createPerson(insertPerson: InsertPerson): Promise<Person> {
-    const [person] = await db
+    const [person] = await db!
       .insert(people)
       .values(insertPerson)
       .returning();
-    
-    // Invalidate related caches
     cache.del(CacheKeys.userPeople(insertPerson.userId));
-    
     return person;
   }
 
   async updatePerson(id: number, updateData: Partial<InsertPerson>): Promise<Person | undefined> {
-    const [person] = await db
+    const [person] = await db!
       .update(people)
       .set(updateData)
       .where(eq(people.id, id))
@@ -231,36 +240,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePerson(id: number): Promise<boolean> {
-    // First, get all voice recordings and face images for this person
-    const personVoiceRecordings = await db.select().from(voiceRecordings).where(eq(voiceRecordings.personId, id));
-    const personFaceImages = await db.select().from(faceImages).where(eq(faceImages.personId, id));
-    
-    // Find processed videos that reference this person's voice recordings or face images
+    const personVoiceRecordings = await db!.select().from(voiceRecordings).where(eq(voiceRecordings.personId, id));
+    const personFaceImages = await db!.select().from(faceImages).where(eq(faceImages.personId, id));
     const voiceRecordingIds = personVoiceRecordings.map(vr => vr.id);
     const faceImageIds = personFaceImages.map(fi => fi.id);
-    
-    // Delete processed videos that reference this person's data
     if (voiceRecordingIds.length > 0) {
-      await db.delete(processedVideos).where(inArray(processedVideos.voiceRecordingId, voiceRecordingIds));
+      await db!.delete(processedVideos).where(inArray(processedVideos.voiceRecordingId, voiceRecordingIds));
     }
     if (faceImageIds.length > 0) {
-      await db.delete(processedVideos).where(inArray(processedVideos.faceImageId, faceImageIds));
+      await db!.delete(processedVideos).where(inArray(processedVideos.faceImageId, faceImageIds));
     }
-    
-    // Delete processed video people entries
-    await db.delete(processedVideoPeople).where(eq(processedVideoPeople.personId, id));
-    
-    // Now delete the person (cascade will handle voice recordings and face images)
-    await db.delete(people).where(eq(people.id, id));
+    await db!.delete(processedVideoPeople).where(eq(processedVideoPeople.personId, id));
+    await db!.delete(people).where(eq(people.id, id));
     return true;
   }
-  
+
   // Face image operations
   async getFaceImage(id: number): Promise<FaceImage | undefined> {
-    const [faceImage] = await db.select().from(faceImages).where(eq(faceImages.id, id));
-    
+    const [faceImage] = await db!.select().from(faceImages).where(eq(faceImages.id, id));
     if (faceImage && faceImage.imageUrl) {
-      // Try to decrypt if data is encrypted
       try {
         const parsedData = JSON.parse(faceImage.imageUrl);
         if (parsedData.encrypted && parsedData.iv && parsedData.authTag) {
@@ -276,106 +274,87 @@ export class DatabaseStorage implements IStorage {
         // Data is not encrypted, continue with original
       }
     }
-    
     return faceImage;
   }
 
   async getFaceImagesByUserId(userId: number): Promise<FaceImage[]> {
-    return await db.select().from(faceImages).where(eq(faceImages.userId, userId));
+    return await db!.select().from(faceImages).where(eq(faceImages.userId, userId));
   }
-  
+
   async getFaceImagesByPersonId(personId: number): Promise<FaceImage[]> {
     const cacheKey = CacheKeys.personFaceImages(personId);
     const cached = cache.get<FaceImage[]>(cacheKey);
     if (cached) return cached;
-
-    const result = await db.select().from(faceImages).where(eq(faceImages.personId, personId));
+    const result = await db!.select().from(faceImages).where(eq(faceImages.personId, personId));
     cache.set(cacheKey, result, CacheTTL.SHORT);
     return result;
   }
 
   async createFaceImage(insertFaceImage: InsertFaceImage): Promise<FaceImage> {
-    // If this will be set as default, unset any existing default
     if (insertFaceImage.isDefault) {
-      await db
+      await db!
         .update(faceImages)
         .set({ isDefault: false })
         .where(eq(faceImages.personId, insertFaceImage.personId));
     }
-    
-    // Encrypt sensitive image data if it contains actual image data
     let processedFaceImage = { ...insertFaceImage };
-    
     if (insertFaceImage.imageUrl && insertFaceImage.imageUrl.startsWith('data:image/')) {
       try {
         const encryptedData = await storeSecureData(
-          `faceImage:${Date.now()}`, 
+          `faceImage:${Date.now()}`,
           insertFaceImage.imageUrl,
           `cache:face_image:${insertFaceImage.personId}:${Date.now()}`
         );
-        
-        // Store encrypted data as JSON string in imageUrl field
         processedFaceImage.imageUrl = JSON.stringify(encryptedData);
         console.log('Face image data encrypted successfully');
       } catch (error) {
         console.error('Face image encryption failed:', error);
-        // Continue with original data if encryption fails
       }
     }
-    
-    const [faceImage] = await db
+    const [faceImage] = await db!
       .insert(faceImages)
       .values(processedFaceImage)
       .returning();
-    
-    // Invalidate related caches
     cache.del(CacheKeys.personFaceImages(insertFaceImage.personId));
-    
     return faceImage;
   }
 
   async setDefaultFaceImage(id: number): Promise<FaceImage | undefined> {
-    // Get the face image to get its personId
-    const [faceImage] = await db.select().from(faceImages).where(eq(faceImages.id, id));
+    const [faceImage] = await db!.select().from(faceImages).where(eq(faceImages.id, id));
     if (!faceImage) return undefined;
-    
-    // Unset any existing default
-    await db
+    await db!
       .update(faceImages)
       .set({ isDefault: false })
       .where(eq(faceImages.personId, faceImage.personId));
-    
-    // Set this one as default
-    const [updatedFaceImage] = await db
+    const [updatedFaceImage] = await db!
       .update(faceImages)
       .set({ isDefault: true })
       .where(eq(faceImages.id, id))
       .returning();
-    
     return updatedFaceImage;
   }
 
   async deleteFaceImage(id: number): Promise<boolean> {
-    await db.delete(faceImages).where(eq(faceImages.id, id));
+    await db!.delete(faceImages).where(eq(faceImages.id, id));
     return true;
   }
-  
+
   // Face video operations
   async getFaceVideo(id: number): Promise<FaceVideo | undefined> {
-    const [faceVideo] = await db.select().from(faceVideos).where(eq(faceVideos.id, id));
+    const [faceVideo] = await db!.select().from(faceVideos).where(eq(faceVideos.id, id));
     return faceVideo;
   }
 
   async getFaceVideosByUserId(userId: number): Promise<FaceVideo[]> {
-    return await db.select().from(faceVideos).where(eq(faceVideos.userId, userId));
+    return await db!.select().from(faceVideos).where(eq(faceVideos.userId, userId));
   }
-  
+
   async getFaceVideosByPersonId(personId: number): Promise<FaceVideo[]> {
-    return await db.select().from(faceVideos).where(eq(faceVideos.personId, personId));
+    return await db!.select().from(faceVideos).where(eq(faceVideos.personId, personId));
   }
 
   async createFaceVideo(insertFaceVideo: InsertFaceVideo): Promise<FaceVideo> {
-    const [faceVideo] = await db
+    const [faceVideo] = await db!
       .insert(faceVideos)
       .values(insertFaceVideo)
       .returning();
@@ -383,44 +362,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateFaceVideoProcessingStatus(
-    id: number, 
-    status: string, 
-    extractedFacesCount?: number, 
+    id: number,
+    status: string,
+    extractedFacesCount?: number,
     errorMessage?: string
   ): Promise<FaceVideo | undefined> {
-    const updateData: Partial<FaceVideo> = { 
+    const updateData: Partial<FaceVideo> = {
       processingStatus: status,
       isProcessed: status === 'completed'
     };
-    
     if (extractedFacesCount !== undefined) {
       updateData.extractedFacesCount = extractedFacesCount;
     }
-    
     if (errorMessage !== undefined) {
       updateData.errorMessage = errorMessage;
     }
-    
-    const [updatedFaceVideo] = await db
+    const [updatedFaceVideo] = await db!
       .update(faceVideos)
       .set(updateData)
       .where(eq(faceVideos.id, id))
       .returning();
-    
     return updatedFaceVideo;
   }
 
   async deleteFaceVideo(id: number): Promise<boolean> {
-    await db.delete(faceVideos).where(eq(faceVideos.id, id));
+    await db!.delete(faceVideos).where(eq(faceVideos.id, id));
     return true;
   }
-  
+
   // Voice recording operations
   async getVoiceRecording(id: number): Promise<VoiceRecording | undefined> {
-    const [voiceRecording] = await db.select().from(voiceRecordings).where(eq(voiceRecordings.id, id));
-    
+    const [voiceRecording] = await db!.select().from(voiceRecordings).where(eq(voiceRecordings.id, id));
     if (voiceRecording && voiceRecording.audioUrl) {
-      // Try to decrypt if data is encrypted
       try {
         const parsedData = JSON.parse(voiceRecording.audioUrl);
         if (parsedData.encrypted && parsedData.iv && parsedData.authTag) {
@@ -436,95 +409,74 @@ export class DatabaseStorage implements IStorage {
         // Data is not encrypted, continue with original
       }
     }
-    
     return voiceRecording;
   }
 
   async getVoiceRecordingsByUserId(userId: number): Promise<VoiceRecording[]> {
-    return await db.select().from(voiceRecordings).where(eq(voiceRecordings.userId, userId));
+    return await db!.select().from(voiceRecordings).where(eq(voiceRecordings.userId, userId));
   }
-  
+
   async getVoiceRecordingsByPersonId(personId: number): Promise<VoiceRecording[]> {
     const cacheKey = CacheKeys.personVoiceRecordings(personId);
     const cached = cache.get<VoiceRecording[]>(cacheKey);
     if (cached) return cached;
-
-    const result = await db.select().from(voiceRecordings).where(eq(voiceRecordings.personId, personId));
+    const result = await db!.select().from(voiceRecordings).where(eq(voiceRecordings.personId, personId));
     cache.set(cacheKey, result, CacheTTL.SHORT);
     return result;
   }
 
   async createVoiceRecording(insertVoiceRecording: InsertVoiceRecording): Promise<VoiceRecording> {
-    // If this will be set as default, unset any existing default
     if (insertVoiceRecording.isDefault) {
-      await db
+      await db!
         .update(voiceRecordings)
         .set({ isDefault: false })
         .where(eq(voiceRecordings.personId, insertVoiceRecording.personId));
     }
-    
-    // Encrypt sensitive voice data if it contains actual audio data
     let processedVoiceRecording = { ...insertVoiceRecording };
-    
     if (insertVoiceRecording.audioUrl && insertVoiceRecording.audioUrl.startsWith('data:audio/')) {
       try {
         const encryptedData = await storeSecureData(
-          `voiceRecording:${Date.now()}`, 
+          `voiceRecording:${Date.now()}`,
           insertVoiceRecording.audioUrl,
           `cache:voice_recording:${insertVoiceRecording.personId}:${Date.now()}`
         );
-        
-        // Store encrypted data as JSON string in audioUrl field
         processedVoiceRecording.audioUrl = JSON.stringify(encryptedData);
         console.log('Voice recording data encrypted successfully');
       } catch (error) {
         console.error('Voice recording encryption failed:', error);
-        // Continue with original data if encryption fails
       }
     }
-    
-    const [voiceRecording] = await db
+    const [voiceRecording] = await db!
       .insert(voiceRecordings)
       .values(processedVoiceRecording)
       .returning();
-    
-    // Invalidate related caches
     cache.del(CacheKeys.personVoiceRecordings(insertVoiceRecording.personId));
-    
     return voiceRecording;
   }
 
   async setDefaultVoiceRecording(id: number): Promise<VoiceRecording | undefined> {
-    // Get the voice recording to get its personId
-    const [voiceRecording] = await db.select().from(voiceRecordings).where(eq(voiceRecordings.id, id));
+    const [voiceRecording] = await db!.select().from(voiceRecordings).where(eq(voiceRecordings.id, id));
     if (!voiceRecording) return undefined;
-    
-    // Unset any existing default
-    await db
+    await db!
       .update(voiceRecordings)
       .set({ isDefault: false })
       .where(eq(voiceRecordings.personId, voiceRecording.personId));
-    
-    // Set this one as default
-    const [updatedVoiceRecording] = await db
+    const [updatedVoiceRecording] = await db!
       .update(voiceRecordings)
       .set({ isDefault: true })
       .where(eq(voiceRecordings.id, id))
       .returning();
-    
     return updatedVoiceRecording;
   }
 
   async deleteVoiceRecording(id: number): Promise<boolean> {
-    await db.delete(voiceRecordings).where(eq(voiceRecordings.id, id));
+    await db!.delete(voiceRecordings).where(eq(voiceRecordings.id, id));
     return true;
   }
 
-
-  
   // Video template operations
   async getVideoTemplate(id: number): Promise<VideoTemplate | undefined> {
-    const [videoTemplate] = await db.select().from(videoTemplates).where(eq(videoTemplates.id, id));
+    const [videoTemplate] = await db!.select().from(videoTemplates).where(eq(videoTemplates.id, id));
     return videoTemplate;
   }
 
@@ -532,32 +484,30 @@ export class DatabaseStorage implements IStorage {
     const cacheKey = CacheKeys.videoTemplates();
     const cached = cache.get<VideoTemplate[]>(cacheKey);
     if (cached) return cached;
-
-    const result = await db.select().from(videoTemplates);
+    const result = await db!.select().from(videoTemplates);
     cache.set(cacheKey, result, CacheTTL.LONG);
     return result;
   }
-  
+
   async getVideoTemplatesByCategory(category: string): Promise<VideoTemplate[]> {
-    return await db.select().from(videoTemplates).where(eq(videoTemplates.category, category));
+    return await db!.select().from(videoTemplates).where(eq(videoTemplates.category, category));
   }
-  
+
   async getVideoTemplatesByAgeRange(ageRange: string): Promise<VideoTemplate[]> {
-    return await db.select().from(videoTemplates).where(eq(videoTemplates.ageRange, ageRange));
+    return await db!.select().from(videoTemplates).where(eq(videoTemplates.ageRange, ageRange));
   }
-  
+
   async getFeaturedVideoTemplates(): Promise<VideoTemplate[]> {
     const cacheKey = CacheKeys.videoTemplatesFeatured();
     const cached = cache.get<VideoTemplate[]>(cacheKey);
     if (cached) return cached;
-
-    const result = await db.select().from(videoTemplates).where(eq(videoTemplates.featured, true));
+    const result = await db!.select().from(videoTemplates).where(eq(videoTemplates.featured, true));
     cache.set(cacheKey, result, CacheTTL.LONG);
     return result;
   }
 
   async createVideoTemplate(insertVideoTemplate: InsertVideoTemplate): Promise<VideoTemplate> {
-    const [videoTemplate] = await db
+    const [videoTemplate] = await db!
       .insert(videoTemplates)
       .values(insertVideoTemplate)
       .returning();
@@ -565,7 +515,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateVideoTemplate(id: number, updateData: Partial<InsertVideoTemplate>): Promise<VideoTemplate | undefined> {
-    const [videoTemplate] = await db
+    const [videoTemplate] = await db!
       .update(videoTemplates)
       .set(updateData)
       .where(eq(videoTemplates.id, id))
@@ -574,22 +524,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteVideoTemplate(id: number): Promise<boolean> {
-    await db.delete(videoTemplates).where(eq(videoTemplates.id, id));
+    await db!.delete(videoTemplates).where(eq(videoTemplates.id, id));
     return true;
   }
-  
+
   // Processed video operations
   async getProcessedVideo(id: number): Promise<ProcessedVideo | undefined> {
-    const [processedVideo] = await db.select().from(processedVideos).where(eq(processedVideos.id, id));
+    const [processedVideo] = await db!.select().from(processedVideos).where(eq(processedVideos.id, id));
     return processedVideo;
   }
 
   async getProcessedVideosByUserId(userId: number): Promise<ProcessedVideo[]> {
-    return await db.select().from(processedVideos).where(eq(processedVideos.userId, userId));
+    return await db!.select().from(processedVideos).where(eq(processedVideos.userId, userId));
   }
 
   async createProcessedVideo(insertProcessedVideo: InsertProcessedVideo): Promise<ProcessedVideo> {
-    const [processedVideo] = await db
+    const [processedVideo] = await db!
       .insert(processedVideos)
       .values(insertProcessedVideo)
       .returning();
@@ -604,8 +554,7 @@ export class DatabaseStorage implements IStorage {
     if (outputUrl) {
       updateData.outputUrl = outputUrl;
     }
-    
-    const [processedVideo] = await db
+    const [processedVideo] = await db!
       .update(processedVideos)
       .set(updateData)
       .where(eq(processedVideos.id, id))
@@ -614,19 +563,202 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProcessedVideo(id: number): Promise<boolean> {
-    await db.delete(processedVideos).where(eq(processedVideos.id, id));
+    await db!.delete(processedVideos).where(eq(processedVideos.id, id));
     return true;
   }
-  
+
   // Processed video people operations
   async createProcessedVideoPerson(insertProcessedVideoPerson: InsertProcessedVideoPerson): Promise<ProcessedVideoPerson> {
-    const [processedVideoPerson] = await db
+    const [processedVideoPerson] = await db!
       .insert(processedVideoPeople)
       .values(insertProcessedVideoPerson)
       .returning();
     return processedVideoPerson;
   }
+
+  // Animated stories operations
+  async getAnimatedStory(id: number): Promise<AnimatedStory | undefined> {
+    const [story] = await db!.select().from(animatedStories).where(eq(animatedStories.id, id));
+    return story;
+  }
+
+  async getAllAnimatedStories(): Promise<AnimatedStory[]> {
+    return await db!.select().from(animatedStories).orderBy(animatedStories.createdAt);
+  }
+
+  async getAnimatedStoriesByCategory(category: string): Promise<AnimatedStory[]> {
+    return await db!.select().from(animatedStories).where(eq(animatedStories.category, category));
+  }
+
+  async getAnimatedStoriesByAgeRange(ageRange: string): Promise<AnimatedStory[]> {
+    return await db!.select().from(animatedStories).where(eq(animatedStories.ageRange, ageRange));
+  }
+
+  async createAnimatedStory(story: InsertAnimatedStory): Promise<AnimatedStory> {
+    const [newStory] = await db!
+      .insert(animatedStories)
+      .values(story)
+      .returning();
+    return newStory;
+  }
+
+  async updateAnimatedStory(id: number, updateData: Partial<InsertAnimatedStory>): Promise<AnimatedStory | undefined> {
+    const [story] = await db!
+      .update(animatedStories)
+      .set(updateData)
+      .where(eq(animatedStories.id, id))
+      .returning();
+    return story;
+  }
+
+  async deleteAnimatedStory(id: number): Promise<boolean> {
+    await db!.delete(animatedStories).where(eq(animatedStories.id, id));
+    return true;
+  }
+
+  // User story sessions operations
+  async getUserStorySession(id: number): Promise<UserStorySession | undefined> {
+    const [session] = await db!.select().from(userStorySessions).where(eq(userStorySessions.id, id));
+    return session;
+  }
+
+  async getUserStorySessionsByUserId(userId: number): Promise<UserStorySession[]> {
+    return await db!.select().from(userStorySessions).where(eq(userStorySessions.userId, userId));
+  }
+
+  async getUserStorySessionsByStoryId(storyId: number): Promise<UserStorySession[]> {
+    return await db!.select().from(userStorySessions).where(eq(userStorySessions.storyId, storyId));
+  }
+
+  async createUserStorySession(session: InsertUserStorySession): Promise<UserStorySession> {
+    const [newSession] = await db!
+      .insert(userStorySessions)
+      .values(session)
+      .returning();
+    return newSession;
+  }
+
+  async updateUserStorySession(id: number, updateData: Partial<InsertUserStorySession>): Promise<UserStorySession | undefined> {
+    const [session] = await db!
+      .update(userStorySessions)
+      .set(updateData)
+      .where(eq(userStorySessions.id, id))
+      .returning();
+    return session;
+  }
+
+  async deleteUserStorySession(id: number): Promise<boolean> {
+    await db!.delete(userStorySessions).where(eq(userStorySessions.id, id));
+    return true;
+  }
+
+  // Password reset token operations
+  async createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken> {
+    const [row] = await db!.insert(passwordResetTokens).values(token).returning();
+    return row;
+  }
+  async getPasswordResetTokenByToken(token: string): Promise<PasswordResetToken | undefined> {
+    const [row] = await db!.select().from(passwordResetTokens).where(eq(passwordResetTokens.token, token));
+    return row;
+  }
+  async getPasswordResetTokensByUserId(userId: number): Promise<PasswordResetToken[]> {
+    return await db!.select().from(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
+  }
+  async markPasswordResetTokenUsed(token: string): Promise<boolean> {
+    const [row] = await db!.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.token, token)).returning();
+    return !!row;
+  }
+  async deleteExpiredPasswordResetTokens(): Promise<number> {
+    const now = new Date();
+    const result = await db!.delete(passwordResetTokens).where(sql`${passwordResetTokens.expiresAt} < ${now}`);
+    return result.rowCount || 0;
+  }
 }
 
-// Use the new Drizzle-powered storage implementation
-export const storage = new DatabaseStorage();
+// Mock storage implementation for when database is not available
+class MockStorage implements IStorage {
+  public sessionStore: session.Store;
+
+  constructor() {
+    // Use memory store for sessions when database is not available
+    this.sessionStore = new session.MemoryStore();
+  }
+
+  // All methods return empty results or throw errors
+  async getUser(): Promise<User | undefined> { return undefined; }
+  async getUserByUsername(): Promise<User | undefined> { return undefined; }
+  async getUserByEmail(): Promise<User | undefined> { return undefined; }
+  async getAllUsers(): Promise<User[]> { return []; }
+  async createUser(): Promise<User> { throw new Error('Database not available'); }
+  async updateUserRole(): Promise<User | undefined> { return undefined; }
+  async updateUserSubscription(): Promise<User | undefined> { return undefined; }
+  async updateStripeInfo(): Promise<User | undefined> { return undefined; }
+  
+  async getPerson(): Promise<Person | undefined> { return undefined; }
+  async getPeopleByUserId(): Promise<Person[]> { return []; }
+  async createPerson(): Promise<Person> { throw new Error('Database not available'); }
+  async updatePerson(): Promise<Person | undefined> { return undefined; }
+  async deletePerson(): Promise<boolean> { return false; }
+  
+  async getFaceImage(): Promise<FaceImage | undefined> { return undefined; }
+  async getFaceImagesByUserId(): Promise<FaceImage[]> { return []; }
+  async getFaceImagesByPersonId(): Promise<FaceImage[]> { return []; }
+  async createFaceImage(): Promise<FaceImage> { throw new Error('Database not available'); }
+  async deleteFaceImage(): Promise<boolean> { return false; }
+  async setDefaultFaceImage(): Promise<FaceImage | undefined> { return undefined; }
+  
+  async getFaceVideo(): Promise<FaceVideo | undefined> { return undefined; }
+  async getFaceVideosByUserId(): Promise<FaceVideo[]> { return []; }
+  async getFaceVideosByPersonId(): Promise<FaceVideo[]> { return []; }
+  async createFaceVideo(): Promise<FaceVideo> { throw new Error('Database not available'); }
+  async deleteFaceVideo(): Promise<boolean> { return false; }
+  async updateFaceVideoProcessingStatus(): Promise<FaceVideo | undefined> { return undefined; }
+  
+  async getVoiceRecording(): Promise<VoiceRecording | undefined> { return undefined; }
+  async getVoiceRecordingsByUserId(): Promise<VoiceRecording[]> { return []; }
+  async getVoiceRecordingsByPersonId(): Promise<VoiceRecording[]> { return []; }
+  async createVoiceRecording(): Promise<VoiceRecording> { throw new Error('Database not available'); }
+  async deleteVoiceRecording(): Promise<boolean> { return false; }
+  async setDefaultVoiceRecording(): Promise<VoiceRecording | undefined> { return undefined; }
+  
+  async getVideoTemplate(): Promise<VideoTemplate | undefined> { return undefined; }
+  async getAllVideoTemplates(): Promise<VideoTemplate[]> { return []; }
+  async getVideoTemplatesByCategory(): Promise<VideoTemplate[]> { return []; }
+  async getVideoTemplatesByAgeRange(): Promise<VideoTemplate[]> { return []; }
+  async getFeaturedVideoTemplates(): Promise<VideoTemplate[]> { return []; }
+  async createVideoTemplate(): Promise<VideoTemplate> { throw new Error('Database not available'); }
+  async updateVideoTemplate(): Promise<VideoTemplate | undefined> { return undefined; }
+  async deleteVideoTemplate(): Promise<boolean> { return false; }
+  
+  async getProcessedVideo(): Promise<ProcessedVideo | undefined> { return undefined; }
+  async getProcessedVideosByUserId(): Promise<ProcessedVideo[]> { return []; }
+  async createProcessedVideo(): Promise<ProcessedVideo> { throw new Error('Database not available'); }
+  async updateProcessedVideoStatus(): Promise<ProcessedVideo | undefined> { return undefined; }
+  async deleteProcessedVideo(): Promise<boolean> { return false; }
+  
+  async createProcessedVideoPerson(): Promise<ProcessedVideoPerson> { throw new Error('Database not available'); }
+  
+  async getAnimatedStory(): Promise<AnimatedStory | undefined> { return undefined; }
+  async getAllAnimatedStories(): Promise<AnimatedStory[]> { return []; }
+  async getAnimatedStoriesByCategory(): Promise<AnimatedStory[]> { return []; }
+  async getAnimatedStoriesByAgeRange(): Promise<AnimatedStory[]> { return []; }
+  async createAnimatedStory(): Promise<AnimatedStory> { throw new Error('Database not available'); }
+  async updateAnimatedStory(): Promise<AnimatedStory | undefined> { return undefined; }
+  async deleteAnimatedStory(): Promise<boolean> { return false; }
+  
+  async getUserStorySession(): Promise<UserStorySession | undefined> { return undefined; }
+  async getUserStorySessionsByUserId(): Promise<UserStorySession[]> { return []; }
+  async getUserStorySessionsByStoryId(): Promise<UserStorySession[]> { return []; }
+  async createUserStorySession(): Promise<UserStorySession> { throw new Error('Database not available'); }
+  async updateUserStorySession(): Promise<UserStorySession | undefined> { return undefined; }
+  async deleteUserStorySession(): Promise<boolean> { return false; }
+
+  async createPasswordResetToken(): Promise<PasswordResetToken> { throw new Error('Database not available'); }
+  async getPasswordResetTokenByToken(): Promise<PasswordResetToken | undefined> { return undefined; }
+  async getPasswordResetTokensByUserId(): Promise<PasswordResetToken[]> { return []; }
+  async markPasswordResetTokenUsed(): Promise<boolean> { return false; }
+  async deleteExpiredPasswordResetTokens(): Promise<number> { return 0; }
+}
+
+// Export the appropriate storage implementation based on database availability
+export const storage: IStorage = db ? new DatabaseStorage() : new MockStorage();

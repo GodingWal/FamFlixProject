@@ -85,10 +85,17 @@ export function SmartVoiceTraining() {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'voice_sample.wav');
       
-      return apiRequest('/api/ai/analyze-voice', {
+      const response = await fetch('/api/ai/analyze-voice', {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
+      
+      if (!response.ok) {
+        throw new Error(`Voice analysis failed: ${response.statusText}`);
+      }
+      
+      return await response.json();
     },
     onSuccess: (analysis: VoiceAnalysis) => {
       setVoiceAnalysis(analysis);
@@ -231,7 +238,7 @@ export function SmartVoiceTraining() {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-sm">{script.title}</h4>
                   <Badge 
-                    size="sm"
+
                     variant={script.difficulty === 'beginner' ? 'default' : 
                             script.difficulty === 'intermediate' ? 'secondary' : 'outline'}
                   >
