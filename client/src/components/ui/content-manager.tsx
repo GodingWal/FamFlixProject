@@ -101,10 +101,7 @@ export function ContentManager({ contentType = 'all', showActions = true }: Cont
 
   const updateContentMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<ContentItem> }) =>
-      apiRequest(`/api/admin/content/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
+      apiRequest('PATCH', `/api/admin/content/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/content'] });
       toast({ title: "Content updated successfully" });
@@ -112,23 +109,20 @@ export function ContentManager({ contentType = 'all', showActions = true }: Cont
   });
 
   const deleteContentMutation = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/admin/content/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => apiRequest('DELETE', `/api/admin/content/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/content'] });
       toast({ title: "Content deleted successfully" });
     },
   });
 
-  const bulkUpdateMutation = useMutation({
+  const bulkActionMutation = useMutation({
     mutationFn: ({ action, ids }: { action: string; ids: number[] }) =>
-      apiRequest('/api/admin/content/bulk', {
-        method: 'POST',
-        body: JSON.stringify({ action, ids }),
-      }),
+      apiRequest('POST', '/api/admin/content/bulk', { action, ids }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/content'] });
+      toast({ title: "Bulk action completed successfully" });
       setSelectedItems([]);
-      toast({ title: "Bulk operation completed" });
     },
   });
 
@@ -148,7 +142,7 @@ export function ContentManager({ contentType = 'all', showActions = true }: Cont
       toast({ title: "No items selected", variant: "destructive" });
       return;
     }
-    bulkUpdateMutation.mutate({ action, ids: selectedItems });
+    bulkActionMutation.mutate({ action, ids: selectedItems });
   };
 
   const getStatusColor = (status: string) => {

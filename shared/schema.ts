@@ -153,6 +153,31 @@ export const processedVideoPeople = pgTable("processed_video_people", {
   role: text("role"), // "main", "supporting", etc.
 });
 
+// Animated stories table
+export const animatedStories = pgTable("animated_stories", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull(),
+  ageRange: text("age_range").notNull(),
+  duration: integer("duration").notNull(), // in seconds
+  scenes: jsonb("scenes"), // Animation scene data
+  isPremium: boolean("is_premium").default(false),
+  isFeatured: boolean("is_featured").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// User story sessions
+export const userStorySessions = pgTable("user_story_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  storyId: integer("story_id").references(() => animatedStories.id, { onDelete: "cascade" }).notNull(),
+  playCount: integer("play_count").default(0).notNull(),
+  lastPlayed: timestamp("last_played").defaultNow().notNull(),
+  completed: boolean("completed").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Now define all relations
 
 // User relations
@@ -162,6 +187,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   faceVideos: many(faceVideos),
   voiceRecordings: many(voiceRecordings),
   processedVideos: many(processedVideos),
+  userStorySessions: many(userStorySessions),
 }));
 
 // People relations
@@ -257,6 +283,23 @@ export const processedVideoPeopleRelations = relations(processedVideoPeople, ({ 
   voiceRecording: one(voiceRecordings, {
     fields: [processedVideoPeople.voiceRecordingId],
     references: [voiceRecordings.id]
+  })
+}));
+
+// Animated stories relations
+export const animatedStoriesRelations = relations(animatedStories, ({ many }) => ({
+  userStorySessions: many(userStorySessions)
+}));
+
+// User story sessions relations
+export const userStorySessionsRelations = relations(userStorySessions, ({ one }) => ({
+  user: one(users, {
+    fields: [userStorySessions.userId],
+    references: [users.id]
+  }),
+  story: one(animatedStories, {
+    fields: [userStorySessions.storyId],
+    references: [animatedStories.id]
   })
 }));
 
@@ -362,6 +405,17 @@ export const insertTemplateSchema = createInsertSchema(templates).omit({
   tags: z.array(z.string()).optional()
 });
 
+export const insertAnimatedStorySchema = createInsertSchema(animatedStories).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserStorySessionSchema = createInsertSchema(userStorySessions).omit({
+  id: true,
+  createdAt: true,
+  lastPlayed: true,
+});
+
 // Type definitions
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -392,3 +446,9 @@ export type InsertProfile = typeof profiles.$inferInsert;
 
 export type Template = typeof templates.$inferSelect;
 export type InsertTemplate = typeof templates.$inferInsert;
+
+export type AnimatedStory = typeof animatedStories.$inferSelect;
+export type InsertAnimatedStory = z.infer<typeof insertAnimatedStorySchema>;
+
+export type UserStorySession = typeof userStorySessions.$inferSelect;
+export type InsertUserStorySession = z.infer<typeof insertUserStorySessionSchema>;
