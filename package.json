@@ -7,6 +7,7 @@
     "dev": "tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
+    "preview": "vite preview --port 4173",
     "check": "tsc",
     "db:push": "drizzle-kit push"
   },
@@ -100,9 +101,7 @@
     "zod": "^3.23.8",
     "zod-validation-error": "^3.4.0"
   },
-  "overrides": {
-    "pg": "npm:@neondatabase/serverless@0.10.4"
-  },
+
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.15",
     "@types/connect-pg-simple": "^7.0.3",
