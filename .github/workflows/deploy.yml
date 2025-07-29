@@ -20,7 +20,25 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           echo "Starting deployment..."
-          cd FamFlixProject || exit 1
+          echo "Current directory: $(pwd)"
+          echo "Listing home directory:"
+          ls -la /home/ubuntu/
+          echo "Looking for project directory..."
+          if [ -d "/home/ubuntu/FamFlixProject" ]; then
+            cd /home/ubuntu/FamFlixProject
+          elif [ -d "/home/ubuntu/famflix" ]; then
+            cd /home/ubuntu/famflix
+          elif [ -d "/home/ubuntu/FamFlix" ]; then
+            cd /home/ubuntu/FamFlix
+          else
+            echo "Project directory not found. Creating FamFlixProject..."
+            cd /home/ubuntu
+            git clone https://github.com/GodingWal/FamFlixProject.git
+            cd FamFlixProject
+          fi
+          echo "Current project directory: $(pwd)"
+          echo "Project contents:"
+          ls -la
           echo "Pulling latest code..."
           git pull origin main
           echo "Installing dependencies..."
@@ -37,7 +55,7 @@ jobs:
           echo "Setting up nginx..."
           sudo apt update -y
           sudo apt install nginx -y
-          sudo cp nginx-famflix.conf /etc/nginx/sites-available/famflix
+          sudo cp $(pwd)/nginx-famflix.conf /etc/nginx/sites-available/famflix
           sudo ln -sf /etc/nginx/sites-available/famflix /etc/nginx/sites-enabled/
           sudo rm -f /etc/nginx/sites-enabled/default
           sudo nginx -t && sudo systemctl restart nginx
