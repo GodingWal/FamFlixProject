@@ -24,7 +24,9 @@ jobs:
           echo "Listing home directory:"
           ls -la /home/ubuntu/
           echo "Looking for project directory..."
-          if [ -d "/home/ubuntu/FamFlixProject" ]; then
+          if [ -d "/home/ubuntu/famflix/FamFlixProject" ]; then
+            cd /home/ubuntu/famflix/FamFlixProject
+          elif [ -d "/home/ubuntu/FamFlixProject" ]; then
             cd /home/ubuntu/FamFlixProject
           elif [ -d "/home/ubuntu/famflix" ]; then
             cd /home/ubuntu/famflix
@@ -33,6 +35,8 @@ jobs:
           else
             echo "Project directory not found. Creating FamFlixProject..."
             cd /home/ubuntu
+            mkdir -p famflix
+            cd famflix
             git clone https://github.com/GodingWal/FamFlixProject.git
             cd FamFlixProject
           fi
