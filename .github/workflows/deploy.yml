@@ -16,7 +16,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
-        username: ec2-user
+        username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           cd FamFlixProject
@@ -24,5 +24,8 @@ jobs:
           npm install
           npm run build
           npm run db:push
-          pm2 restart famflix
+          pm2 delete famflix || true
+          pm2 start ecosystem.config.js --env production
+          pm2 save
+          sudo systemctl restart nginx
           echo "Deployment completed successfully!" 
