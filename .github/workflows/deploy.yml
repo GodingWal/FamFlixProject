@@ -19,13 +19,26 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          cd FamFlixProject
+          echo "Starting deployment..."
+          cd FamFlixProject || exit 1
+          echo "Pulling latest code..."
           git pull origin main
+          echo "Installing dependencies..."
           npm install
+          echo "Building application..."
           npm run build
-          npm run db:push
-          pm2 delete famflix || true
+          echo "Updating database..."
+          npm run db:push || echo "Database update failed, continuing..."
+          echo "Setting up PM2..."
+          npm install -g pm2 || echo "PM2 already installed"
+          pm2 delete famflix || echo "No existing PM2 process"
           pm2 start ecosystem.config.js --env production
           pm2 save
-          sudo systemctl restart nginx
+          echo "Setting up nginx..."
+          sudo apt update -y
+          sudo apt install nginx -y
+          sudo cp nginx-famflix.conf /etc/nginx/sites-available/famflix
+          sudo ln -sf /etc/nginx/sites-available/famflix /etc/nginx/sites-enabled/
+          sudo rm -f /etc/nginx/sites-enabled/default
+          sudo nginx -t && sudo systemctl restart nginx
           echo "Deployment completed successfully!" 
