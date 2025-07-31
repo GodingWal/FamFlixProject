@@ -49,6 +49,10 @@ jobs:
           npm install
           echo "Building application..."
           npm run build
+          echo "Checking build output:"
+          ls -la dist/ || echo "dist directory not found"
+          echo "Checking if index.js exists:"
+          ls -la dist/index.js || echo "index.js not found"
           echo "Updating database..."
           npm run db:push || echo "Database update failed, continuing..."
           echo "Setting up PM2..."
@@ -56,6 +60,10 @@ jobs:
           pm2 delete famflix || echo "No existing PM2 process"
           pm2 start ecosystem.config.js --env production
           pm2 save
+          echo "PM2 status:"
+          pm2 status
+          echo "PM2 logs:"
+          pm2 logs famflix --lines 10 || echo "No logs available"
           echo "Setting up nginx..."
           sudo apt update -y
           sudo apt install nginx -y
