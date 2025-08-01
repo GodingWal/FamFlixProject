@@ -28,4 +28,8 @@ jobs:
           pm2 delete famflix-test || true
           pm2 start test-ecosystem.config.js
           pm2 save
+          echo "PM2 status:"
+          pm2 status
+          echo "PM2 logs:"
+          pm2 logs famflix-test --lines 10 || echo "No logs available"
           echo "Test deployment completed successfully!" 
