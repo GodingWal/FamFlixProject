@@ -24,12 +24,6 @@ jobs:
           git pull origin main
           npm install
           cp env.production.template .env
-          npm install -g pm2
-          pm2 delete famflix-test || true
-          pm2 start test-ecosystem.config.js
-          pm2 save
-          echo "PM2 status:"
-          pm2 status
-          echo "PM2 logs:"
-          pm2 logs famflix-test --lines 10 || echo "No logs available"
+          echo "Starting test server directly..."
+          nohup node test-server.js > server.log 2>&1 &
           echo "Test deployment completed successfully!" 
