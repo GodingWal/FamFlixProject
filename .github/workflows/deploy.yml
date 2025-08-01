@@ -23,10 +23,9 @@ jobs:
           cd /home/ubuntu/famflix/FamFlixProject
           git pull origin main
           npm install
-          npm run build
           cp env.production.template .env
           npm install -g pm2
-          pm2 delete famflix || true
-          pm2 start ecosystem.config.js --env production
+          pm2 delete famflix-test || true
+          pm2 start test-ecosystem.config.js
           pm2 save
-          echo "Deployment completed successfully!" 
+          echo "Test deployment completed successfully!" 
