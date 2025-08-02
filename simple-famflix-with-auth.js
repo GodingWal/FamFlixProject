@@ -1,7 +1,4 @@
 import express from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -10,32 +7,21 @@ const port = process.env.PORT || 5000;
 app.use(express.json());
 app.use(express.static('dist/public'));
 
-// JWT configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'famflix_jwt_secret_2025_secure_and_random_string_for_production';
-const REFRESH_SECRET = process.env.REFRESH_SECRET || 'famflix_refresh_secret_2025_secure_and_random_string_for_production';
-
-// In-memory user storage (for demo purposes)
+// Simple in-memory user storage (for demo purposes)
 const users = new Map();
-const sessions = new Map();
 
-// Validation schemas
-const registerSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters'),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  displayName: z.string().min(2, 'Display name must be at least 2 characters')
-});
+// Simple token generation (for demo purposes)
+const generateToken = (user) => {
+  return Buffer.from(JSON.stringify({ id: user.id, username: user.username })).toString('base64');
+};
 
-const loginSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required')
-});
+// Simple password hashing (for demo purposes - NOT for production)
+const hashPassword = (password) => {
+  return Buffer.from(password).toString('base64');
+};
 
-// Token generation
-const generateTokens = (user) => {
-  const accessToken = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '15m' });
-  const refreshToken = jwt.sign({ id: user.id }, REFRESH_SECRET, { expiresIn: '7d' });
-  return { accessToken, refreshToken };
+const comparePassword = (password, hash) => {
+  return hashPassword(password) === hash;
 };
 
 // Authentication middleware
@@ -47,13 +33,19 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: 'Access token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ message: 'Invalid or expired token' });
+  try {
+    const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+    const user = users.get(decoded.username);
+    
+    if (!user) {
+      return res.status(403).json({ message: 'Invalid token' });
     }
+    
     req.user = user;
     next();
-  });
+  } catch (error) {
+    return res.status(403).json({ message: 'Invalid token' });
+  }
 };
 
 // Main page
@@ -212,7 +204,7 @@ app.get('/', (req, res) => {
           const password = document.getElementById('login-password').value;
           
           try {
-            const response = await fetch('/api/login-jwt', {
+            const response = await fetch('/api/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ username, password })
@@ -222,9 +214,9 @@ app.get('/', (req, res) => {
             const resultDiv = document.getElementById('login-result');
             
             if (response.ok) {
-              currentToken = result.accessToken;
+              currentToken = result.token;
               resultDiv.className = 'auth-result auth-success';
-              resultDiv.textContent = 'Login successful! Token: ' + result.accessToken.substring(0, 20) + '...';
+              resultDiv.textContent = 'Login successful! Token: ' + result.token.substring(0, 20) + '...';
             } else {
               resultDiv.className = 'auth-result auth-error';
               resultDiv.textContent = 'Login failed: ' + result.message;
@@ -284,106 +276,75 @@ app.get('/health', (req, res) => {
 // Authentication endpoints
 app.post('/api/register', async (req, res) => {
   try {
-    const validatedData = registerSchema.parse(req.body);
+    const { username, email, password, displayName } = req.body;
     
-    // Check if username already exists
-    if (users.has(validatedData.username)) {
-      return res.status(400).json({ message: 'Username already exists' });
+    if (!username || !email || !password || !displayName) {
+      return res.status(400).json({ message: 'All fields are required' });
     }
     
-    // Hash password
-    const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+    if (username.length < 3) {
+      return res.status(400).json({ message: 'Username must be at least 3 characters' });
+    }
+    
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+    
+    // Check if username already exists
+    if (users.has(username)) {
+      return res.status(400).json({ message: 'Username already exists' });
+    }
     
     // Create user
     const user = {
       id: Date.now(),
-      username: validatedData.username,
-      email: validatedData.email,
-      displayName: validatedData.displayName,
-      password: hashedPassword,
+      username,
+      email,
+      displayName,
+      password: hashPassword(password),
       role: 'user',
       createdAt: new Date().toISOString()
     };
     
-    users.set(validatedData.username, user);
+    users.set(username, user);
     
     // Return user without password
-    const { password, ...safeUser } = user;
+    const { password: _, ...safeUser } = user;
     res.status(201).json(safeUser);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        message: 'Validation failed', 
-        errors: error.errors.map(e => ({
-          field: e.path.join('.'),
-          message: e.message
-        }))
-      });
-    }
     res.status(500).json({ message: 'Registration failed' });
   }
 });
 
-app.post('/api/login-jwt', async (req, res) => {
+app.post('/api/login', async (req, res) => {
   try {
-    const validatedData = loginSchema.parse(req.body);
-    const user = users.get(validatedData.username);
+    const { username, password } = req.body;
     
-    if (!user || !(await bcrypt.compare(validatedData.password, user.password))) {
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
+    
+    const user = users.get(username);
+    
+    if (!user || !comparePassword(password, user.password)) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
     
-    const tokens = generateTokens(user);
-    const { password, ...safeUser } = user;
+    const token = generateToken(user);
+    const { password: _, ...safeUser } = user;
     
     res.json({
       user: safeUser,
-      ...tokens
+      token
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        message: 'Validation failed', 
-        errors: error.errors.map(e => ({
-          field: e.path.join('.'),
-          message: e.message
-        }))
-      });
-    }
     res.status(500).json({ message: 'Login failed' });
-  }
-});
-
-app.post('/api/refresh-token', async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-    
-    if (!refreshToken) {
-      return res.status(401).json({ message: 'Refresh token required' });
-    }
-
-    const decoded = jwt.verify(refreshToken, REFRESH_SECRET);
-    const user = users.get(decoded.username);
-    
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid token' });
-    }
-
-    const tokens = generateTokens(user);
-    res.json(tokens);
-  } catch (error) {
-    res.status(401).json({ message: 'Invalid refresh token' });
   }
 });
 
 // Protected route example
 app.get('/api/me', authenticateToken, (req, res) => {
-  const user = users.get(req.user.username);
-  if (!user) {
-    return res.status(404).json({ message: 'User not found' });
-  }
-  
-  const { password, ...safeUser } = user;
+  const { password: _, ...safeUser } = req.user;
   res.json(safeUser);
 });
 
