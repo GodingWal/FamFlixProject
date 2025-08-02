@@ -68,6 +68,38 @@ export const performanceMonitor = (req: Request, res: Response, next: NextFuncti
   const start = process.hrtime.bigint();
   const startMemory = process.memoryUsage();
   
+  // Store original methods to prevent double responses
+  const originalSend = res.send;
+  const originalJson = res.json;
+  const originalEnd = res.end;
+  
+  let responseSent = false;
+  
+  // Override response methods to track if response was sent
+  res.send = function(...args: any[]) {
+    if (!responseSent) {
+      responseSent = true;
+      return originalSend.apply(res, args);
+    }
+    return res;
+  };
+  
+  res.json = function(...args: any[]) {
+    if (!responseSent) {
+      responseSent = true;
+      return originalJson.apply(res, args);
+    }
+    return res;
+  };
+  
+  res.end = function(...args: any[]) {
+    if (!responseSent) {
+      responseSent = true;
+      return originalEnd.apply(res, args);
+    }
+    return res;
+  };
+  
   res.on('finish', () => {
     const duration = Number(process.hrtime.bigint() - start) / 1000000; // Convert to ms
     const endMemory = process.memoryUsage();
@@ -83,10 +115,15 @@ export const performanceMonitor = (req: Request, res: Response, next: NextFuncti
       log(`High memory request: ${req.method} ${req.path} - ${(memoryDelta / 1024 / 1024).toFixed(2)}MB`, 'performance');
     }
     
-    // Add performance headers only if headers haven't been sent
-    if (!res.headersSent) {
-      res.setHeader('X-Response-Time', `${duration.toFixed(2)}ms`);
-      res.setHeader('X-Memory-Delta', `${(memoryDelta / 1024).toFixed(2)}KB`);
+    // Add performance headers only if headers haven't been sent and response wasn't sent
+    if (!res.headersSent && !responseSent) {
+      try {
+        res.setHeader('X-Response-Time', `${duration.toFixed(2)}ms`);
+        res.setHeader('X-Memory-Delta', `${(memoryDelta / 1024).toFixed(2)}KB`);
+      } catch (error) {
+        // Silently ignore header setting errors
+        log(`Could not set performance headers: ${error}`, 'performance');
+      }
     }
   });
   

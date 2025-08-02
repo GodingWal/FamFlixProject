@@ -34,12 +34,51 @@ const io = new Server(httpServer, {
 // Enhanced error handling for production
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
-  process.exit(1);
+  // Don't exit immediately, let PM2 handle restart
+  log(`Uncaught Exception: ${error.message}`, 'error');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  // Don't exit immediately, let PM2 handle restart
+  log(`Unhandled Rejection: ${reason}`, 'error');
+});
+
+// Add request tracking to prevent double responses
+app.use((req, res, next) => {
+  req.startTime = Date.now();
+  req.responseSent = false;
+  
+  // Track if response has been sent
+  const originalSend = res.send;
+  const originalJson = res.json;
+  const originalEnd = res.end;
+  
+  res.send = function(...args: any[]) {
+    if (!req.responseSent) {
+      req.responseSent = true;
+      return originalSend.apply(res, args);
+    }
+    return res;
+  };
+  
+  res.json = function(...args: any[]) {
+    if (!req.responseSent) {
+      req.responseSent = true;
+      return originalJson.apply(res, args);
+    }
+    return res;
+  };
+  
+  res.end = function(...args: any[]) {
+    if (!req.responseSent) {
+      req.responseSent = true;
+      return originalEnd.apply(res, args);
+    }
+    return res;
+  };
+  
+  next();
 });
 
 // Export io for use in other modules
