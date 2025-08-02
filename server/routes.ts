@@ -148,7 +148,7 @@ const isAdmin = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-export async function registerRoutes(app: Express, io?: SocketServer): Promise<Server> {
+export async function registerRoutes(app: Express, io?: SocketServer): Promise<void> {
   // Check if database is available
   if (!db) {
     log('Database not available - some features will be disabled', 'express');
@@ -1406,6 +1406,5 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<S
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
+  // Don't create a new server here - use the one from index.ts
 }

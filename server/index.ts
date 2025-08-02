@@ -254,7 +254,7 @@ app.use((req, res, next) => {
       `);
     });
 
-    const server = await registerRoutes(app, io);
+    await registerRoutes(app, io);
 
     // Error handling middleware should be last
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
@@ -274,7 +274,7 @@ app.use((req, res, next) => {
     
     if (!isProduction) {
       log("Setting up Vite development server", "express");
-      await setupVite(app, server);
+      await setupVite(app, httpServer);
     } else {
       log("Serving static files in production mode", "express");
       serveStatic(app);
