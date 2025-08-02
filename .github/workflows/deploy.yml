@@ -27,9 +27,9 @@ jobs:
           cp env.production.template .env
           echo "Testing database connection..."
           node test-db-pg.js || echo "Database test failed"
-          echo "Starting FamFlix application with authentication..."
+          echo "Starting simple test server..."
           pm2 kill || true
-          pm2 start simple-famflix-with-auth.js --name famflix
+          pm2 start test-simple-server.js --name famflix
           pm2 status
           pm2 save
           echo "Deployment completed!" 
