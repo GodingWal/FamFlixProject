@@ -58,9 +58,9 @@ export { io };
 if (process.env.NODE_ENV === 'production') {
   app.use(productionSecurity);
   app.use(rateLimiter);
-  // Temporarily disabled performanceMonitor to fix headers error
+  // Performance monitoring disabled to prevent headers conflicts
   // app.use(performanceMonitor);
-  monitorResources();
+  // monitorResources(); // Also disabled to prevent conflicts
 }
 
 // Request parsing with size limits
