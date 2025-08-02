@@ -110,6 +110,8 @@ app.get('/api/health/detailed', detailedHealthCheck);
       log("Redis not configured - running without cache encryption", "encryption");
     }
     
+    log("🔍 DEBUG: Finished database/cache initialization", "express");
+    
     // Serve static files for cloned voice audio
     app.use('/cloned-voice', express.static('public/cloned-voice', {
       setHeaders: (res, path) => {
@@ -118,6 +120,8 @@ app.get('/api/health/detailed', detailedHealthCheck);
         }
       }
     }));
+
+    log("🔍 DEBUG: Static file middleware setup complete", "express");
 
     // Simple test routes
     app.get('/simple', (req, res) => {
