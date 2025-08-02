@@ -19,7 +19,7 @@ export function createDatabasePool() {
     
     // SSL configuration for production
     ssl: process.env.NODE_ENV === 'production' ? {
-      rejectUnauthorized: false, // For managed databases like Neon
+      rejectUnauthorized: false // For managed databases like RDS
     } : false,
   };
 
