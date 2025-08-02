@@ -49,7 +49,7 @@ export { io };
 if (process.env.NODE_ENV === 'production') {
   app.use(productionSecurity);
   app.use(rateLimiter);
-  app.use(performanceMonitor);
+  // app.use(performanceMonitor); // Temporarily disabled to fix headers error
   monitorResources();
 }
 
