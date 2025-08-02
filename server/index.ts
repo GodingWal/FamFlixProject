@@ -235,8 +235,9 @@ app.get('/api/health/detailed', detailedHealthCheck);
     });
 
     log("About to register routes...", "express");
-    await registerRoutes(app, io);
-    log("Routes registered successfully", "express");
+    // TEMPORARILY BYPASS registerRoutes to test server startup
+    // await registerRoutes(app, io);
+    log("Routes registration bypassed for testing", "express");
 
     // Error handling middleware should be last
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
