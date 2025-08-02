@@ -25,6 +25,8 @@ jobs:
           npm install
           npm run build
           cp env.production.template .env
+          echo "🔍 Running debug deployment script..."
+          node debug-deployment.js || echo "Debug script failed"
           echo "🔍 Comprehensive database testing..."
           echo "Testing RDS security configuration..."
           node check-rds-security.js || echo "RDS security check failed"
