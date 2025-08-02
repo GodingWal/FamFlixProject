@@ -33,10 +33,10 @@ jobs:
           echo "Testing database connection..."
           node test-db-comprehensive.js || echo "Database test failed"
           echo "🗄️ Initializing database schema..."
-          node init-database.js || echo "Database initialization failed"
+          node manual-db-init.js || echo "Database initialization failed"
           echo "Starting full FamFlix application..."
           pm2 kill || true
-          pm2 start start-full-app.js --name famflix
+          pm2 start ecosystem.config.cjs --env production
           pm2 status
           pm2 save
           echo "Deployment completed!" 
