@@ -234,7 +234,9 @@ app.get('/api/health/detailed', detailedHealthCheck);
       `);
     });
 
+    log("About to register routes...", "express");
     await registerRoutes(app, io);
+    log("Routes registered successfully", "express");
 
     // Error handling middleware should be last
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
@@ -274,14 +276,16 @@ app.get('/api/health/detailed', detailedHealthCheck);
     } else {
       log("Serving static files in production mode", "express");
       serveStatic(app);
+      log("Static files setup complete", "express");
     }
 
     // Serve on port 5000 for development, PORT env var for production
     const port = Number(process.env.PORT) || 5000;
     const host = '0.0.0.0';
     
+    log("About to start server listening...", "express");
     const serverInstance = httpServer.listen(port, host, () => {
-      log(`Server running on ${host}:${port}`, "express");
+      log(`🚀 Server running on ${host}:${port}`, "express");
       log(`Environment: ${process.env.NODE_ENV || 'development'}`, "express");
       log(`Socket.IO server initialized and ready`, "express");
       
