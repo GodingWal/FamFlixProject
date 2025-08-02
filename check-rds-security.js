@@ -19,9 +19,17 @@ async function checkRDSConfiguration() {
     console.log(ec2Output);
 
     console.log('\n📋 Step 3: Check RDS Security Group Rules');
-    const { stdout: sgOutput } = await execAsync('aws ec2 describe-security-groups --group-ids sg-0f80cb884b4158bed --query "SecurityGroups[0].IpPermissions[?FromPort==`5432`]" --output table');
-    console.log('RDS Security Group Rules (Port 5432):');
-    console.log(sgOutput);
+    try {
+      const { stdout: sgOutput } = await execAsync('aws ec2 describe-security-groups --group-ids sg-0f80cb884b4158bed --query "SecurityGroups[0].IpPermissions[?FromPort==5432]" --output table');
+      console.log('RDS Security Group Rules (Port 5432):');
+      console.log(sgOutput);
+    } catch (error) {
+      console.log('Using alternative query for security group rules...');
+      const { stdout: sgOutput2 } = await execAsync('aws ec2 describe-security-groups --group-ids sg-0f80cb884b4158bed --output json');
+      const sgData = JSON.parse(sgOutput2);
+      const port5432Rules = sgData.SecurityGroups[0].IpPermissions.filter(rule => rule.FromPort === 5432);
+      console.log('RDS Security Group Rules (Port 5432):', JSON.stringify(port5432Rules, null, 2));
+    }
 
     console.log('\n📋 Step 4: Check if EC2 can reach RDS');
     const { stdout: pingOutput } = await execAsync('ping -c 3 database-1.c9oguyo08qck.us-east-2.rds.amazonaws.com');
