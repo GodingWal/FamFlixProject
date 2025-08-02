@@ -18,10 +18,7 @@ async function testConnection() {
     console.log('\n📋 Creating connection pool...');
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false,
-        ca: undefined
-      }
+      ssl: false
     });
 
     console.log('📋 Testing connection...');
