@@ -25,8 +25,11 @@ jobs:
           npm install
           npm run build
           cp env.production.template .env
+          echo "🔍 Comprehensive database testing..."
+          echo "Testing RDS security configuration..."
+          node check-rds-security.js || echo "RDS security check failed"
           echo "Testing database connection..."
-          node test-db-pg.js || echo "Database test failed"
+          node test-db-comprehensive.js || echo "Database test failed"
           echo "Starting simple test server..."
           pm2 kill || true
           pm2 start test-simple-server.js --name famflix
