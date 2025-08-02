@@ -44,40 +44,9 @@ process.on('unhandledRejection', (reason, promise) => {
   log(`Unhandled Rejection: ${reason}`, 'error');
 });
 
-// Add request tracking to prevent double responses
+// Simple request logging without response tracking
 app.use((req, res, next) => {
   req.startTime = Date.now();
-  req.responseSent = false;
-  
-  // Track if response has been sent
-  const originalSend = res.send;
-  const originalJson = res.json;
-  const originalEnd = res.end;
-  
-  res.send = function(...args: any[]) {
-    if (!req.responseSent) {
-      req.responseSent = true;
-      return originalSend.apply(res, args);
-    }
-    return res;
-  };
-  
-  res.json = function(...args: any[]) {
-    if (!req.responseSent) {
-      req.responseSent = true;
-      return originalJson.apply(res, args);
-    }
-    return res;
-  };
-  
-  res.end = function(...args: any[]) {
-    if (!req.responseSent) {
-      req.responseSent = true;
-      return originalEnd.apply(res, args);
-    }
-    return res;
-  };
-  
   next();
 });
 
@@ -88,7 +57,8 @@ export { io };
 if (process.env.NODE_ENV === 'production') {
   app.use(productionSecurity);
   app.use(rateLimiter);
-  // app.use(performanceMonitor); // Temporarily disabled to fix headers error
+  // Temporarily disabled performanceMonitor to fix headers error
+  // app.use(performanceMonitor);
   monitorResources();
 }
 
@@ -103,48 +73,18 @@ app.get('/api/health', simpleHealthCheck);
 app.get('/health/detailed', detailedHealthCheck);
 app.get('/api/health/detailed', detailedHealthCheck);
 
-// Request timing and monitoring middleware
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api") && !path.includes('/health')) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      
-      // Only log response in development
-      if (process.env.NODE_ENV === 'development' && capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-      
-      // Log slow requests
-      if (duration > 1000) {
-        log(`SLOW REQUEST: ${req.method} ${path} - ${res.statusCode} (${duration}ms)`, 'performance');
-      }
-      
-      // Alert on errors in production
-      if (process.env.NODE_ENV === 'production' && res.statusCode >= 500) {
-        log(`ERROR: ${req.method} ${path} - ${res.statusCode} (${duration}ms)`, 'error');
-      }
-    }
-  });
-
-  next();
-});
+// Simplified request timing middleware - temporarily disabled to fix headers error
+// app.use((req, res, next) => {
+//   const start = Date.now();
+//   const path = req.path;
+//   res.on("finish", () => {
+//     const duration = Date.now() - start;
+//     if (path.startsWith("/api") && !path.includes('/health')) {
+//       log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
+//     }
+//   });
+//   next();
+// });
 
 (async () => {
   try {
