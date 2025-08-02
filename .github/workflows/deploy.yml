@@ -32,9 +32,11 @@ jobs:
           node check-rds-security.js || echo "RDS security check failed"
           echo "Testing database connection..."
           node test-db-comprehensive.js || echo "Database test failed"
-          echo "Starting database test server..."
+          echo "🗄️ Initializing database schema..."
+          node init-database.js || echo "Database initialization failed"
+          echo "Starting database status server..."
           pm2 kill || true
-          pm2 start simple-server-with-db-test.js --name famflix
+          pm2 start server-with-db-status.js --name famflix
           pm2 status
           pm2 save
           echo "Deployment completed!" 
