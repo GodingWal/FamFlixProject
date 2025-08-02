@@ -14,7 +14,8 @@ async function testConnection() {
     const pool = new Pool({
       connectionString: DATABASE_URL,
       ssl: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
+        ca: undefined
       }
     });
 

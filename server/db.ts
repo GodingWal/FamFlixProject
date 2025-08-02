@@ -17,7 +17,8 @@ export const pool = process.env.DATABASE_URL
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
       ssl: process.env.NODE_ENV === 'production' ? {
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
+        ca: undefined
       } : false
     })
   : null;
