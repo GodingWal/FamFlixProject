@@ -13,7 +13,9 @@ async function testConnection() {
     
     const pool = new Pool({
       connectionString: DATABASE_URL,
-      ssl: false
+      ssl: {
+        rejectUnauthorized: false
+      }
     });
 
     const client = await pool.connect();

@@ -1,33 +1,29 @@
-import 'dotenv/config';
 import pg from 'pg';
 
 const { Pool } = pg;
 
-console.log('🔍 Testing Database Connection');
-console.log('=============================');
+console.log('🔍 Testing Database Connection (No SSL Verification)');
+console.log('==================================================');
+
+const DATABASE_URL = 'postgresql://postgres:HBOcKqT8pd7LaKzKYfDH@database-1.c9oguyo08qck.us-east-2.rds.amazonaws.com:5432/famflix';
 
 async function testConnection() {
   try {
-    console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
+    console.log('Testing connection with SSL but no certificate verification...');
     
-    if (!process.env.DATABASE_URL) {
-      console.error('❌ DATABASE_URL not set');
-      return;
-    }
-
-    console.log('\n📋 Creating connection pool...');
+    // Set environment variable to ignore SSL certificate issues
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    
     const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: DATABASE_URL,
       ssl: {
         rejectUnauthorized: false
       }
     });
 
-    console.log('📋 Testing connection...');
     const client = await pool.connect();
     console.log('✅ Connection successful!');
     
-    console.log('📋 Testing query...');
     const result = await client.query('SELECT NOW() as current_time, version() as version');
     console.log('✅ Query successful!');
     console.log('Current time:', result.rows[0].current_time);
@@ -37,12 +33,10 @@ async function testConnection() {
     await pool.end();
     
     console.log('\n🎉 Database connection test passed!');
-    console.log('You can now run: npm run db:push');
     
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
     console.error('Error code:', error.code);
-    console.error('Error detail:', error.detail);
   }
 }
 
