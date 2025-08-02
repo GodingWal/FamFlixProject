@@ -36,7 +36,7 @@ jobs:
           node manual-db-init.js || echo "Database initialization failed"
           echo "Starting full FamFlix application..."
           pm2 kill || true
-          pm2 start ecosystem.config.js --env production
+                      pm2 start ecosystem.config.cjs --env production
           pm2 status
           pm2 save
           echo "Deployment completed!" 

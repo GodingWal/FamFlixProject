@@ -7,7 +7,7 @@ console.log('🗄️ Manual Database Initialization');
 console.log('==================================');
 
 // Set environment variable to ignore SSL certificate issues
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// Using per-connection SSL configuration instead of global bypass
 
 async function initDatabase() {
   try {
