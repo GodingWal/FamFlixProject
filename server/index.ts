@@ -258,6 +258,17 @@ app.use((req, res, next) => {
 
     // Error handling middleware should be last
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+      // Handle Zod validation errors
+      if (err.name === 'ZodError') {
+        if (!res.headersSent) {
+          res.status(400).json({ 
+            message: 'Validation error',
+            errors: err.issues 
+          });
+        }
+        return;
+      }
+      
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
       
