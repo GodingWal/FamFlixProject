@@ -48,6 +48,12 @@ const apiLimiter = new RateLimiterMemory({
   duration: 60, // per minute
 });
 
+// Async handler wrapper to catch errors
+const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => 
+  (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+
 // Rate limiting middleware
 const rateLimitMiddleware = (limiter: RateLimiterMemory) => async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -284,19 +290,11 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<v
   });
 
   // Users
-  app.post('/api/users', async (req: Request, res: Response) => {
-    try {
-      const data = insertUserSchema.parse(req.body);
-      const user = await storage.createUser(data);
-      res.json(user);
-    } catch (error: unknown) {
-      if (error instanceof ZodError) {
-        res.status(400).json({ error: error.issues });
-      } else {
-        res.status(500).json({ error: "Failed to create user" });
-      }
-    }
-  });
+  app.post('/api/users', asyncHandler(async (req: Request, res: Response) => {
+    const data = insertUserSchema.parse(req.body);
+    const user = await storage.createUser(data);
+    res.json(user);
+  }));
 
   app.get('/api/users/:id', async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
