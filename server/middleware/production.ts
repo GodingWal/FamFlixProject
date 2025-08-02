@@ -83,9 +83,11 @@ export const performanceMonitor = (req: Request, res: Response, next: NextFuncti
       log(`High memory request: ${req.method} ${req.path} - ${(memoryDelta / 1024 / 1024).toFixed(2)}MB`, 'performance');
     }
     
-    // Add performance headers
-    res.setHeader('X-Response-Time', `${duration.toFixed(2)}ms`);
-    res.setHeader('X-Memory-Delta', `${(memoryDelta / 1024).toFixed(2)}KB`);
+    // Add performance headers only if headers haven't been sent
+    if (!res.headersSent) {
+      res.setHeader('X-Response-Time', `${duration.toFixed(2)}ms`);
+      res.setHeader('X-Memory-Delta', `${(memoryDelta / 1024).toFixed(2)}KB`);
+    }
   });
   
   next();
