@@ -34,9 +34,9 @@ jobs:
           node test-db-comprehensive.js || echo "Database test failed"
           echo "🗄️ Initializing database schema..."
           node init-database.js || echo "Database initialization failed"
-          echo "Starting database status server..."
+          echo "Starting final deployment server..."
           pm2 kill || true
-          pm2 start server-with-db-status.js --name famflix
+          pm2 start final-deployment.js --name famflix
           pm2 status
           pm2 save
           echo "Deployment completed!" 
