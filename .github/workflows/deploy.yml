@@ -23,7 +23,10 @@ jobs:
           cd /home/ubuntu/famflix/FamFlixProject
           git pull origin main
           npm install
+          npm run build
           cp env.production.template .env
-          echo "Starting test server directly..."
-          nohup node test-server.js > server.log 2>&1 &
-          echo "Test deployment completed successfully!" 
+          echo "Starting full FamFlix application..."
+          pm2 kill || true
+          pm2 start ecosystem.config.cjs --env production
+          pm2 save
+          echo "Full deployment completed successfully!" 
