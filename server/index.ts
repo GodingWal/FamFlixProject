@@ -264,7 +264,12 @@ app.use((req, res, next) => {
       log(`Error ${status}: ${message} on ${req.method} ${req.path}`, "error");
       console.error('Full error:', err);
       
-      res.status(status).json({ message });
+      // Check if headers have already been sent
+      if (!res.headersSent) {
+        res.status(status).json({ message });
+      } else {
+        log('Headers already sent, cannot send error response', 'error');
+      }
     });
 
     // importantly only setup vite in development and after
