@@ -1,11 +1,7 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '@shared/schema';
-import ws from 'ws';
 import { log } from './vite';
-
-// Configure WebSocket for NeonDB
-neonConfig.webSocketConstructor = ws;
 
 // Check if DATABASE_URL is set
 if (!process.env.DATABASE_URL) {
@@ -20,6 +16,9 @@ export const pool = process.env.DATABASE_URL
       max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
+      ssl: process.env.NODE_ENV === 'production' ? {
+        rejectUnauthorized: false
+      } : false
     })
   : null;
 
