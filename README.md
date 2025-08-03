@@ -1,214 +1,159 @@
-# FamFlix - Educational Video Personalization Platform
+# FamFlix Project
 
-FamFlix is an advanced AI-powered platform that creates personalized educational videos by replacing faces and voices in template videos with family members. Transform educational content like "Baby Shark" into engaging experiences featuring your loved ones.
+A comprehensive family video creation platform with AI-powered features.
 
-## 🚀 Features
+## 🚀 Quick Start
 
-- **AI Face Swapping**: Replace actors' faces with family photos using advanced deep learning models
-- **Voice Synthesis**: Convert voices using ElevenLabs voice cloning technology
-- **Speech Alignment**: Intelligent voice synchronization with original video timing
-- **Multi-Profile Management**: Create and manage multiple family member profiles
-- **Template Library**: Curated collection of educational video templates
-- **Real-time Processing**: Background ML processing with status tracking
-- **Premium Content**: Subscription-based access to premium templates
-
-## 🛠 Technology Stack
-
-### Frontend
-- **React + TypeScript** - Component-based UI
-- **Tailwind CSS + shadcn/ui** - Modern styling system
-- **TanStack Query** - Server state management
-- **Wouter** - Lightweight routing
-- **Vite** - Fast development and building
-
-### Backend
-- **Node.js + Express** - RESTful API server
-- **PostgreSQL + Drizzle ORM** - Database with type-safe queries
-- **Passport.js** - Authentication system
-- **Stripe** - Payment processing
-- **FastAPI (Python)** - ML model inference service
-
-### AI/ML Stack
-- **Face Processing**: DeepFakes/Faceswap models with OpenCV
-- **Voice Processing**: ElevenLabs voice cloning API
-- **Video Processing**: FFmpeg for media manipulation
-
-## 📋 Prerequisites
-
-- Node.js 18+ and npm
-- Python 3.10+ with pip
-- PostgreSQL 16+
-- FFmpeg
-- Git
-
-## 🔧 Installation
-
-1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/famflix.git
-cd famflix
-```
-
-2. **Install Node.js dependencies**
-```bash
+# Install dependencies
 npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
 ```
 
-3. **Install Python dependencies (optional - only needed for face processing)**
-```bash
-pip install fastapi uvicorn librosa numpy opencv-python-headless soundfile pydantic python-multipart
-```
+## 🔧 Development
 
-4. **Set up environment variables**
+### Prerequisites
+- Node.js 20+
+- npm or yarn
+- PostgreSQL (optional for development)
+- Redis (optional for development)
+
+### Environment Setup
+Copy `.env.example` to `.env` and configure your environment variables:
+
 ```bash
 cp .env.example .env
 ```
 
-Configure these required variables:
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/famflix
-STRIPE_SECRET_KEY=sk_test_...
-VITE_STRIPE_PUBLIC_KEY=pk_test_...
-```
+### Available Scripts
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run check` - Run TypeScript type checking
+- `npm run update-deps` - Update all dependencies (may include breaking changes)
+- `npm run update-deps-conservative` - Update dependencies safely (patch/minor only)
+- `npm run db:push` - Push database schema changes
 
-5. **Set up the database**
+## 🔄 CI/CD Pipeline
+
+This project includes a comprehensive GitHub Actions CI/CD pipeline that runs on every push and pull request.
+
+### Automated Features
+- **Dependency Updates**: Weekly automated dependency checks and PR creation
+- **Type Checking**: TypeScript validation on every commit
+- **Build Testing**: Ensures the application builds successfully
+- **Security Audits**: Vulnerability scanning with npm audit and Snyk
+- **Database Migration Checks**: Validates Drizzle migrations
+- **Integration Tests**: Runs tests against PostgreSQL and Redis
+- **Performance Testing**: Basic performance and functionality checks
+- **Deployment Previews**: Automated feedback on pull requests
+
+### Manual Actions
+You can manually trigger dependency updates:
+1. Go to the "Actions" tab in GitHub
+2. Select "CI/CD Pipeline"
+3. Click "Run workflow"
+4. Check "Update dependencies" and run
+
+### Local Development
+Use the provided scripts for local dependency management:
+
 ```bash
-npm run db:push
+# Conservative update (recommended)
+npm run update-deps-conservative
+
+# Full update (may include breaking changes)
+npm run update-deps
 ```
 
-6. **Start the development server**
-```bash
-# Start the main application
-npm run dev
-```
-
-The application will be available at `http://localhost:5000`
-
-## 🏗 Project Structure
+## 📁 Project Structure
 
 ```
-famflix/
 ├── client/                 # React frontend
 │   ├── src/
-│   │   ├── components/     # Reusable UI components
-│   │   ├── pages/          # Application pages
-│   │   └── lib/            # Utilities and hooks
-├── server/                 # Node.js backend
-│   ├── routes.ts           # API endpoints
-│   ├── auth.ts             # Authentication logic
-│   └── storage.ts          # Database operations
-├── shared/                 # Shared types and schemas
-│   └── schema.ts           # Database schema
-└── public/                 # Static assets
+│   │   ├── components/     # React components
+│   │   ├── hooks/         # Custom React hooks
+│   │   ├── pages/         # Page components
+│   │   └── utils/         # Utility functions
+├── server/                 # Express.js backend
+│   ├── middleware/        # Express middleware
+│   ├── routes/            # API routes
+│   └── utils/             # Server utilities
+├── shared/                 # Shared code between client/server
+│   └── schema.ts          # Database schema definitions
+├── scripts/               # Development and deployment scripts
+├── docs/                  # Documentation
+└── .github/workflows/     # GitHub Actions workflows
 ```
 
-## 🔐 Environment Setup
+## 🛠️ Technology Stack
 
-### Required API Keys
+### Frontend
+- React 18 with TypeScript
+- Vite for build tooling
+- Tailwind CSS for styling
+- Radix UI for components
+- React Hook Form for forms
+- TanStack Query for data fetching
 
-1. **Stripe Keys** (for payments):
-   - Get from [Stripe Dashboard](https://dashboard.stripe.com/apikeys)
-   - Add `STRIPE_SECRET_KEY` and `VITE_STRIPE_PUBLIC_KEY`
+### Backend
+- Express.js with TypeScript
+- Drizzle ORM for database management
+- PostgreSQL for database
+- Redis for caching
+- Socket.IO for real-time features
+- JWT for authentication
 
-2. **Database URL**:
-   - Local PostgreSQL: `postgresql://user:password@localhost:5432/famflix`
-   - Or use NeonDB for cloud hosting
+### DevOps
+- GitHub Actions for CI/CD
+- Docker support (optional)
+- PM2 for process management
 
-3. **ElevenLabs API Key** (for voice cloning):
-   - Get from [ElevenLabs Dashboard](https://elevenlabs.io/)
-   - Add `ELEVENLABS_API_KEY` to your environment variables
+## 🔒 Security
 
-### Optional Keys
+- JWT-based authentication
+- Rate limiting
+- Input validation with Zod
+- Security headers with Helmet
+- CORS configuration
+- SQL injection protection with Drizzle ORM
 
-- `HUGGINGFACE_API_KEY` - For enhanced ML model performance
-- `OPENAI_API_KEY` - For potential AI features
+## 📊 Monitoring
 
-## 🚀 Deployment
-
-### Deployment Options
-1. **Vercel**: Deploy with Vercel for serverless functions
-2. **Railway**: Deploy with Railway for full-stack applications
-3. **Render**: Deploy with Render for web services
-4. **DigitalOcean App Platform**: Deploy with DigitalOcean for scalable applications
-3. Click "Deploy" to create a production deployment
-
-### Manual Deployment
-1. Build the application:
-```bash
-npm run build
-```
-
-2. Set up production database and environment variables
-
-3. Start the production server:
-```bash
-npm start
-```
-
-## 📖 API Documentation
-
-### Authentication
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/logout` - User logout
-
-### User Management
-- `GET /api/users/:id` - Get user profile
-- `POST /api/users` - Create user
-- `GET /api/users/:userId/people` - Get user's people profiles
-
-### Media Processing
-- `POST /api/faceImages` - Upload face images
-- `POST /api/voiceRecordings` - Upload voice recordings
-- `POST /api/processedVideos` - Process video with face/voice swap
-
-### Templates
-- `GET /api/videoTemplates` - List all templates
-- `GET /api/videoTemplates/featured` - Get featured templates
-- `GET /api/videoTemplates/category/:category` - Filter by category
-
-## 🧪 Testing
-
-Run the test suite:
-```bash
-npm test
-```
-
-
-
-## 🔧 Configuration
-
-### Voice Configuration
-Voice processing is handled entirely by ElevenLabs:
-- **Voice Cloning**: Uses ElevenLabs voice cloning API for high-quality voice synthesis
-- **Voice Settings**: Configurable stability and similarity boost parameters
-- **Audio Quality**: High-quality MP3 output with configurable settings
-- `noiseReduction`: Apply noise filtering
+- Health check endpoints
+- Performance monitoring
+- Error tracking
+- Request logging
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Run tests and type checking
+5. Submit a pull request
 
-## 📄 License
+### Development Guidelines
+- Follow TypeScript best practices
+- Write meaningful commit messages
+- Test your changes locally before pushing
+- Update documentation as needed
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 📝 License
+
+This project is licensed under the MIT License.
 
 ## 🆘 Support
 
-- **Documentation**: Check the codebase for detailed technical information
-- **Issues**: Create a GitHub issue for bugs or feature requests
-- **Discord**: Join our community for real-time support
-
-## 🙏 Acknowledgments
-
-- OpenAI for AI/ML guidance
-- Vercel/Railway/Render for hosting and deployment platform
-- The open-source community for amazing tools and libraries
-
----
-
-**Built with ❤️ for families who want to make learning more personal and engaging.**# FamFlixProject
+For support and questions:
+- Check the documentation in `/docs`
+- Review the CI/CD pipeline logs
+- Open an issue on GitHub

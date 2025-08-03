@@ -12,11 +12,7 @@
     "db:push": "drizzle-kit push",
     "update-deps": "./scripts/update-deps.sh",
     "update-deps-conservative": "./scripts/update-deps-conservative.sh",
-    "test": "echo 'No tests configured yet' && exit 0",
-    "test-ci-cd": "./scripts/test-ci-cd.sh",
-    "deploy-ec2": "./scripts/deploy-ec2.sh",
-    "copy-to-ec2": "./scripts/copy-to-ec2.sh",
-    "test-deployment": "./scripts/test-deployment.sh"
+    "test": "echo 'No tests configured yet' && exit 0"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",

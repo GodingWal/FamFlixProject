@@ -85,7 +85,7 @@ export const performanceMonitor = (req: Request, res: Response, next: NextFuncti
   res.end = function(...args: any[]) {
     if (!responseSent) {
       responseSent = true;
-      return originalEnd.apply(res, args);
+      return (originalEnd as any).call(res, ...args);
     }
     return res;
   } as any;

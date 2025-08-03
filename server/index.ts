@@ -86,8 +86,8 @@ app.use((req, res, next) => {
     // Restore the original end function
     res.end = originalEnd;
     
-    // Call the original end function
-    const result = originalEnd.apply(res, args);
+    // Call the original end function with proper typing
+    const result = (originalEnd as any).call(res, ...args);
     
     // Log after response is sent
     const duration = Date.now() - start;
