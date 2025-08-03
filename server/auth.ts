@@ -457,8 +457,11 @@ export function setupAuth(app: Express) {
         token,
         expiresAt,
       });
-      // TODO: Send email with token link (for now, log to console)
-      console.log(`Password reset link for user ${user.username}: http://localhost:5000/reset-password?token=${token}`);
+      // TODO: Send email with the password‑reset link.  For now, log it using the
+      // shared logger to make it easier to trace in production logs.  Once
+      // integrated with an email service (e.g. nodemailer or an external API),
+      // replace this call with the actual delivery implementation.
+      log(`Password reset link for user ${user.username}: http://localhost:5000/reset-password?token=${token}`, 'auth');
       return res.json({ message: 'Password reset link sent (check your email or ask admin)' });
     } catch (error) {
       log(`Password reset request error: ${(error as Error).message}`, 'auth');

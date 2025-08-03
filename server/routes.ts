@@ -1,7 +1,8 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
+import { log } from "./vite";
 
 export async function registerRoutes(app: Express, io?: any): Promise<void> {
-  console.log('registerRoutes: Starting...');
+  log('registerRoutes: Starting...', 'routes');
   
   // Simple test route to verify server is working
   app.get('/api/test-server', (req: Request, res: Response) => {
@@ -21,5 +22,5 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
     });
   });
 
-  console.log('registerRoutes: Completed successfully');
+  log('registerRoutes: Completed successfully', 'routes');
 }

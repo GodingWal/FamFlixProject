@@ -32,6 +32,26 @@ const io = new Server(httpServer, {
   }
 });
 
+// -----------------------------------------------------------------------------
+// Utility: simple environment variable assertion.  In production mode you
+// generally want to fail fast if critical configuration is missing.  Add any
+// additional required variables to the array below as your project grows.
+function assertEnv(name: string) {
+  if (!process.env[name] || process.env[name] === '') {
+    const message = `${name} environment variable is required in production`;
+    log(message, 'error');
+    throw new Error(message);
+  }
+}
+
+// Validate configuration early in production
+if (process.env.NODE_ENV === 'production') {
+  // Ensure the database connection string is present
+  assertEnv('DATABASE_URL');
+  // Ensure a session secret is set (required for express‑session)
+  assertEnv('SESSION_SECRET');
+}
+
 // Enhanced error handling for production
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
@@ -55,12 +75,15 @@ app.use((req, res, next) => {
 export { io };
 
 // Production middleware setup
-if (process.env.NODE_ENV === 'production') {
-  // Temporarily disable all production middleware to isolate hanging issue
-  // app.use(productionSecurity);
-  // app.use(rateLimiter);
-  // app.use(performanceMonitor);
-  // monitorResources();
+// In production we enable security and rate‑limiting middleware by default.  If you
+// need to disable them temporarily (for example, while debugging), set
+// `DISABLE_PRODUCTION_MIDDLEWARE=true` in your environment.
+if (process.env.NODE_ENV === 'production' && process.env.DISABLE_PRODUCTION_MIDDLEWARE !== 'true') {
+  app.use(productionSecurity);
+  app.use(rateLimiter);
+  app.use(performanceMonitor);
+  // Monitor server resource usage (CPU/memory) and log if thresholds are exceeded.
+  monitorResources();
 }
 
 // Request parsing with size limits
@@ -277,8 +300,8 @@ app.use((req, res, next) => {
     // Register API routes
     try {
       // Temporarily disable route registration to test server startup
-      // await registerRoutes(app, io);
-      log("Routes registration temporarily disabled for testing", "express");
+      await registerRoutes(app, io);
+      log("Routes registration completed successfully", "express");
     } catch (error) {
       log(`Error registering routes: ${(error as Error).message}`, "express");
       console.error('Full route registration error:', error);
@@ -316,8 +339,7 @@ app.use((req, res, next) => {
     // doesn't interfere with the other routes
     const isProduction = process.env.NODE_ENV === "production";
     
-    // Temporarily disable Vite and static file serving to test server startup
-    /*
+    // Enable Vite and static file serving for full application
     if (!isProduction) {
       log("Setting up Vite development server", "express");
       await setupVite(app, httpServer);
@@ -326,8 +348,6 @@ app.use((req, res, next) => {
       serveStatic(app);
       log("Static files setup complete", "express");
     }
-    */
-    log("Vite and static file serving temporarily disabled for testing", "express");
 
     // Add a simple test route to verify server can start
     app.get('/test', (req: Request, res: Response) => {
@@ -352,16 +372,23 @@ app.use((req, res, next) => {
       }
     });
 
-    // Test if process can exit cleanly
-    log("Testing process exit...", "express");
+    // Log a friendly message indicating the server is up and running
+    log("Server initialization complete.", "express");
     console.log("✅ Server initialization completed successfully!");
-    console.log("🔍 Checking if process can exit cleanly...");
     
-    // Force exit after 5 seconds to test
-    setTimeout(() => {
-      console.log("🔄 Forcing process exit after 5 seconds...");
-      process.exit(0);
-    }, 5000);
+    // -------------------------------------------------------------------------
+    // NOTE:
+    // The following `setTimeout` block was used during development to verify
+    // that the server could shut down cleanly.  It forcibly exited the
+    // process after 5 seconds, causing the server to stop shortly after
+    // startup.  This behavior interferes with normal operation, so it has
+    // been commented out.  If you need to re‑enable it for debugging, you
+    // can uncomment the block below.
+    //
+    // setTimeout(() => {
+    //   console.log("🔄 Forcing process exit after 5 seconds...");
+    //   process.exit(0);
+    // }, 5000);
 
     // Graceful shutdown
     process.on('SIGTERM', () => {
