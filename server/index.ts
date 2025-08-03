@@ -1,5 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config();
+// Environment variables loaded by PM2
 import 'express-async-errors'; // Automatically catch async errors
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
