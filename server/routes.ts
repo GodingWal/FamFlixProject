@@ -1,15 +1,19 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
 import { log } from "./vite";
+import { setupAuth } from "./auth";
 
 export async function registerRoutes(app: Express, io?: any): Promise<void> {
   log('registerRoutes: Starting...', 'routes');
+  
+  // Set up authentication routes
+  setupAuth(app);
   
   // Simple test route to verify server is working
   app.get('/api/test-server', (req: Request, res: Response) => {
     res.json({
       status: 'Server is working!',
       timestamp: new Date().toISOString(),
-      message: 'Minimal routes loaded successfully'
+      message: 'Full application routes loaded successfully'
     });
   });
 
@@ -18,7 +22,46 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      message: 'Server is running with minimal routes'
+      message: 'Server is running with full application routes'
+    });
+  });
+
+  // User profile endpoint
+  app.get('/api/profile', (req: Request, res: Response) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    res.json({
+      user: {
+        id: req.user.id,
+        username: req.user.username,
+        email: req.user.email,
+        displayName: req.user.displayName,
+        role: req.user.role
+      }
+    });
+  });
+
+  // Logout endpoint
+  app.post('/api/logout', (req: Request, res: Response) => {
+    req.logout((err) => {
+      if (err) {
+        log(`Logout error: ${err.message}`, 'auth');
+        return res.status(500).json({ message: 'Logout failed' });
+      }
+      res.json({ message: 'Logged out successfully' });
+    });
+  });
+
+  // Protected route example
+  app.get('/api/protected/test', (req: Request, res: Response) => {
+    res.json({
+      message: 'This is a protected route',
+      user: req.user ? {
+        id: req.user.id,
+        username: req.user.username,
+        role: req.user.role
+      } : null
     });
   });
 
