@@ -115,6 +115,8 @@ app.use((req, res, next) => {
     log("Database initialized successfully");
     
     // Initialize Redis for encryption caching - with proper async handling
+    // Temporarily disabled to test server startup
+    /*
     try {
       const redis = initializeRedis();
       if (redis) {
@@ -129,8 +131,12 @@ app.use((req, res, next) => {
       log(`Redis initialization error: ${(redisError as Error).message}`, "error");
       log("Continuing without Redis cache", "encryption");
     }
+    */
+    log("Redis initialization temporarily disabled for testing", "express");
     
     // Serve static files for cloned voice audio
+    // Temporarily disabled to test server startup
+    /*
     app.use('/cloned-voice', express.static('public/cloned-voice', {
       setHeaders: (res, path) => {
         if (path.endsWith('.mp3')) {
@@ -138,8 +144,11 @@ app.use((req, res, next) => {
         }
       }
     }));
+    */
 
     // Simple test routes
+    // Temporarily disabled to test server startup
+    /*
     app.get('/simple', (req, res) => {
       res.send(`
         <!DOCTYPE html>
@@ -262,12 +271,14 @@ app.use((req, res, next) => {
         </html>
       `);
     });
+    */
 
     log("About to register routes...", "express");
     // Register API routes
     try {
-      await registerRoutes(app, io);
-      log("Routes registered successfully", "express");
+      // Temporarily disable route registration to test server startup
+      // await registerRoutes(app, io);
+      log("Routes registration temporarily disabled for testing", "express");
     } catch (error) {
       log(`Error registering routes: ${(error as Error).message}`, "express");
       console.error('Full route registration error:', error);
@@ -305,6 +316,8 @@ app.use((req, res, next) => {
     // doesn't interfere with the other routes
     const isProduction = process.env.NODE_ENV === "production";
     
+    // Temporarily disable Vite and static file serving to test server startup
+    /*
     if (!isProduction) {
       log("Setting up Vite development server", "express");
       await setupVite(app, httpServer);
@@ -313,12 +326,22 @@ app.use((req, res, next) => {
       serveStatic(app);
       log("Static files setup complete", "express");
     }
+    */
+    log("Vite and static file serving temporarily disabled for testing", "express");
+
+    // Add a simple test route to verify server can start
+    app.get('/test', (req: Request, res: Response) => {
+      res.json({ message: 'Server is working!' });
+    });
 
     // Serve on port 5000 for development, PORT env var for production
     const port = Number(process.env.PORT) || 5000;
     const host = '0.0.0.0';
     
     log("About to start server listening...", "express");
+    
+    // Temporarily disable server listening to test if the issue is with the listen call
+    /*
     const serverInstance = httpServer.listen(port, host, () => {
       log(`🚀 Server running on ${host}:${port}`, "express");
       log(`Environment: ${process.env.NODE_ENV || 'development'}`, "express");
@@ -329,22 +352,35 @@ app.use((req, res, next) => {
         log(`Public URL: ${process.env.PUBLIC_URL}`, "express");
       }
     });
+    */
+    log("Server listening temporarily disabled for testing", "express");
+
+    // Test if process can exit cleanly
+    log("Testing process exit...", "express");
+    console.log("✅ Server initialization completed successfully!");
+    console.log("🔍 Checking if process can exit cleanly...");
+    
+    // Force exit after 5 seconds to test
+    setTimeout(() => {
+      console.log("🔄 Forcing process exit after 5 seconds...");
+      process.exit(0);
+    }, 5000);
 
     // Graceful shutdown
     process.on('SIGTERM', () => {
       log('SIGTERM received, shutting down gracefully', 'express');
-      serverInstance.close(() => {
-        log('Server closed', 'express');
-        process.exit(0);
-      });
+      // serverInstance.close(() => { // This line was removed as serverInstance is commented out
+      //   log('Server closed', 'express');
+      //   process.exit(0);
+      // });
     });
 
     process.on('SIGINT', () => {
       log('SIGINT received, shutting down gracefully', 'express');
-      serverInstance.close(() => {
-        log('Server closed', 'express');
-        process.exit(0);
-      });
+      // serverInstance.close(() => { // This line was removed as serverInstance is commented out
+      //   log('Server closed', 'express');
+      //   process.exit(0);
+      // });
     });
   } catch (error) {
     log(`Failed to start server: ${(error as Error).message}`, "error");
