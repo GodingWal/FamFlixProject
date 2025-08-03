@@ -54,13 +54,12 @@ app.use((req, res, next) => {
 // Export io for use in other modules
 export { io };
 
-// Production middleware setup - temporarily disabled to prevent headers conflicts
+// Production middleware setup
 if (process.env.NODE_ENV === 'production') {
-  // app.use(productionSecurity); // Disabled - causing header conflicts
-  // app.use(rateLimiter); // Disabled for testing
-  // Performance monitoring disabled to prevent headers conflicts
-  // app.use(performanceMonitor);
-  // monitorResources(); // Also disabled to prevent conflicts
+  app.use(productionSecurity);
+  app.use(rateLimiter);
+  app.use(performanceMonitor);
+  monitorResources();
 }
 
 // Request parsing with size limits
@@ -74,18 +73,35 @@ app.get('/api/health', simpleHealthCheck);
 app.get('/health/detailed', detailedHealthCheck);
 app.get('/api/health/detailed', detailedHealthCheck);
 
-// Simplified request timing middleware - temporarily disabled to fix headers error
-// app.use((req, res, next) => {
-//   const start = Date.now();
-//   const path = req.path;
-//   res.on("finish", () => {
-//     const duration = Date.now() - start;
-//     if (path.startsWith("/api") && !path.includes('/health')) {
-//       log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
-//     }
-//   });
-//   next();
-// });
+// Request timing middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  
+  // Store the original end function
+  const originalEnd = res.end;
+  
+  // Override the end function with proper overloads
+  const newEnd = function(this: Response, ...args: any[]): Response {
+    // Restore the original end function
+    res.end = originalEnd;
+    
+    // Call the original end function
+    const result = originalEnd.apply(res, args);
+    
+    // Log after response is sent
+    const duration = Date.now() - start;
+    if (path.startsWith("/api") && !path.includes('/health')) {
+      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
+    }
+    
+    return result;
+  };
+  
+  res.end = newEnd as any;
+  
+  next();
+});
 
 (async () => {
   try {
@@ -96,25 +112,22 @@ app.get('/api/health/detailed', detailedHealthCheck);
     
     await initDatabase();
     log("Database initialized successfully");
-    log("🔍 DEBUG: initDatabase() completed", "express");
     
-    log("🔍 DEBUG: About to initialize Redis", "express");
-    // Initialize Redis for encryption caching
-    const redis = initializeRedis();
-    if (redis) {
-      log("🔍 DEBUG: Redis instance created, SKIPPING health check", "express");
-      // TEMPORARILY SKIP Redis health check to avoid hang
-      // const health = await checkCacheHealth();
-      log("🔍 DEBUG: Redis health check bypassed", "express");
-      log("Redis initialized (health check bypassed)", "encryption");
-      log("🔍 DEBUG: Redis initialization section completed", "express");
-    } else {
-      log("Redis not configured - running without cache encryption", "encryption");
-      log("🔍 DEBUG: No Redis instance created", "express");
+    // Initialize Redis for encryption caching - with proper async handling
+    try {
+      const redis = initializeRedis();
+      if (redis) {
+        log("Redis instance created", "express");
+        // Don't wait for Redis health check as it might hang
+        // Just log that Redis is initialized
+        log("Redis initialized (health check deferred)", "encryption");
+      } else {
+        log("Redis not configured - running without cache encryption", "encryption");
+      }
+    } catch (redisError) {
+      log(`Redis initialization error: ${(redisError as Error).message}`, "error");
+      log("Continuing without Redis cache", "encryption");
     }
-    
-    log("🔍 DEBUG: Redis section completed", "express");
-    log("🔍 DEBUG: Finished database/cache initialization", "express");
     
     // Serve static files for cloned voice audio
     app.use('/cloned-voice', express.static('public/cloned-voice', {
@@ -124,8 +137,6 @@ app.get('/api/health/detailed', detailedHealthCheck);
         }
       }
     }));
-
-    log("🔍 DEBUG: Static file middleware setup complete", "express");
 
     // Simple test routes
     app.get('/simple', (req, res) => {
@@ -243,9 +254,9 @@ app.get('/api/health/detailed', detailedHealthCheck);
     });
 
     log("About to register routes...", "express");
-    // TEMPORARILY BYPASS registerRoutes to test server startup
-    // await registerRoutes(app, io);
-    log("Routes registration bypassed for testing", "express");
+    // Register API routes
+    await registerRoutes(app, io);
+    log("Routes registered successfully", "express");
 
     // Error handling middleware should be last
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {

@@ -15,11 +15,29 @@ export const initializeRedis = () => {
     if (process.env.REDIS_URL) {
       redis = new Redis(process.env.REDIS_URL, {
         maxRetriesPerRequest: 3,
-        lazyConnect: true
+        lazyConnect: true,
+        enableOfflineQueue: false,
+        connectTimeout: 5000,
+        retryStrategy: (times) => {
+          if (times > 3) {
+            log('Redis connection failed after 3 attempts', 'error');
+            return null; // Stop retrying
+          }
+          return Math.min(times * 100, 3000);
+        }
       });
       
       redis.on('connect', () => log('Redis connected successfully', 'cache'));
-      redis.on('error', (err) => log(`Redis error: ${err.message}`, 'error'));
+      redis.on('error', (err) => {
+        log(`Redis error: ${err.message}`, 'error');
+        // Don't crash the app on Redis errors
+      });
+      redis.on('close', () => log('Redis connection closed', 'cache'));
+      
+      // Attempt to connect but don't wait for it
+      redis.connect().catch((err) => {
+        log(`Redis connection error: ${err.message}`, 'error');
+      });
       
       return redis;
     } else {
@@ -206,5 +224,5 @@ export const checkCacheHealth = async (): Promise<{ redis: boolean; latency?: nu
   }
 };
 
-// Initialize Redis on module load
-initializeRedis();
+// Remove automatic initialization at module load
+// initializeRedis();

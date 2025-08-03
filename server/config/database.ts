@@ -1,5 +1,6 @@
 import pkg from 'pg';
 const { Pool } = pkg;
+import type { Pool as PoolType } from 'pg';
 
 // Database configuration with connection pooling
 export function createDatabasePool() {
@@ -45,7 +46,7 @@ export function createDatabasePool() {
 }
 
 // Database health check
-export async function checkDatabaseHealth(pool: Pool) {
+export async function checkDatabaseHealth(pool: PoolType) {
   try {
     const client = await pool.connect();
     const result = await client.query('SELECT NOW() as current_time, version() as version');
@@ -71,7 +72,7 @@ export async function checkDatabaseHealth(pool: Pool) {
 }
 
 // Graceful shutdown
-export async function closeDatabasePool(pool: Pool) {
+export async function closeDatabasePool(pool: PoolType) {
   try {
     await pool.end();
     console.log('[db] Database pool closed gracefully');
