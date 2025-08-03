@@ -111,11 +111,13 @@ app.get('/api/health/detailed', detailedHealthCheck);
         log("Redis connection failed", "encryption");
         log("🔍 DEBUG: Redis health check failed", "express");
       }
+      log("🔍 DEBUG: Redis initialization section completed", "express");
     } else {
       log("Redis not configured - running without cache encryption", "encryption");
       log("🔍 DEBUG: No Redis instance created", "express");
     }
     
+    log("🔍 DEBUG: Redis section completed", "express");
     log("🔍 DEBUG: Finished database/cache initialization", "express");
     
     // Serve static files for cloned voice audio
