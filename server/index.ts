@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config();
 import 'express-async-errors'; // Automatically catch async errors
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
