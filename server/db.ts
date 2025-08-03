@@ -26,10 +26,17 @@ export const pool = process.env.DATABASE_URL
 // Test database connection if pool exists
 if (pool) {
   pool.query('SELECT NOW()')
-    .then(() => log('PostgreSQL database connection successful', 'db'))
-    .catch(err => log(`PostgreSQL database connection error: ${err.message}`, 'db'));
+    .then(() => {
+      log('PostgreSQL database connection successful', 'db');
+      log('🔍 DEBUG: Database connection test completed', 'db');
+    })
+    .catch(err => {
+      log(`PostgreSQL database connection error: ${err.message}`, 'db');
+      log('🔍 DEBUG: Database connection test failed', 'db');
+    });
 } else {
   log('Database connection not available - running in development mode', 'db');
+  log('🔍 DEBUG: No database pool available', 'db');
 }
 
 // Initialize Drizzle with the schema (only if pool exists)

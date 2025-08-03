@@ -96,6 +96,7 @@ app.get('/api/health/detailed', detailedHealthCheck);
     
     await initDatabase();
     log("Database initialized successfully");
+    log("🔍 DEBUG: initDatabase() completed", "express");
     
     // Initialize Redis for encryption caching
     const redis = initializeRedis();
