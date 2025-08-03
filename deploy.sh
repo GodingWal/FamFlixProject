@@ -2,33 +2,19 @@
 
 echo "🚀 Starting FamFlix deployment..."
 
-# Create logs directory if it doesn't exist
-mkdir -p logs
-
-# Pull latest changes from GitHub
-echo "📥 Pulling latest changes..."
-git pull origin main
-
-# Install dependencies
-echo "📦 Installing dependencies..."
-npm install
-
-# Build the application
-echo "🔨 Building application..."
+# Build the application locally
+echo "📦 Building application..."
 npm run build
 
-# Run database migrations
-echo "🗄️ Running database migrations..."
-npm run db:push
-
-# Restart the application
-echo "🔄 Restarting application..."
+# Deploy to EC2
+echo "☁️ Deploying to EC2..."
+ssh -i /home/nero/Goding.pem ubuntu@ec2-18-116-239-92.us-east-2.compute.amazonaws.com << 'EOF'
+cd /home/ubuntu/famflix/FamFlixProject
+git pull origin main
+npm ci
+npm run build
 pm2 restart famflix
+echo "✅ Deployment completed successfully!"
+EOF
 
-# Check status
-echo "✅ Checking application status..."
-pm2 status
-
-echo "🎉 Deployment completed successfully!"
-echo "📊 Application logs: pm2 logs famflix"
-echo "🔍 Monitor: pm2 monit" 
+echo "🎉 Deployment finished!" 

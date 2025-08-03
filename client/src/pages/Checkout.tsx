@@ -11,10 +11,9 @@ import { Loader2 } from 'lucide-react';
 
 // Make sure to call loadStripe outside of a component's render to avoid
 // recreating the Stripe object on every render
-if (!import.meta.env.VITE_STRIPE_PUBLIC_KEY) {
-  throw new Error('Missing required Stripe key: VITE_STRIPE_PUBLIC_KEY');
-}
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+const stripePromise = import.meta.env.VITE_STRIPE_PUBLIC_KEY 
+  ? loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY)
+  : null;
 
 // Payment form component
 const CheckoutForm = ({ templateId, amount }: { templateId: string; amount: number }) => {
@@ -23,6 +22,15 @@ const CheckoutForm = ({ templateId, amount }: { templateId: string; amount: numb
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Check if Stripe is available
+  if (!stripePromise) {
+    return (
+      <div className="text-center p-6">
+        <p className="text-muted-foreground">Stripe is not configured. Please contact support.</p>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

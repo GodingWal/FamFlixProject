@@ -12,7 +12,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 export default function Landing() {
   const [location, navigate] = useLocation();
-  const { user } = useAuth();
+  // Temporarily commenting out useAuth since AuthProvider is disabled
+  // const { user } = useAuth();
+  const user = null; // Temporary fix
   const [activeTab, setActiveTab] = useState('how-it-works');
   const isMobile = useMobile();
   const [isMenuOpen, setIsMenuOpen] = useState(false);

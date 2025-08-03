@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JavaScript Test</title>
+</head>
+<body>
+    <div id="test">Testing JavaScript execution...</div>
+    <script>
+        console.log('Basic JavaScript is working');
+        document.getElementById('test').innerHTML = 'JavaScript executed successfully!';
+    </script>
+    <script type="module" crossorigin src="http://18.116.239.92/assets/index-Br6ssXN4.js"></script>
+    <script>
+        console.log('After loading main script');
+        setTimeout(() => {
+            console.log('Checking for React app...');
+            const root = document.getElementById('root');
+            if (root) {
+                console.log('Root element found:', root.innerHTML);
+            } else {
+                console.log('Root element not found');
+            }
+        }, 2000);
+    </script>
+</body>
+</html> 

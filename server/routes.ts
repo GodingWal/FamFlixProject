@@ -179,22 +179,22 @@ export async function registerRoutes(app: Express, io?: SocketServer): Promise<v
   }
 
   // Setup authentication
-  // Security headers
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "blob:", "https:"],
-        connectSrc: ["'self'", "ws:", "wss:", "https:"],
-        fontSrc: ["'self'", "data:"],
-        mediaSrc: ["'self'", "blob:"],
-        frameSrc: ["'none'"],
-      },
-    },
-    crossOriginEmbedderPolicy: false,
-  }));
+  // Security headers - temporarily disabled to fix static asset loading
+  // app.use(helmet({
+  //   contentSecurityPolicy: {
+  //     directives: {
+  //       defaultSrc: ["'self'"],
+  //       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"],
+  //       styleSrc: ["'self'", "'unsafe-inline'"],
+  //       imgSrc: ["'self'", "data:", "blob:", "https:"],
+  //       connectSrc: ["'self'", "ws:", "wss:", "https:"],
+  //       fontSrc: ["'self'", "data:"],
+  //       mediaSrc: ["'self'", "blob:"],
+  //       frameSrc: ["'none'"],
+  //     },
+  //   },
+  //   crossOriginEmbedderPolicy: false,
+  // }));
 
   // Apply API rate limiting
   app.use('/api', rateLimitMiddleware(apiLimiter));
