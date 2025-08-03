@@ -697,9 +697,7 @@ class MockStorage implements IStorage {
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       subscriptionStatus: 'active',
-      
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date()
     };
   }
   async getUserByUsername(): Promise<User | undefined> { 
@@ -714,9 +712,7 @@ class MockStorage implements IStorage {
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       subscriptionStatus: 'active',
-      
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date()
     };
   }
   async getUserByEmail(): Promise<User | undefined> { 
@@ -731,9 +727,7 @@ class MockStorage implements IStorage {
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       subscriptionStatus: 'active',
-      
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date()
     };
   }
   async getAllUsers(): Promise<User[]> { return []; }
@@ -764,10 +758,10 @@ class MockStorage implements IStorage {
       id: Math.floor(Math.random() * 1000) + 1,
       userId: personData.userId,
       name: personData.name,
-      relationship: personData.relationship,
+      relationship: personData.relationship || null,
       avatarUrl: null,
       elevenlabsVoiceId: null,
-            createdAt: new Date()
+      createdAt: new Date()
     };
   }
   async updatePerson(): Promise<Person | undefined> { return undefined; }
@@ -781,7 +775,12 @@ class MockStorage implements IStorage {
       userId: 1,
       name: 'Mock Face',
       imageUrl: 'https://via.placeholder.com/300x300?text=Face+Image',
+      imageData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
       isDefault: true,
+      mlProcessed: false,
+      faceEmbedding: null,
+      expressionType: 'neutral',
+      sourceVideoId: null,
       createdAt: new Date()
     };
   }

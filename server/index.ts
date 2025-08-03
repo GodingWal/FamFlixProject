@@ -54,13 +54,13 @@ app.use((req, res, next) => {
 // Export io for use in other modules
 export { io };
 
-// Production middleware setup - temporarily disabled to prevent headers conflicts
+// Production middleware setup
 if (process.env.NODE_ENV === 'production') {
-  // app.use(productionSecurity); // Disabled - causing header conflicts
-  // app.use(rateLimiter); // Disabled for testing
-  // Performance monitoring disabled to prevent headers conflicts
+  // Temporarily disable all production middleware to isolate hanging issue
+  // app.use(productionSecurity);
+  // app.use(rateLimiter);
   // app.use(performanceMonitor);
-  // monitorResources(); // Also disabled to prevent conflicts
+  // monitorResources();
 }
 
 // Request parsing with size limits
@@ -74,18 +74,35 @@ app.get('/api/health', simpleHealthCheck);
 app.get('/health/detailed', detailedHealthCheck);
 app.get('/api/health/detailed', detailedHealthCheck);
 
-// Simplified request timing middleware - temporarily disabled to fix headers error
-// app.use((req, res, next) => {
-//   const start = Date.now();
-//   const path = req.path;
-//   res.on("finish", () => {
-//     const duration = Date.now() - start;
-//     if (path.startsWith("/api") && !path.includes('/health')) {
-//       log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
-//     }
-//   });
-//   next();
-// });
+// Request timing middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  
+  // Store the original end function
+  const originalEnd = res.end;
+  
+  // Override the end function with proper overloads
+  const newEnd = function(this: Response, ...args: any[]): Response {
+    // Restore the original end function
+    res.end = originalEnd;
+    
+    // Call the original end function with proper typing
+    const result = (originalEnd as any).call(res, ...args);
+    
+    // Log after response is sent
+    const duration = Date.now() - start;
+    if (path.startsWith("/api") && !path.includes('/health')) {
+      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
+    }
+    
+    return result;
+  };
+  
+  res.end = newEnd as any;
+  
+  next();
+});
 
 (async () => {
   try {
@@ -96,31 +113,30 @@ app.get('/api/health/detailed', detailedHealthCheck);
     
     await initDatabase();
     log("Database initialized successfully");
-    log("🔍 DEBUG: initDatabase() completed", "express");
     
-    log("🔍 DEBUG: About to initialize Redis", "express");
-    // Initialize Redis for encryption caching
-    const redis = initializeRedis();
-    if (redis) {
-      log("🔍 DEBUG: Redis instance created, checking health", "express");
-      const health = await checkCacheHealth();
-      if (health.redis) {
-        log(`Redis initialized successfully (latency: ${health.latency}ms)`, "encryption");
-        log("🔍 DEBUG: Redis health check passed", "express");
+    // Initialize Redis for encryption caching - with proper async handling
+    // Temporarily disabled to test server startup
+    /*
+    try {
+      const redis = initializeRedis();
+      if (redis) {
+        log("Redis instance created", "express");
+        // Don't wait for Redis health check as it might hang
+        // Just log that Redis is initialized
+        log("Redis initialized (health check deferred)", "encryption");
       } else {
-        log("Redis connection failed", "encryption");
-        log("🔍 DEBUG: Redis health check failed", "express");
+        log("Redis not configured - running without cache encryption", "encryption");
       }
-      log("🔍 DEBUG: Redis initialization section completed", "express");
-    } else {
-      log("Redis not configured - running without cache encryption", "encryption");
-      log("🔍 DEBUG: No Redis instance created", "express");
+    } catch (redisError) {
+      log(`Redis initialization error: ${(redisError as Error).message}`, "error");
+      log("Continuing without Redis cache", "encryption");
     }
-    
-    log("🔍 DEBUG: Redis section completed", "express");
-    log("🔍 DEBUG: Finished database/cache initialization", "express");
+    */
+    log("Redis initialization temporarily disabled for testing", "express");
     
     // Serve static files for cloned voice audio
+    // Temporarily disabled to test server startup
+    /*
     app.use('/cloned-voice', express.static('public/cloned-voice', {
       setHeaders: (res, path) => {
         if (path.endsWith('.mp3')) {
@@ -128,10 +144,11 @@ app.get('/api/health/detailed', detailedHealthCheck);
         }
       }
     }));
-
-    log("🔍 DEBUG: Static file middleware setup complete", "express");
+    */
 
     // Simple test routes
+    // Temporarily disabled to test server startup
+    /*
     app.get('/simple', (req, res) => {
       res.send(`
         <!DOCTYPE html>
@@ -145,6 +162,15 @@ app.get('/api/health/detailed', detailedHealthCheck);
         </body>
         </html>
       `);
+    });
+
+    // Simple API test endpoint
+    app.get('/api/test', (req, res) => {
+      res.json({
+        status: 'API working',
+        timestamp: new Date().toISOString(),
+        message: 'Basic API routing is functional'
+      });
     });
 
     app.get('/debug', (req, res) => {
@@ -245,11 +271,18 @@ app.get('/api/health/detailed', detailedHealthCheck);
         </html>
       `);
     });
+    */
 
     log("About to register routes...", "express");
-    // TEMPORARILY BYPASS registerRoutes to test server startup
-    // await registerRoutes(app, io);
-    log("Routes registration bypassed for testing", "express");
+    // Register API routes
+    try {
+      // Temporarily disable route registration to test server startup
+      // await registerRoutes(app, io);
+      log("Routes registration temporarily disabled for testing", "express");
+    } catch (error) {
+      log(`Error registering routes: ${(error as Error).message}`, "express");
+      console.error('Full route registration error:', error);
+    }
 
     // Error handling middleware should be last
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
@@ -283,6 +316,8 @@ app.get('/api/health/detailed', detailedHealthCheck);
     // doesn't interfere with the other routes
     const isProduction = process.env.NODE_ENV === "production";
     
+    // Temporarily disable Vite and static file serving to test server startup
+    /*
     if (!isProduction) {
       log("Setting up Vite development server", "express");
       await setupVite(app, httpServer);
@@ -291,12 +326,22 @@ app.get('/api/health/detailed', detailedHealthCheck);
       serveStatic(app);
       log("Static files setup complete", "express");
     }
+    */
+    log("Vite and static file serving temporarily disabled for testing", "express");
+
+    // Add a simple test route to verify server can start
+    app.get('/test', (req: Request, res: Response) => {
+      res.json({ message: 'Server is working!' });
+    });
 
     // Serve on port 5000 for development, PORT env var for production
     const port = Number(process.env.PORT) || 5000;
     const host = '0.0.0.0';
     
     log("About to start server listening...", "express");
+    
+    // Temporarily disable server listening to test if the issue is with the listen call
+    /*
     const serverInstance = httpServer.listen(port, host, () => {
       log(`🚀 Server running on ${host}:${port}`, "express");
       log(`Environment: ${process.env.NODE_ENV || 'development'}`, "express");
@@ -307,22 +352,35 @@ app.get('/api/health/detailed', detailedHealthCheck);
         log(`Public URL: ${process.env.PUBLIC_URL}`, "express");
       }
     });
+    */
+    log("Server listening temporarily disabled for testing", "express");
+
+    // Test if process can exit cleanly
+    log("Testing process exit...", "express");
+    console.log("✅ Server initialization completed successfully!");
+    console.log("🔍 Checking if process can exit cleanly...");
+    
+    // Force exit after 5 seconds to test
+    setTimeout(() => {
+      console.log("🔄 Forcing process exit after 5 seconds...");
+      process.exit(0);
+    }, 5000);
 
     // Graceful shutdown
     process.on('SIGTERM', () => {
       log('SIGTERM received, shutting down gracefully', 'express');
-      serverInstance.close(() => {
-        log('Server closed', 'express');
-        process.exit(0);
-      });
+      // serverInstance.close(() => { // This line was removed as serverInstance is commented out
+      //   log('Server closed', 'express');
+      //   process.exit(0);
+      // });
     });
 
     process.on('SIGINT', () => {
       log('SIGINT received, shutting down gracefully', 'express');
-      serverInstance.close(() => {
-        log('Server closed', 'express');
-        process.exit(0);
-      });
+      // serverInstance.close(() => { // This line was removed as serverInstance is commented out
+      //   log('Server closed', 'express');
+      //   process.exit(0);
+      // });
     });
   } catch (error) {
     log(`Failed to start server: ${(error as Error).message}`, "error");

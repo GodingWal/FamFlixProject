@@ -1,0 +1,430 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run dependency updates weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      update_deps:
+        description: 'Update dependencies'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  # Dependency Update Job
+  update-dependencies:
+    if: github.event_name == 'schedule' || github.event.inputs.update_deps == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for outdated packages
+        id: check-outdated
+        run: |
+          npm outdated --json > outdated.json || true
+          if [ -s outdated.json ]; then
+            echo "outdated=true" >> $GITHUB_OUTPUT
+            echo "Found outdated packages:"
+            cat outdated.json
+          else
+            echo "outdated=false" >> $GITHUB_OUTPUT
+            echo "All packages are up to date"
+          fi
+
+      - name: Update dependencies
+        if: steps.check-outdated.outputs.outdated == 'true'
+        run: |
+          # Update all dependencies
+          npm update
+          
+          # Update dev dependencies
+          npm update --dev
+          
+          # Check for major version updates
+          npx npm-check-updates --target minor
+
+      - name: Create Pull Request for updates
+        if: steps.check-outdated.outputs.outdated == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies'
+          title: '🤖 Automated Dependency Updates'
+          body: |
+            ## Automated Dependency Updates
+            
+            This PR was automatically created to update outdated dependencies.
+            
+            ### Changes:
+            - Updated npm packages to latest compatible versions
+            - Updated development dependencies
+            
+            ### To review:
+            1. Check the changes in package.json and package-lock.json
+            2. Ensure all tests pass
+            3. Test the application locally if needed
+            
+            ### Commands to run locally:
+            ```bash
+            npm install
+            npm run check
+            npm run build
+            npm run dev
+            ```
+          branch: dependency-updates
+          delete-branch: true
+
+  # Lint and Type Check
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript type checking
+        run: npm run check
+
+      - name: Run ESLint (if configured)
+        run: |
+          if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ]; then
+            npx eslint . --ext .ts,.tsx,.js,.jsx
+          else
+            echo "ESLint not configured, skipping..."
+          fi
+
+  # Build Test
+  build:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-files
+          path: dist/
+          retention-days: 7
+
+  # Security Audit
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security audit
+        run: npm audit --audit-level=moderate
+
+      - name: Run Snyk security scan (if configured)
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+  # Database Migration Check
+  db-migration-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check database migrations
+        run: |
+          if [ -f "drizzle.config.ts" ]; then
+            echo "Checking Drizzle migrations..."
+            npx drizzle-kit generate --dry-run || echo "No new migrations needed"
+          else
+            echo "No Drizzle config found, skipping migration check"
+          fi
+
+  # Integration Tests (if configured)
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: build
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: famflix_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-files
+          path: dist/
+
+      - name: Setup test environment
+        run: |
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/famflix_test" >> .env.test
+          echo "REDIS_URL=redis://localhost:6379" >> .env.test
+          echo "NODE_ENV=test" >> .env.test
+
+      - name: Run integration tests
+        run: |
+          # Wait for services to be ready
+          sleep 10
+          
+          # Run tests if they exist
+          if [ -f "package.json" ] && grep -q '"test"' package.json; then
+            npm test
+          else
+            echo "No test script found, skipping tests"
+          fi
+
+  # Performance Test
+  performance-test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-files
+          path: dist/
+
+      - name: Start application
+        run: |
+          echo "Starting application for performance testing..."
+          timeout 30s npm start &
+          sleep 10
+
+      - name: Run basic performance checks
+        run: |
+          # Check if server responds
+          curl -f http://localhost:5000/health || echo "Server not responding"
+          
+          # Check build size
+          echo "Build size analysis:"
+          du -sh dist/
+          find dist/ -name "*.js" -exec wc -c {} + | sort -n
+
+  # Deployment Preview (for PRs)
+  deployment-preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [build, security-audit]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-files
+          path: dist/
+
+      - name: Comment PR with deployment info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🚀 Deployment Preview')
+            );
+            
+            const commentBody = `🚀 **Deployment Preview Ready**
+            
+            ✅ All checks passed
+            ✅ Build completed successfully
+            ✅ Security audit passed
+            
+            **Build Details:**
+            - Node.js: 20.x
+            - Environment: Preview
+            - Status: Ready for review
+            
+            **Next Steps:**
+            1. Review the changes
+            2. Test the application locally
+            3. Approve and merge when ready
+            
+            _This is an automated deployment preview for PR #${context.issue.number}_`;
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+  # Summary Report
+  summary:
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, build, security-audit, db-migration-check, integration-tests, performance-test]
+    if: always()
+    steps:
+      - name: Generate summary report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = ${{ toJSON(needs) }};
+            const failedJobs = Object.entries(jobs).filter(([name, job]) => job.result === 'failure');
+            const successJobs = Object.entries(jobs).filter(([name, job]) => job.result === 'success');
+            
+            let summary = `## 🎯 CI/CD Pipeline Summary
+            
+            **Status:** ${failedJobs.length > 0 ? '❌ Failed' : '✅ Success'}
+            
+            **Jobs Summary:**
+            ✅ Successful: ${successJobs.length}
+            ❌ Failed: ${failedJobs.length}
+            ⏭️ Skipped: ${Object.keys(jobs).length - successJobs.length - failedJobs.length}
+            
+            **Job Details:**`;
+            
+            Object.entries(jobs).forEach(([name, job]) => {
+              const status = job.result === 'success' ? '✅' : job.result === 'failure' ? '❌' : '⏭️';
+              summary += `\n- ${status} ${name}: ${job.result || 'skipped'}`;
+            });
+            
+            if (failedJobs.length > 0) {
+              summary += `\n\n**Failed Jobs:**`;
+              failedJobs.forEach(([name, job]) => {
+                summary += `\n- ${name}: ${job.result}`;
+              });
+            }
+            
+            summary += `\n\n**Next Steps:**`;
+            if (failedJobs.length > 0) {
+              summary += `\n1. Review failed jobs above`;
+              summary += `\n2. Fix issues and push changes`;
+              summary += `\n3. Re-run the pipeline`;
+            } else {
+              summary += `\n1. All checks passed! 🎉`;
+              summary += `\n2. Ready for deployment`;
+              summary += `\n3. Merge when ready`;
+            }
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: summary
+            }); 

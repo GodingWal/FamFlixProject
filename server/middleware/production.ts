@@ -66,18 +66,18 @@ export const performanceMonitor = (req: Request, res: Response, next: NextFuncti
   let responseSent = false;
   
   // Override response methods to track if response was sent
-  res.send = function(...args: any[]) {
+  res.send = function(body?: any) {
     if (!responseSent) {
       responseSent = true;
-      return originalSend.apply(res, args);
+      return originalSend.call(res, body);
     }
     return res;
   };
   
-  res.json = function(...args: any[]) {
+  res.json = function(body?: any) {
     if (!responseSent) {
       responseSent = true;
-      return originalJson.apply(res, args);
+      return originalJson.call(res, body);
     }
     return res;
   };
@@ -85,10 +85,10 @@ export const performanceMonitor = (req: Request, res: Response, next: NextFuncti
   res.end = function(...args: any[]) {
     if (!responseSent) {
       responseSent = true;
-      return originalEnd.apply(res, args);
+      return (originalEnd as any).call(res, ...args);
     }
     return res;
-  };
+  } as any;
   
   res.on('finish', () => {
     const duration = Number(process.hrtime.bigint() - start) / 1000000; // Convert to ms

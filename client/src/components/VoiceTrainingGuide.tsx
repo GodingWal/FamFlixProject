@@ -116,7 +116,7 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
     onSuccess: (data) => {
       toast({
         title: "Voice Clone Created!",
-        description: `Combined ${data.recordingsCount} cleaned recordings into a high-quality voice clone.`,
+        description: `Voice clone created successfully.`,
       });
       setIsComplete(true);
     },
@@ -201,14 +201,14 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
     reader.onloadend = () => {
       const base64data = reader.result as string;
       
-      // Save the recording with proper audioUrl field
+      // Save the recording with proper audioData field
       createVoiceRecordingMutation.mutate({
         audioData: base64data,
-        audioUrl: base64data, // This is the correct field name
         name: voicePrompts[currentStep].title,
         personId: personId,
         userId: userId,
         duration: voiceDuration,
+        type: 'training',
         isDefault: currentStep === 0 // Make first recording default
       });
     };
