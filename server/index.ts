@@ -340,8 +340,7 @@ app.use((req, res, next) => {
     
     log("About to start server listening...", "express");
     
-    // Temporarily disable server listening to test if the issue is with the listen call
-    /*
+    // Re-enable server listening to test if it works without Redis
     const serverInstance = httpServer.listen(port, host, () => {
       log(`🚀 Server running on ${host}:${port}`, "express");
       log(`Environment: ${process.env.NODE_ENV || 'development'}`, "express");
@@ -352,8 +351,6 @@ app.use((req, res, next) => {
         log(`Public URL: ${process.env.PUBLIC_URL}`, "express");
       }
     });
-    */
-    log("Server listening temporarily disabled for testing", "express");
 
     // Test if process can exit cleanly
     log("Testing process exit...", "express");
