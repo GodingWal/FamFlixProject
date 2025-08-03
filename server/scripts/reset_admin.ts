@@ -13,7 +13,7 @@ async function resetAdmin() {
     console.log('All users deleted.');
 
     // Hash the new admin password
-    const password = 'Wittymango520!';
+    const password = 'Wittymango520@';
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create new admin user
