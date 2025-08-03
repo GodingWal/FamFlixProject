@@ -56,10 +56,11 @@ export { io };
 
 // Production middleware setup
 if (process.env.NODE_ENV === 'production') {
-  app.use(productionSecurity);
-  app.use(rateLimiter);
-  app.use(performanceMonitor);
-  monitorResources();
+  // Temporarily disable all production middleware to isolate hanging issue
+  // app.use(productionSecurity);
+  // app.use(rateLimiter);
+  // app.use(performanceMonitor);
+  // monitorResources();
 }
 
 // Request parsing with size limits
@@ -152,6 +153,15 @@ app.use((req, res, next) => {
         </body>
         </html>
       `);
+    });
+
+    // Simple API test endpoint
+    app.get('/api/test', (req, res) => {
+      res.json({
+        status: 'API working',
+        timestamp: new Date().toISOString(),
+        message: 'Basic API routing is functional'
+      });
     });
 
     app.get('/debug', (req, res) => {
@@ -255,8 +265,13 @@ app.use((req, res, next) => {
 
     log("About to register routes...", "express");
     // Register API routes
-    await registerRoutes(app, io);
-    log("Routes registered successfully", "express");
+    try {
+      await registerRoutes(app, io);
+      log("Routes registered successfully", "express");
+    } catch (error) {
+      log(`Error registering routes: ${(error as Error).message}`, "express");
+      console.error('Full route registration error:', error);
+    }
 
     // Error handling middleware should be last
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
