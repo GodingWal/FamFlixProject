@@ -102,11 +102,15 @@ app.get('/api/health/detailed', detailedHealthCheck);
     // Initialize Redis for encryption caching
     const redis = initializeRedis();
     if (redis) {
-      log("🔍 DEBUG: Redis instance created, SKIPPING health check", "express");
-      // TEMPORARILY SKIP Redis health check to avoid hang
-      // const health = await checkCacheHealth();
-      log("🔍 DEBUG: Redis health check bypassed", "express");
-      log("Redis initialized (health check bypassed)", "encryption");
+      log("🔍 DEBUG: Redis instance created, checking health", "express");
+      const health = await checkCacheHealth();
+      if (health.redis) {
+        log(`Redis initialized successfully (latency: ${health.latency}ms)`, "encryption");
+        log("🔍 DEBUG: Redis health check passed", "express");
+      } else {
+        log("Redis connection failed", "encryption");
+        log("🔍 DEBUG: Redis health check failed", "express");
+      }
       log("🔍 DEBUG: Redis initialization section completed", "express");
     } else {
       log("Redis not configured - running without cache encryption", "encryption");
