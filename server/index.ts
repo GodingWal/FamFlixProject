@@ -8,6 +8,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { registerRoutes } from "./routes";
+import { setupAuth } from "./auth";
 import { setupVite, serveStatic, log } from "./vite";
 import { initDatabase } from "./db";
 import { healthCheck } from "./middleware/security";
@@ -303,7 +304,11 @@ app.use((req, res, next) => {
     log("About to register routes...", "express");
     // Register API routes
     try {
-      // Temporarily disable route registration to test server startup
+      // Initialize Passport and register /api/login, /api/register routes
+      setupAuth(app);
+      log("Authentication setup completed successfully", "express");
+      
+      // Register other API routes
       await registerRoutes(app, io);
       log("Routes registration completed successfully", "express");
     } catch (error) {
