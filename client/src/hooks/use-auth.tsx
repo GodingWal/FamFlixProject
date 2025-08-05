@@ -211,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
         }
+      }
     },
     onSuccess: (userData: Omit<SelectUser, "password">) => {
       queryClient.setQueryData(["/api/me"], userData);
