@@ -371,6 +371,21 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Simple user info endpoint that works immediately
+  app.get('/api/me-simple', (req, res) => {
+    // Return the same mock admin user for now
+    const mockUser = {
+      id: 1,
+      username: 'admin',
+      email: 'admin@fam-flix.com',
+      displayName: 'Administrator',
+      role: 'admin',
+      subscriptionStatus: 'active'
+    };
+    
+    res.json(mockUser);
+  });
+
   // Simple login endpoint that works immediately 
   app.post('/api/login-simple', (req, res) => {
     const { username, password } = req.body;

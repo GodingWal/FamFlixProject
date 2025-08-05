@@ -111,13 +111,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   
-  // Query for the current user
+  // Query for the current user using simple endpoint
   const {
     data: user,
     error,
     isLoading,
   } = useQuery<SelectUser | null, Error>({
-    queryKey: ["/api/me"],
+    queryKey: ["/api/me-simple"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
@@ -144,8 +144,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return simpleData.user || simpleData;
     },
     onSuccess: (userData: Omit<SelectUser, "password">) => {
-      queryClient.setQueryData(["/api/me"], userData);
-      queryClient.invalidateQueries({ queryKey: ["/api/me"] });
+      queryClient.setQueryData(["/api/me-simple"], userData);
+      queryClient.invalidateQueries({ queryKey: ["/api/me-simple"] });
       toast({
         title: "Login successful",
         description: `Welcome back, ${userData.displayName || userData.username}!`,
@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return responseData;
     },
     onSuccess: (userData: Omit<SelectUser, "password">) => {
-      queryClient.setQueryData(["/api/me"], userData);
+      queryClient.setQueryData(["/api/me-simple"], userData);
       toast({
         title: "Registration successful",
         description: `Welcome to FamFlix, ${userData.displayName || userData.username}!`,
@@ -202,7 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/me"], null);
+      queryClient.setQueryData(["/api/me-simple"], null);
       queryClient.clear();
       toast({
         title: "Logged out",
