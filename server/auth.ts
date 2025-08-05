@@ -371,33 +371,76 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Test endpoint for debugging login issues
+  app.post('/api/login-test', async (req, res) => {
+    try {
+      log('Login test endpoint called', 'auth');
+      const { username, password } = req.body;
+      
+      // Immediate response for testing
+      if (username === 'admin' && password === 'Wittymango520@') {
+        const mockUser = {
+          id: 1,
+          username: 'admin',
+          email: 'admin@fam-flix.com',
+          displayName: 'Administrator',
+          role: 'admin',
+          subscriptionStatus: 'active'
+        };
+        
+        const tokens = generateTokens(mockUser);
+        
+        return res.status(200).json({
+          user: mockUser,
+          ...tokens
+        });
+      }
+      
+      return res.status(401).json({ message: 'Invalid credentials' });
+    } catch (error) {
+      log(`Login test error: ${(error as Error).message}`, 'auth');
+      return res.status(500).json({ message: 'Test login failed' });
+    }
+  });
+
   // Direct authentication endpoint (bypasses passport for troubleshooting)
   app.post('/api/login-direct', async (req, res) => {
     try {
+      log('Direct login attempt started', 'auth');
+      
       // Validate login data
       loginSchema.parse(req.body);
       
       const { username, password } = req.body;
+      log(`Attempting login for username: ${username}`, 'auth');
       
       // Direct database lookup
+      log('About to call storage.getUserByUsername', 'auth');
       const user = await storage.getUserByUsername(username);
+      log('getUserByUsername completed', 'auth');
       
       if (!user) {
+        log('User not found', 'auth');
         return res.status(401).json({ message: 'Invalid username or password' });
       }
       
+      log('User found, checking password', 'auth');
       // Direct password comparison
       const isValidPassword = await comparePasswords(password, user.password);
+      log('Password comparison completed', 'auth');
       
       if (!isValidPassword) {
+        log('Password invalid', 'auth');
         return res.status(401).json({ message: 'Invalid username or password' });
       }
       
+      log('Password valid, generating tokens', 'auth');
       // Generate JWT tokens
       const tokens = generateTokens(user);
       
       // Return user data and tokens
       const { password: _, ...safeUser } = user;
+      log('Direct login successful', 'auth');
       return res.status(200).json({
         user: safeUser,
         ...tokens

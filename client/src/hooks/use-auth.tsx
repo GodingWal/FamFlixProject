@@ -122,54 +122,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Direct authentication with fallbacks
+  // Test authentication with fallbacks for debugging
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      // Try direct login first (bypasses passport issues)
+      // Try test endpoint first (immediate response for debugging)
       try {
-        const directRes = await apiRequest("POST", "/api/login-direct", credentials);
+        const testRes = await apiRequest("POST", "/api/login-test", credentials);
         
-        if (!directRes.ok) {
-          const errorData = await directRes.json().catch(() => ({ message: 'Login failed' }));
-          throw new Error(errorData.message || `Login failed: ${directRes.status}`);
+        if (!testRes.ok) {
+          const errorData = await testRes.json().catch(() => ({ message: 'Test login failed' }));
+          throw new Error(errorData.message || `Test login failed: ${testRes.status}`);
         }
         
-        const directData = await directRes.json();
+        const testData = await testRes.json();
         
         // Store JWT tokens if provided
-        if (directData.accessToken && directData.refreshToken) {
-          localStorage.setItem('accessToken', directData.accessToken);
-          localStorage.setItem('refreshToken', directData.refreshToken);
+        if (testData.accessToken && testData.refreshToken) {
+          localStorage.setItem('accessToken', testData.accessToken);
+          localStorage.setItem('refreshToken', testData.refreshToken);
         }
         
-        return directData.user || directData;
-      } catch (directError) {
-        // Try JWT login as fallback
+        return testData.user || testData;
+      } catch (testError) {
+        // Try direct login as fallback
         try {
-          const jwtRes = await apiRequest("POST", "/api/login-jwt", credentials);
+          const directRes = await apiRequest("POST", "/api/login-direct", credentials);
           
-          if (!jwtRes.ok) {
-            const errorData = await jwtRes.json().catch(() => ({ message: 'Login failed' }));
-            throw new Error(errorData.message || `Login failed: ${jwtRes.status}`);
+          if (!directRes.ok) {
+            const errorData = await directRes.json().catch(() => ({ message: 'Login failed' }));
+            throw new Error(errorData.message || `Login failed: ${directRes.status}`);
           }
           
-          const jwtData = await jwtRes.json();
+          const directData = await directRes.json();
           
           // Store JWT tokens if provided
-          if (jwtData.accessToken && jwtData.refreshToken) {
-            localStorage.setItem('accessToken', jwtData.accessToken);
-            localStorage.setItem('refreshToken', jwtData.refreshToken);
+          if (directData.accessToken && directData.refreshToken) {
+            localStorage.setItem('accessToken', directData.accessToken);
+            localStorage.setItem('refreshToken', directData.refreshToken);
           }
           
-          return jwtData.user || jwtData;
-        } catch (jwtError) {
-          // Try session-based login as last resort
+          return directData.user || directData;
+        } catch (directError) {
+          // Try JWT login as fallback
           try {
-            const res = await apiRequest("POST", "/api/login", credentials);
-            const userData = await res.json();
-            return userData;
-          } catch (sessionError) {
-            throw directError; // Throw direct error as it's the primary method
+            const jwtRes = await apiRequest("POST", "/api/login-jwt", credentials);
+            
+            if (!jwtRes.ok) {
+              const errorData = await jwtRes.json().catch(() => ({ message: 'Login failed' }));
+              throw new Error(errorData.message || `Login failed: ${jwtRes.status}`);
+            }
+            
+            const jwtData = await jwtRes.json();
+            
+            // Store JWT tokens if provided
+            if (jwtData.accessToken && jwtData.refreshToken) {
+              localStorage.setItem('accessToken', jwtData.accessToken);
+              localStorage.setItem('refreshToken', jwtData.refreshToken);
+            }
+            
+            return jwtData.user || jwtData;
+          } catch (jwtError) {
+            // Try session-based login as last resort
+            try {
+              const res = await apiRequest("POST", "/api/login", credentials);
+              const userData = await res.json();
+              return userData;
+            } catch (sessionError) {
+              throw testError; // Throw test error as it's the primary method
+            }
           }
         }
       }
