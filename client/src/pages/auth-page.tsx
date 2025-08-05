@@ -222,17 +222,6 @@ export default function AuthPage() {
                     type="submit" 
                     className="w-full h-11 text-base font-medium" 
                     disabled={loginMutation?.isPending}
-                    onClick={(e) => {
-                      console.log("Login button clicked");
-                      if (!loginForm.username || !loginForm.password) {
-                        e.preventDefault();
-                        toast({
-                          title: "Validation Error",
-                          description: "Please fill in all fields",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
                   >
                     {loginMutation?.isPending ? (
                       <>
