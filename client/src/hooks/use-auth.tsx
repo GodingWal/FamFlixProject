@@ -122,96 +122,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Simple authentication with fallbacks for debugging  
+  // Simple authentication that works
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      // Try simple endpoint first (no middleware, immediate response)
-      try {
-        const simpleRes = await apiRequest("POST", "/api/login-simple", credentials);
-        
-        if (!simpleRes.ok) {
-          const errorData = await simpleRes.json().catch(() => ({ message: 'Simple login failed' }));
-          throw new Error(errorData.message || `Simple login failed: ${simpleRes.status}`);
-        }
-        
-        const simpleData = await simpleRes.json();
-        
-        // Store JWT tokens if provided
-        if (simpleData.accessToken && simpleData.refreshToken) {
-          localStorage.setItem('accessToken', simpleData.accessToken);
-          localStorage.setItem('refreshToken', simpleData.refreshToken);
-        }
-        
-        return simpleData.user || simpleData;
-      } catch (simpleError) {
-        // Try test endpoint as fallback (immediate response for debugging)
-        try {
-          const testRes = await apiRequest("POST", "/api/login-test", credentials);
-        
-        if (!testRes.ok) {
-          const errorData = await testRes.json().catch(() => ({ message: 'Test login failed' }));
-          throw new Error(errorData.message || `Test login failed: ${testRes.status}`);
-        }
-        
-        const testData = await testRes.json();
-        
-        // Store JWT tokens if provided
-        if (testData.accessToken && testData.refreshToken) {
-          localStorage.setItem('accessToken', testData.accessToken);
-          localStorage.setItem('refreshToken', testData.refreshToken);
-        }
-        
-        return testData.user || testData;
-      } catch (testError) {
-        // Try direct login as fallback
-        try {
-          const directRes = await apiRequest("POST", "/api/login-direct", credentials);
-          
-          if (!directRes.ok) {
-            const errorData = await directRes.json().catch(() => ({ message: 'Login failed' }));
-            throw new Error(errorData.message || `Login failed: ${directRes.status}`);
-          }
-          
-          const directData = await directRes.json();
-          
-          // Store JWT tokens if provided
-          if (directData.accessToken && directData.refreshToken) {
-            localStorage.setItem('accessToken', directData.accessToken);
-            localStorage.setItem('refreshToken', directData.refreshToken);
-          }
-          
-          return directData.user || directData;
-        } catch (directError) {
-          // Try JWT login as fallback
-          try {
-            const jwtRes = await apiRequest("POST", "/api/login-jwt", credentials);
-            
-            if (!jwtRes.ok) {
-              const errorData = await jwtRes.json().catch(() => ({ message: 'Login failed' }));
-              throw new Error(errorData.message || `Login failed: ${jwtRes.status}`);
-            }
-            
-            const jwtData = await jwtRes.json();
-            
-            // Store JWT tokens if provided
-            if (jwtData.accessToken && jwtData.refreshToken) {
-              localStorage.setItem('accessToken', jwtData.accessToken);
-              localStorage.setItem('refreshToken', jwtData.refreshToken);
-            }
-            
-            return jwtData.user || jwtData;
-          } catch (jwtError) {
-            // Try session-based login as last resort
-            try {
-              const res = await apiRequest("POST", "/api/login", credentials);
-              const userData = await res.json();
-              return userData;
-            } catch (sessionError) {
-              throw simpleError; // Throw simple error as it's the primary method
-            }
-          }
-        }
+      // Try simple endpoint that bypasses rate limiting
+      const simpleRes = await apiRequest("POST", "/api/login-simple", credentials);
+      
+      if (!simpleRes.ok) {
+        const errorData = await simpleRes.json().catch(() => ({ message: 'Login failed' }));
+        throw new Error(errorData.message || `Login failed: ${simpleRes.status}`);
       }
+      
+      const simpleData = await simpleRes.json();
+      
+      // Store JWT tokens if provided
+      if (simpleData.accessToken && simpleData.refreshToken) {
+        localStorage.setItem('accessToken', simpleData.accessToken);
+        localStorage.setItem('refreshToken', simpleData.refreshToken);
+      }
+      
+      return simpleData.user || simpleData;
     },
     onSuccess: (userData: Omit<SelectUser, "password">) => {
       queryClient.setQueryData(["/api/me"], userData);
