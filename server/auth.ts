@@ -371,6 +371,53 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Direct authentication endpoint (bypasses passport for troubleshooting)
+  app.post('/api/login-direct', async (req, res) => {
+    try {
+      // Validate login data
+      loginSchema.parse(req.body);
+      
+      const { username, password } = req.body;
+      
+      // Direct database lookup
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      // Direct password comparison
+      const isValidPassword = await comparePasswords(password, user.password);
+      
+      if (!isValidPassword) {
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      // Generate JWT tokens
+      const tokens = generateTokens(user);
+      
+      // Return user data and tokens
+      const { password: _, ...safeUser } = user;
+      return res.status(200).json({
+        user: safeUser,
+        ...tokens
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: 'Validation failed', 
+          errors: error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
+          }))
+        });
+      }
+      
+      log(`Login error: ${(error as Error).message}`, 'auth');
+      return res.status(500).json({ message: 'Login failed' });
+    }
+  });
+
   // Enhanced login endpoint with JWT token generation
   app.post('/api/login-jwt', (req, res, next) => {
     try {
