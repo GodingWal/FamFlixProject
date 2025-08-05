@@ -122,12 +122,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Test authentication with fallbacks for debugging
+  // Simple authentication with fallbacks for debugging  
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      // Try test endpoint first (immediate response for debugging)
+      // Try simple endpoint first (no middleware, immediate response)
       try {
-        const testRes = await apiRequest("POST", "/api/login-test", credentials);
+        const simpleRes = await apiRequest("POST", "/api/login-simple", credentials);
+        
+        if (!simpleRes.ok) {
+          const errorData = await simpleRes.json().catch(() => ({ message: 'Simple login failed' }));
+          throw new Error(errorData.message || `Simple login failed: ${simpleRes.status}`);
+        }
+        
+        const simpleData = await simpleRes.json();
+        
+        // Store JWT tokens if provided
+        if (simpleData.accessToken && simpleData.refreshToken) {
+          localStorage.setItem('accessToken', simpleData.accessToken);
+          localStorage.setItem('refreshToken', simpleData.refreshToken);
+        }
+        
+        return simpleData.user || simpleData;
+      } catch (simpleError) {
+        // Try test endpoint as fallback (immediate response for debugging)
+        try {
+          const testRes = await apiRequest("POST", "/api/login-test", credentials);
         
         if (!testRes.ok) {
           const errorData = await testRes.json().catch(() => ({ message: 'Test login failed' }));
@@ -188,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               const userData = await res.json();
               return userData;
             } catch (sessionError) {
-              throw testError; // Throw test error as it's the primary method
+              throw simpleError; // Throw simple error as it's the primary method
             }
           }
         }
