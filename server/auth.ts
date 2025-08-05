@@ -377,8 +377,10 @@ export function setupAuth(app: Express) {
       log('Login test endpoint called', 'auth');
       const { username, password } = req.body;
       
+      log('About to check credentials', 'auth');
       // Immediate response for testing
       if (username === 'admin' && password === 'Wittymango520@') {
+        log('Credentials valid, creating mock user', 'auth');
         const mockUser = {
           id: 1,
           username: 'admin',
@@ -388,14 +390,19 @@ export function setupAuth(app: Express) {
           subscriptionStatus: 'active'
         };
         
-        const tokens = generateTokens(mockUser);
+        log('About to generate tokens', 'auth');
+        // Skip token generation for now - this might be hanging
+        // const tokens = generateTokens(mockUser);
         
+        log('Returning response', 'auth');
         return res.status(200).json({
           user: mockUser,
-          ...tokens
+          accessToken: 'test-token',
+          refreshToken: 'test-refresh-token'
         });
       }
       
+      log('Invalid credentials', 'auth');
       return res.status(401).json({ message: 'Invalid credentials' });
     } catch (error) {
       log(`Login test error: ${(error as Error).message}`, 'auth');
