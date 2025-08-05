@@ -122,34 +122,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Session-based login with JWT fallback
+  // JWT-based login with session fallback
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      // Use session-based login as primary method
+      // Use JWT login as primary method
       try {
-        const res = await apiRequest("POST", "/api/login", credentials);
-        const userData = await res.json();
-        return userData;
-      } catch (sessionError) {
-        // Try JWT login as fallback
+        const jwtRes = await apiRequest("POST", "/api/login-jwt", credentials);
+        
+        if (!jwtRes.ok) {
+          const errorData = await jwtRes.json().catch(() => ({ message: 'Login failed' }));
+          throw new Error(errorData.message || `Login failed: ${jwtRes.status}`);
+        }
+        
+        const jwtData = await jwtRes.json();
+        
+        // Store JWT tokens if provided
+        if (jwtData.accessToken && jwtData.refreshToken) {
+          localStorage.setItem('accessToken', jwtData.accessToken);
+          localStorage.setItem('refreshToken', jwtData.refreshToken);
+        }
+        
+        return jwtData.user || jwtData;
+      } catch (jwtError) {
+        // Try session-based login as fallback
         try {
-          const jwtRes = await apiRequest("POST", "/api/login-jwt", credentials);
-          
-          if (!jwtRes.ok) {
-            throw new Error(`Login failed: ${jwtRes.status}`);
-          }
-          
-          const jwtData = await jwtRes.json();
-          
-          // Store JWT tokens if provided
-          if (jwtData.accessToken && jwtData.refreshToken) {
-            localStorage.setItem('accessToken', jwtData.accessToken);
-            localStorage.setItem('refreshToken', jwtData.refreshToken);
-          }
-          
-          return jwtData.user || jwtData;
-        } catch (jwtError) {
-          throw sessionError; // Throw original session error
+          const res = await apiRequest("POST", "/api/login", credentials);
+          const userData = await res.json();
+          return userData;
+        } catch (sessionError) {
+          throw jwtError; // Throw JWT error as it's the primary method
         }
       }
     },
