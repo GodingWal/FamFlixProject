@@ -107,27 +107,12 @@ app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
   
-  // Store the original end function
-  const originalEnd = res.end;
-  
-  // Override the end function with proper overloads
-  const newEnd = function(this: Response, ...args: any[]): Response {
-    // Restore the original end function
-    res.end = originalEnd;
-    
-    // Call the original end function with proper typing
-    const result = (originalEnd as any).call(res, ...args);
-    
-    // Log after response is sent
+  res.on('finish', () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api") && !path.includes('/health')) {
       log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     }
-    
-    return result;
-  };
-  
-  res.end = newEnd as any;
+  });
   
   next();
 });
@@ -311,6 +296,18 @@ app.use((req, res, next) => {
       // Register other API routes
       await registerRoutes(app, io);
       log("Routes registration completed successfully", "express");
+      
+      // Add a simple API test route to verify API routing works
+      app.get('/api/test-routing', (req: Request, res: Response) => {
+        res.json({ 
+          message: 'API routing is working!',
+          timestamp: new Date().toISOString(),
+          path: req.path,
+          method: req.method
+        });
+      });
+      
+      log("API routes registered successfully", "express");
     } catch (error) {
       log(`Error registering routes: ${(error as Error).message}`, "express");
       console.error('Full route registration error:', error);

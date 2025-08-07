@@ -1,12 +1,13 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
 import { log } from "./vite";
 import { setupAuth } from "./auth";
+import encryptionRouter from "./routes/encryption";
 
 export async function registerRoutes(app: Express, io?: any): Promise<void> {
   log('registerRoutes: Starting...', 'routes');
   
-  // Set up authentication routes
-  setupAuth(app);
+  // Note: Authentication routes are already set up in index.ts
+  // setupAuth(app) is called there, so we don't need to call it here
   
   // Simple test route to verify server is working
   app.get('/api/test-server', (req: Request, res: Response) => {
@@ -62,6 +63,19 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
         username: req.user.username,
         role: req.user.role
       } : null
+    });
+  });
+
+  // Mount encryption router
+  app.use('/api/encryption', encryptionRouter);
+  
+  // Final handler for unknown API routes
+  app.all('/api/*', (req: Request, res: Response) => {
+    res.status(404).json({ 
+      error: 'API endpoint not found',
+      path: req.path,
+      method: req.method,
+      message: 'The requested API endpoint does not exist'
     });
   });
 
