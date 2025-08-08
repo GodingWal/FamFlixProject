@@ -55,18 +55,22 @@ const LoadingSpinner = () => (
 
 // Use the shared QueryClient instance from lib/queryClient to keep cache consistent
 
+// Define guarded wrapper components explicitly (no inline factory calls)
+const ProtectedHome = (props: any) => <ProtectedRoute component={Home} {...props} />;
+const ProtectedPeople = (props: any) => <ProtectedRoute component={PeopleManagement} {...props} />;
+const ProtectedStories = (props: any) => <ProtectedRoute component={StoriesPage} {...props} />;
+const ProtectedTemplates = (props: any) => <ProtectedRoute component={VideoLibrary} {...props} />;
+const ProtectedLibrary = (props: any) => <ProtectedRoute component={VideoLibrary} {...props} />;
+const ProtectedFaceTraining = (props: any) => <ProtectedRoute component={FaceTraining} {...props} />;
+const ProtectedAIStories = (props: any) => <ProtectedRoute component={AIStoryGenerator} {...props} />;
+const ProtectedSmartVoice = (props: any) => <ProtectedRoute component={FaceTraining} {...props} />;
+const ProtectedSaved = (props: any) => <ProtectedRoute component={SavedVideos} {...props} />;
+
+const AdminDashboard = (props: any) => <AdminRoute component={SystemDashboard} {...props} />;
+const AdminTemplates = (props: any) => <AdminRoute component={AdminVideoTemplates} {...props} />;
+const AdminStories = (props: any) => <AdminRoute component={AdminStoriesPage} {...props} />;
+
 export default function App() {
-  // Wrap pages with route guards as proper components (not elements)
-  const withProtected = (Component: React.ComponentType<any>) =>
-    function ProtectedWrapped(props: any) {
-      return <ProtectedRoute component={Component} {...props} />;
-    };
-
-  const withAdmin = (Component: React.ComponentType<any>) =>
-    function AdminWrapped(props: any) {
-      return <AdminRoute component={Component} {...props} />;
-    };
-
   return (
     <ThemeProvider defaultTheme="light" storageKey="famflix-theme">
       <QueryClientProvider client={queryClient}>
@@ -80,19 +84,19 @@ export default function App() {
                   <Switch>
                     <Route path="/" component={LandingPage} />
                     <Route path="/auth" component={AuthPage} />
-                    <Route path="/home" component={withProtected(Home)} />
-                    <Route path="/dashboard" component={withAdmin(SystemDashboard)} />
-                    <Route path="/people" component={withProtected(PeopleManagement)} />
+                    <Route path="/home" component={ProtectedHome} />
+                    <Route path="/dashboard" component={AdminDashboard} />
+                    <Route path="/people" component={ProtectedPeople} />
 
-                    <Route path="/stories" component={withProtected(StoriesPage)} />
-                    <Route path="/templates" component={withProtected(VideoLibrary)} />
-                    <Route path="/library" component={withProtected(VideoLibrary)} />
-                    <Route path="/voice-training" component={withProtected(FaceTraining)} />
-                    <Route path="/ai-stories" component={withProtected(AIStoryGenerator)} />
-                    <Route path="/smart-voice" component={withProtected(FaceTraining)} />
-                    <Route path="/saved" component={withProtected(SavedVideos)} />
-                    <Route path="/admin/templates" component={withAdmin(AdminVideoTemplates)} />
-                    <Route path="/admin/stories" component={withAdmin(AdminStoriesPage)} />
+                    <Route path="/stories" component={ProtectedStories} />
+                    <Route path="/templates" component={ProtectedTemplates} />
+                    <Route path="/library" component={ProtectedLibrary} />
+                    <Route path="/voice-training" component={ProtectedFaceTraining} />
+                    <Route path="/ai-stories" component={ProtectedAIStories} />
+                    <Route path="/smart-voice" component={ProtectedSmartVoice} />
+                    <Route path="/saved" component={ProtectedSaved} />
+                    <Route path="/admin/templates" component={AdminTemplates} />
+                    <Route path="/admin/stories" component={AdminStories} />
                     <Route>
                       <div className="flex items-center justify-center min-h-[60vh]">
                         <Card className="max-w-md mx-auto border-0 shadow-xl animate-fade-in">
