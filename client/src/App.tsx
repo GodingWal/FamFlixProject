@@ -56,6 +56,17 @@ const LoadingSpinner = () => (
 // Use the shared QueryClient instance from lib/queryClient to keep cache consistent
 
 export default function App() {
+  // Wrap pages with route guards as proper components (not elements)
+  const withProtected = (Component: React.ComponentType<any>) =>
+    function ProtectedWrapped(props: any) {
+      return <ProtectedRoute component={Component} {...props} />;
+    };
+
+  const withAdmin = (Component: React.ComponentType<any>) =>
+    function AdminWrapped(props: any) {
+      return <AdminRoute component={Component} {...props} />;
+    };
+
   return (
     <ThemeProvider defaultTheme="light" storageKey="famflix-theme">
       <QueryClientProvider client={queryClient}>
@@ -69,19 +80,19 @@ export default function App() {
                   <Switch>
                     <Route path="/" component={LandingPage} />
                     <Route path="/auth" component={AuthPage} />
-                    <Route path="/home" component={ProtectedRoute({ component: Home })} />
-                    <Route path="/dashboard" component={AdminRoute({ component: SystemDashboard })} />
-                    <Route path="/people" component={ProtectedRoute({ component: PeopleManagement })} />
+                    <Route path="/home" component={withProtected(Home)} />
+                    <Route path="/dashboard" component={withAdmin(SystemDashboard)} />
+                    <Route path="/people" component={withProtected(PeopleManagement)} />
 
-                    <Route path="/stories" component={ProtectedRoute({ component: StoriesPage })} />
-                    <Route path="/templates" component={ProtectedRoute({ component: VideoLibrary })} />
-                    <Route path="/library" component={ProtectedRoute({ component: VideoLibrary })} />
-                    <Route path="/voice-training" component={ProtectedRoute({ component: FaceTraining })} />
-                    <Route path="/ai-stories" component={ProtectedRoute({ component: AIStoryGenerator })} />
-                    <Route path="/smart-voice" component={ProtectedRoute({ component: FaceTraining })} />
-                    <Route path="/saved" component={ProtectedRoute({ component: SavedVideos })} />
-                    <Route path="/admin/templates" component={AdminRoute({ component: AdminVideoTemplates })} />
-                    <Route path="/admin/stories" component={AdminRoute({ component: AdminStoriesPage })} />
+                    <Route path="/stories" component={withProtected(StoriesPage)} />
+                    <Route path="/templates" component={withProtected(VideoLibrary)} />
+                    <Route path="/library" component={withProtected(VideoLibrary)} />
+                    <Route path="/voice-training" component={withProtected(FaceTraining)} />
+                    <Route path="/ai-stories" component={withProtected(AIStoryGenerator)} />
+                    <Route path="/smart-voice" component={withProtected(FaceTraining)} />
+                    <Route path="/saved" component={withProtected(SavedVideos)} />
+                    <Route path="/admin/templates" component={withAdmin(AdminVideoTemplates)} />
+                    <Route path="/admin/stories" component={withAdmin(AdminStoriesPage)} />
                     <Route>
                       <div className="flex items-center justify-center min-h-[60vh]">
                         <Card className="max-w-md mx-auto border-0 shadow-xl animate-fade-in">
