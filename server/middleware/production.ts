@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { log } from '../vite.js';
+import { log } from '../vite';
 
 // Production security middleware (simplified to prevent header conflicts)
 export const productionSecurity = (req: Request, res: Response, next: NextFunction) => {

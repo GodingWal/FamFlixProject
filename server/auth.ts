@@ -348,29 +348,6 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  // Token refresh endpoint
-  app.post('/api/refresh-token', async (req, res) => {
-    const { refreshToken } = req.body;
-    
-    if (!refreshToken) {
-      return res.status(400).json({ message: 'Refresh token required' });
-    }
-    
-    try {
-      const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as { id: number };
-      const user = await storage.getUser(decoded.id);
-      
-      if (!user) {
-        return res.status(401).json({ message: 'Invalid token' });
-      }
-      
-      const newTokens = generateTokens(user);
-      return res.json(newTokens);
-    } catch (err) {
-      return res.status(401).json({ message: 'Token expired or invalid' });
-    }
-  });
-
   // Simple user info endpoint that works immediately
   app.get('/api/me-simple', (req, res) => {
     // Return the same mock admin user for now
@@ -491,49 +468,6 @@ export function setupAuth(app: Express) {
         user: safeUser,
         ...tokens
       });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: 'Validation failed', 
-          errors: error.errors.map(e => ({
-            field: e.path.join('.'),
-            message: e.message
-          }))
-        });
-      }
-      
-      log(`Login error: ${(error as Error).message}`, 'auth');
-      return res.status(500).json({ message: 'Login failed' });
-    }
-  });
-
-  // Enhanced login endpoint with JWT token generation
-  app.post('/api/login-jwt', (req, res, next) => {
-    try {
-      // Validate login data
-      loginSchema.parse(req.body);
-      
-      // Authenticate with passport
-      passport.authenticate('local', (err: any, user: Express.User | false, info: { message?: string }) => {
-        if (err) {
-          log(`Login error: ${err.message}`, 'auth');
-          return res.status(500).json({ message: 'Login failed' });
-        }
-        
-        if (!user) {
-          return res.status(401).json({ message: info?.message || 'Invalid username or password' });
-        }
-        
-        // Generate JWT tokens
-        const tokens = generateTokens(user);
-        
-        // Return user data and tokens
-        const { password, ...safeUser } = user;
-        return res.status(200).json({
-          user: safeUser,
-          ...tokens
-        });
-      })(req, res, next);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ 
