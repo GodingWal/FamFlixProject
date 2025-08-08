@@ -201,37 +201,60 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Login endpoint
-  app.post('/api/login', (req, res, next) => {
+  // Login endpoint with enhanced error handling
+  app.post('/api/login', async (req, res) => {
     try {
-      // Validate login data
-      loginSchema.parse(req.body);
+      log('Main login endpoint called', 'auth');
       
-      // Authenticate with passport
-      passport.authenticate('local', (err: any, user: Express.User | false, info: { message?: string }) => {
-        if (err) {
-          log(`Login error: ${err.message}`, 'auth');
-          return res.status(500).json({ message: 'Login failed' });
-        }
-        
-        if (!user) {
-          return res.status(401).json({ message: info?.message || 'Invalid username or password' });
-        }
-        
-        // Log the user in
-        req.login(user, (loginErr) => {
-          if (loginErr) {
-            log(`Error during login: ${loginErr.message}`, 'auth');
-            return res.status(500).json({ message: 'Login failed' });
-          }
-          
-          // Return user without sensitive data
-          const { password, ...safeUser } = user;
-          return res.status(200).json(safeUser);
-        });
-      })(req, res, next);
+      // Validate login data
+      const validatedData = loginSchema.parse(req.body);
+      const { username, password } = validatedData;
+      
+      log(`Login attempt for username: ${username}`, 'auth');
+      
+      // Use the enhanced login logic instead of Passport
+      const user = await Promise.race([
+        storage.getUserByUsername(username),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database query timeout')), 5000)
+        )
+      ]) as Express.User | undefined;
+      
+      if (!user) {
+        log('User not found in main login', 'auth');
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      log('User found, checking password in main login', 'auth');
+      
+      const isValidPassword = await Promise.race([
+        comparePasswords(password, user.password),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Password comparison timeout')), 3000)
+        )
+      ]) as boolean;
+      
+      if (!isValidPassword) {
+        log('Password invalid in main login', 'auth');
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      log('Password valid, generating tokens in main login', 'auth');
+      
+      // Generate JWT tokens
+      const tokens = generateTokens(user);
+      
+      // Return user data and tokens
+      const { password: _, ...safeUser } = user;
+      log('Main login successful', 'auth');
+      
+      return res.status(200).json({
+        user: safeUser,
+        ...tokens
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
+        log('Validation error in main login', 'auth');
         return res.status(400).json({ 
           message: 'Validation failed', 
           errors: error.errors.map(e => ({
@@ -241,7 +264,7 @@ export function setupAuth(app: Express) {
         });
       }
       
-      log(`Login error: ${(error as Error).message}`, 'auth');
+      log(`Main login error: ${(error as Error).message}`, 'auth');
       return res.status(500).json({ message: 'Login failed' });
     }
   });
@@ -371,19 +394,90 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Simple user info endpoint that works immediately
+  // Simple user info endpoint that checks authentication
   app.get('/api/me-simple', (req, res) => {
-    // Return the same mock admin user for now
-    const mockUser = {
-      id: 1,
-      username: 'admin',
-      email: 'admin@fam-flix.com',
-      displayName: 'Administrator',
-      role: 'admin',
-      subscriptionStatus: 'active'
-    };
+    // Check if user is authenticated via session or JWT
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
     
-    res.json(mockUser);
+    // Return the authenticated user
+    const { password, ...safeUser } = req.user;
+    res.json(safeUser);
+  });
+
+  // Enhanced login endpoint with better error handling and logging
+  app.post('/api/login-enhanced', async (req, res) => {
+    try {
+      log('Enhanced login attempt started', 'auth');
+      
+      // Validate login data
+      const validatedData = loginSchema.parse(req.body);
+      const { username, password } = validatedData;
+      
+      log(`Attempting login for username: ${username}`, 'auth');
+      
+      // Direct database lookup with timeout
+      log('About to call storage.getUserByUsername', 'auth');
+      const user = await Promise.race([
+        storage.getUserByUsername(username),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database query timeout')), 5000)
+        )
+      ]) as Express.User | undefined;
+      
+      log('getUserByUsername completed', 'auth');
+      
+      if (!user) {
+        log('User not found', 'auth');
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      log('User found, checking password', 'auth');
+      
+      // Direct password comparison with timeout
+      const isValidPassword = await Promise.race([
+        comparePasswords(password, user.password),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Password comparison timeout')), 3000)
+        )
+      ]) as boolean;
+      
+      log('Password comparison completed', 'auth');
+      
+      if (!isValidPassword) {
+        log('Password invalid', 'auth');
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      log('Password valid, generating tokens', 'auth');
+      
+      // Generate JWT tokens
+      const tokens = generateTokens(user);
+      
+      // Return user data and tokens
+      const { password: _, ...safeUser } = user;
+      log('Enhanced login successful', 'auth');
+      
+      return res.status(200).json({
+        user: safeUser,
+        ...tokens
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        log('Validation error in enhanced login', 'auth');
+        return res.status(400).json({ 
+          message: 'Validation failed', 
+          errors: error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
+          }))
+        });
+      }
+      
+      log(`Enhanced login error: ${(error as Error).message}`, 'auth');
+      return res.status(500).json({ message: 'Login failed' });
+    }
   });
 
   // Simple login endpoint that works immediately 
