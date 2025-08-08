@@ -20,7 +20,7 @@ import session from "express-session";
 import { db, pool } from './db';
 import { eq, inArray, sql } from "drizzle-orm";
 import connectPg from 'connect-pg-simple';
-import { cache, CacheKeys, CacheTTL } from "./cache.js";
+import { cache, CacheKeys, CacheTTL } from "./cache";
 import { 
   encrypt, 
   decrypt, 

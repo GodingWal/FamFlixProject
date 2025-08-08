@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import fs from "fs";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
@@ -241,16 +242,16 @@ export async function transcribeAndAnalyzeVoice(audioBuffer: Buffer): Promise<{
   try {
     // Create a temporary file for transcription
     const tempFile = `/tmp/voice_analysis_${Date.now()}.wav`;
-    require('fs').writeFileSync(tempFile, audioBuffer);
+    fs.writeFileSync(tempFile, audioBuffer);
 
     const transcription = await openai.audio.transcriptions.create({
-      file: require('fs').createReadStream(tempFile),
+      file: fs.createReadStream(tempFile),
       model: "whisper-1",
       response_format: "verbose_json",
     });
 
     // Clean up temp file
-    require('fs').unlinkSync(tempFile);
+    fs.unlinkSync(tempFile);
 
     // Analyze the transcript for voice characteristics
     const analysisPrompt = `Analyze this voice transcript for characteristics suitable for children's storytelling:

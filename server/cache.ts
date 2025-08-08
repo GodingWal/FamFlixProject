@@ -1,5 +1,5 @@
 import NodeCache from 'node-cache';
-import { log } from './vite.js';
+import { log } from './vite';
 
 // In-memory cache for development/small scale
 class CacheManager {
