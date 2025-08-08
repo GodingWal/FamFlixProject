@@ -145,9 +145,26 @@ export default function AuthPage() {
     }
   };
   
-  // Redirect to home if already logged in
+  // If already logged in, show a friendly message instead of auto-redirecting
   if (user && !isLoading) {
-    return <Redirect to="/home" />;
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle>You're already logged in</CardTitle>
+            <CardDescription>Continue to your dashboard.</CardDescription>
+          </CardHeader>
+          <CardFooter className="gap-2">
+            <Link href="/home">
+              <Button>Go to Home</Button>
+            </Link>
+            <Link href="/">
+              <Button variant="ghost">Back to Landing</Button>
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
   }
   
   return (

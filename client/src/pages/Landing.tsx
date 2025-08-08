@@ -12,21 +12,14 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 export default function Landing() {
   const [location, navigate] = useLocation();
-  // Temporarily commenting out useAuth since AuthProvider is disabled
-  // const { user } = useAuth();
-  const user = null; // Temporary fix
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('how-it-works');
   const isMobile = useMobile();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   
-  // If user is logged in, redirect to homepage using useEffect to avoid state updates during render
-  useEffect(() => {
-    if (user) {
-      console.log('User is logged in, redirecting to homepage:', user);
-      navigate('/home');
-    }
-  }, [user, navigate]);
+  // Remove auto-redirect; we will show CTA buttons only
+  // This avoids unintended navigation loops if stale auth exists
 
   // Handle scroll effect for navbar
   useEffect(() => {
