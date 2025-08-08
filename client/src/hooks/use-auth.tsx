@@ -222,13 +222,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Only consider user authenticated if tokens are present to avoid unintended session-based auto-login
+  const tokensPresent =
+    (typeof window !== 'undefined') &&
+    (!!localStorage.getItem('accessToken') || !!localStorage.getItem('refreshToken'));
+
   // Determine if the user is an admin
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = tokensPresent && user?.role === 'admin';
 
   return (
     <AuthContext.Provider
       value={{
-        user: user || null,
+        user: tokensPresent ? (user || null) : null,
         isAdmin,
         isLoading,
         error,
