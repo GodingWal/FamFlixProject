@@ -19,7 +19,7 @@ export function ProtectedRoute({ component: Component, ...props }: ProtectedRout
   }
 
   if (!user) {
-    return <Redirect to="/landing" />;
+    return <Redirect to="/" />;
   }
 
   return <Component {...props} />;
@@ -37,7 +37,7 @@ export function AdminRoute({ component: Component, ...props }: ProtectedRoutePro
   }
 
   if (!user) {
-    return <Redirect to="/landing" />;
+    return <Redirect to="/" />;
   }
 
   if (!isAdmin) {

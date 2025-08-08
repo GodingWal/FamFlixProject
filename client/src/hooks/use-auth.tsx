@@ -119,7 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useQuery<SelectUser | null, Error>({
     queryKey: ["/api/me-simple"],
     queryFn: getQueryFn({ on401: "returnNull" }),
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    // Auth state must always be fresh when entering auth-critical screens
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   // Simple authentication that works

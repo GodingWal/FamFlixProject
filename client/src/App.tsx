@@ -1,12 +1,14 @@
 import { useState, lazy, Suspense } from 'react';
 import { Router, Route, Switch } from 'wouter';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './components/theme-provider';
 import { AuthProvider } from '@/hooks/use-auth';
 import { Toaster } from '@/components/ui/toaster';
 import Navigation from './components/Navigation';
 import { Card, CardContent } from '@/components/ui/card';
+import { queryClient } from '@/lib/queryClient';
 import { AudioWaveform, Loader2 } from 'lucide-react';
+import { ProtectedRoute, AdminRoute } from '@/lib/protected-route';
 import './index.css';
 
 // Lazy load pages for better performance
@@ -51,15 +53,7 @@ const LoadingSpinner = () => (
   </div>
 );
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 2,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+// Use the shared QueryClient instance from lib/queryClient to keep cache consistent
 
 export default function App() {
   return (
@@ -75,19 +69,19 @@ export default function App() {
                   <Switch>
                     <Route path="/" component={LandingPage} />
                     <Route path="/auth" component={AuthPage} />
-                    <Route path="/home" component={Home} />
-                    <Route path="/dashboard" component={SystemDashboard} />
-                    <Route path="/people" component={PeopleManagement} />
+                    <Route path="/home" component={ProtectedRoute({ component: Home })} />
+                    <Route path="/dashboard" component={AdminRoute({ component: SystemDashboard })} />
+                    <Route path="/people" component={ProtectedRoute({ component: PeopleManagement })} />
 
-                    <Route path="/stories" component={StoriesPage} />
-                    <Route path="/templates" component={VideoLibrary} />
-                    <Route path="/library" component={VideoLibrary} />
-                    <Route path="/voice-training" component={FaceTraining} />
-                    <Route path="/ai-stories" component={AIStoryGenerator} />
-                    <Route path="/smart-voice" component={FaceTraining} />
-                    <Route path="/saved" component={SavedVideos} />
-                    <Route path="/admin/templates" component={AdminVideoTemplates} />
-                    <Route path="/admin/stories" component={AdminStoriesPage} />
+                    <Route path="/stories" component={ProtectedRoute({ component: StoriesPage })} />
+                    <Route path="/templates" component={ProtectedRoute({ component: VideoLibrary })} />
+                    <Route path="/library" component={ProtectedRoute({ component: VideoLibrary })} />
+                    <Route path="/voice-training" component={ProtectedRoute({ component: FaceTraining })} />
+                    <Route path="/ai-stories" component={ProtectedRoute({ component: AIStoryGenerator })} />
+                    <Route path="/smart-voice" component={ProtectedRoute({ component: FaceTraining })} />
+                    <Route path="/saved" component={ProtectedRoute({ component: SavedVideos })} />
+                    <Route path="/admin/templates" component={AdminRoute({ component: AdminVideoTemplates })} />
+                    <Route path="/admin/stories" component={AdminRoute({ component: AdminStoriesPage })} />
                     <Route>
                       <div className="flex items-center justify-center min-h-[60vh]">
                         <Card className="max-w-md mx-auto border-0 shadow-xl animate-fade-in">
