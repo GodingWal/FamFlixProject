@@ -98,12 +98,15 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
     sudo tar -xzf /tmp/famflix-deploy.tar.gz -C /opt/
     sudo chown -R famflix:famflix /opt/famflix
     
-    echo "📦 Installing dependencies..."
+    echo "📦 Installing dependencies (including dev for build)..."
     cd /opt/famflix
-    sudo -u famflix npm ci --only=production
+    sudo -u famflix npm ci
     
     echo "🏗️ Building application..."
     sudo -u famflix npm run build
+    
+    echo "🧹 Pruning to production dependencies..."
+    sudo -u famflix npm prune --production
     
     echo "🗄️ Running database migrations..."
     sudo -u famflix npm run db:push
