@@ -106,13 +106,19 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
     sudo -u famflix npm run build
 
     echo "🗄️ Running database migrations..."
-    sudo -u famflix npm run db:push
+    if ! sudo -u famflix npm run db:push; then
+        echo "⚠️  Migrations failed (database may be unavailable). Continuing..."
+    fi
 
     echo "🧹 Pruning to production dependencies..."
     sudo -u famflix npm prune --production
 
     echo "🚀 Restarting application..."
-    sudo systemctl restart famflix
+    if ! sudo systemctl restart famflix; then
+        echo "ℹ️  Systemd service not found; starting via PM2"
+        sudo -u famflix pm2 start dist/index.js --name famflix || sudo -u famflix pm2 restart famflix
+        sudo -u famflix pm2 save || true
+    fi
     
     echo "✅ Deployment completed!"
     echo ""
