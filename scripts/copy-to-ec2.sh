@@ -104,15 +104,15 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
     
     echo "🏗️ Building application..."
     sudo -u famflix npm run build
-    
-    echo "🧹 Pruning to production dependencies..."
-    sudo -u famflix npm prune --production
-    
+
     echo "🗄️ Running database migrations..."
     sudo -u famflix npm run db:push
-    
-    echo "🚀 Starting application..."
-    sudo systemctl start famflix
+
+    echo "🧹 Pruning to production dependencies..."
+    sudo -u famflix npm prune --production
+
+    echo "🚀 Restarting application..."
+    sudo systemctl restart famflix
     
     echo "✅ Deployment completed!"
     echo ""
