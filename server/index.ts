@@ -37,6 +37,9 @@ const io = new Server(httpServer, {
   }
 });
 
+// Behind Nginx/proxies, trust X-Forwarded-* headers for correct client IPs
+app.set('trust proxy', true);
+
 // -----------------------------------------------------------------------------
 // Utility: simple environment variable assertion.  In production mode you
 // generally want to fail fast if critical configuration is missing.  Add any
