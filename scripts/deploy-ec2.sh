@@ -195,7 +195,9 @@ server {
     gzip on;
     gzip_vary on;
     gzip_min_length 1024;
-    gzip_proxied expired no-cache no-store private must-revalidate auth;
+    # 'must-revalidate' is not a valid nginx token for gzip_proxied
+    # Use standard safe set or simplify to 'any'
+    gzip_proxied any;
     gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss;
 
     # Client max body size for file uploads
