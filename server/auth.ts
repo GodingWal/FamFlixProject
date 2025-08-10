@@ -9,7 +9,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { storage } from './storage';
 import { insertUserSchema, User as SelectUser } from '@shared/schema';
-import { log } from './vite';
+import { log } from './logger';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { passwordResetTokens } from '@shared/schema';

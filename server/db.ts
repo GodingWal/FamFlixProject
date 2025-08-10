@@ -3,7 +3,7 @@ import pkg from 'pg';
 const { Pool } = pkg;
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '@shared/schema';
-import { log } from './vite';
+import { log } from './logger';
 
 // Check if DATABASE_URL is set
 if (!process.env.DATABASE_URL) {
