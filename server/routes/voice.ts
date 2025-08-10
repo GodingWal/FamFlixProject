@@ -176,20 +176,19 @@ router.post("/voice/clone-speech", async (req: Request, res: Response) => {
       } catch (_) {}
     }
 
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({ error: "TTS temporarily unavailable" });
+    }
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    // Use OpenAI TTS to synthesize a quick MP3 data URL
     const speech = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
       voice: "alloy",
       input: String(text),
       format: "mp3",
     } as any);
-
-    // Convert to base64 data URL
     const arrayBuffer = await speech.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const audioUrl = `data:audio/mpeg;base64,${buffer.toString("base64")}`;
-
     return res.json({ audioUrl });
   } catch (error) {
     log(`POST /voice/clone-speech error: ${(error as Error).message}`, "error");
