@@ -1,5 +1,5 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
-import { log } from "./vite";
+import { log } from "./logger";
 import { setupAuth } from "./auth";
 import encryptionRouter from "./routes/encryption";
 import voiceRouter from "./routes/voice";

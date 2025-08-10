@@ -4,20 +4,12 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
+import { log } from "./logger";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
+// logging now centralized in logger.ts
 
 export async function setupVite(app: Express, server: Server) {
   // Lazy import Vite and config to avoid requiring dev dependencies in production

@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import { storage } from "../storage";
-import { log } from "../vite";
+import { log } from "../logger";
 
 const router = express.Router();
 

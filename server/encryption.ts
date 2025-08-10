@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import Redis from 'ioredis';
-import { log } from './vite';
+import { log } from './logger';
 
 // Enhanced encryption with proper key management
 // Use a fixed key for development to ensure consistency across restarts

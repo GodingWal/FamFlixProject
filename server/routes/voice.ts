@@ -3,7 +3,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { people } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { log } from "../vite";
+import { log } from "../logger";
 import { transcribeAndAnalyzeVoice } from "../services/openai";
 import OpenAI from "openai";
 import { createClonedVoiceInElevenLabs, dataUrlToBuffer } from "../services/elevenlabs";

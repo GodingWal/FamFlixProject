@@ -1,6 +1,6 @@
 import axios from "axios";
 import FormData from "form-data";
-import { log } from "../vite";
+import { log } from "../logger";
 
 export function dataUrlToBuffer(dataUrl: string): Buffer {
   const match = /^data:[^;]+;base64,(.+)$/.exec(dataUrl);
