@@ -98,18 +98,27 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
     sudo tar -xzf /tmp/famflix-deploy.tar.gz -C /opt/
     sudo chown -R famflix:famflix /opt/famflix
     
-    echo "📦 Installing dependencies..."
+    echo "📦 Installing dependencies (including dev for build)..."
     cd /opt/famflix
-    sudo -u famflix npm ci --only=production
+    sudo -u famflix npm ci
     
     echo "🏗️ Building application..."
     sudo -u famflix npm run build
-    
+
     echo "🗄️ Running database migrations..."
-    sudo -u famflix npm run db:push
-    
-    echo "🚀 Starting application..."
-    sudo systemctl start famflix
+    if ! sudo -u famflix npm run db:push; then
+        echo "⚠️  Migrations failed (database may be unavailable). Continuing..."
+    fi
+
+    echo "🧹 Pruning to production dependencies..."
+    sudo -u famflix npm prune --production
+
+    echo "🚀 Restarting application..."
+    if ! sudo systemctl restart famflix; then
+        echo "ℹ️  Systemd service not found; starting via PM2"
+        sudo -u famflix pm2 start dist/index.js --name famflix || sudo -u famflix pm2 restart famflix
+        sudo -u famflix pm2 save || true
+    fi
     
     echo "✅ Deployment completed!"
     echo ""

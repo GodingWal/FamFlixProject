@@ -1,9 +1,15 @@
 import OpenAI from "openai";
+import fs from "fs";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY 
-});
+// Lazily create the OpenAI client to avoid throwing at import time if key is missing
+function getOpenAI(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey || apiKey.trim().length === 0) {
+    // Return a client instance with undefined key will throw on use, so explicitly throw here
+    throw new Error("OPENAI_API_KEY is not configured");
+  }
+  return new OpenAI({ apiKey });
+}
 
 export interface StoryGenerationRequest {
   theme: string;
@@ -57,7 +63,7 @@ export async function generateStoryScript(request: StoryGenerationRequest): Prom
     
     Make sure the dialogue is age-appropriate, engaging, and fits within the specified duration.`;
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
@@ -83,7 +89,7 @@ export async function generateStoryScript(request: StoryGenerationRequest): Prom
 
 export async function enhanceVoiceScript(originalScript: string, voicePersonality: string): Promise<string> {
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
@@ -144,7 +150,7 @@ Please provide a JSON response with:
   "optimizedScript": "script_optimized_for_this_voice"
 }`;
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
@@ -200,7 +206,7 @@ Please provide a JSON response with:
 
 Make it engaging, age-appropriate, and aligned with the learning objectives.`;
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
@@ -241,16 +247,16 @@ export async function transcribeAndAnalyzeVoice(audioBuffer: Buffer): Promise<{
   try {
     // Create a temporary file for transcription
     const tempFile = `/tmp/voice_analysis_${Date.now()}.wav`;
-    require('fs').writeFileSync(tempFile, audioBuffer);
+    fs.writeFileSync(tempFile, audioBuffer);
 
-    const transcription = await openai.audio.transcriptions.create({
-      file: require('fs').createReadStream(tempFile),
+    const transcription = await getOpenAI().audio.transcriptions.create({
+      file: fs.createReadStream(tempFile),
       model: "whisper-1",
       response_format: "verbose_json",
     });
 
     // Clean up temp file
-    require('fs').unlinkSync(tempFile);
+    fs.unlinkSync(tempFile);
 
     // Analyze the transcript for voice characteristics
     const analysisPrompt = `Analyze this voice transcript for characteristics suitable for children's storytelling:
@@ -268,7 +274,7 @@ Please provide a JSON response with:
   "suggestions": ["improvement suggestion 1", "suggestion 2"]
 }`;
 
-    const analysisResponse = await openai.chat.completions.create({
+    const analysisResponse = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       messages: [
         {

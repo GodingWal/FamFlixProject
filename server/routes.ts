@@ -1,7 +1,9 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
-import { log } from "./vite";
+import { log } from "./logger";
 import { setupAuth } from "./auth";
 import encryptionRouter from "./routes/encryption";
+import voiceRouter from "./routes/voice";
+import peopleRouter from "./routes/people";
 
 export async function registerRoutes(app: Express, io?: any): Promise<void> {
   log('registerRoutes: Starting...', 'routes');
@@ -68,6 +70,10 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
 
   // Mount encryption router
   app.use('/api/encryption', encryptionRouter);
+  // Voice-related routes (recordings, comparison)
+  app.use('/api', voiceRouter);
+  // People CRUD routes
+  app.use('/api', peopleRouter);
   
   // Final handler for unknown API routes
   app.all('/api/*', (req: Request, res: Response) => {

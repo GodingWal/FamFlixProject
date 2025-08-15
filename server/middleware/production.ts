@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { log } from '../vite.js';
+import { log } from '../logger';
 
 // Production security middleware (simplified to prevent header conflicts)
 export const productionSecurity = (req: Request, res: Response, next: NextFunction) => {
@@ -10,8 +10,9 @@ export const productionSecurity = (req: Request, res: Response, next: NextFuncti
 
 // Request rate limiting per IP
 const requestCounts = new Map<string, { count: number, resetTime: number }>();
-const RATE_LIMIT = 100; // requests per minute
-const RATE_WINDOW = 60 * 1000; // 1 minute
+// Make limits a bit more generous and configurable
+const RATE_LIMIT = Number(process.env.RATE_LIMIT || 600); // requests per minute per IP
+const RATE_WINDOW = Number(process.env.RATE_WINDOW_MS || 60 * 1000); // window in ms
 
 export const rateLimiter = (req: Request, res: Response, next: NextFunction) => {
   const ip = req.ip || req.connection.remoteAddress || 'unknown';

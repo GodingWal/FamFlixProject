@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { checkCacheHealth, cacheGet, cacheSet, cacheDeletePattern } from '../encryption';
 import { requireRole } from '../auth';
-import { log } from '../vite';
+import { log } from '../logger';
 
 const router = Router();
 
