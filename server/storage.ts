@@ -844,4 +844,6 @@ class MockStorage implements IStorage {
 }
 
 // Export the appropriate storage implementation based on database availability
-export const storage: IStorage = db ? new DatabaseStorage() : new MockStorage();
+// You can force mock storage in production by setting FORCE_MOCK_STORAGE=true
+const shouldUseMockStorage = process.env.FORCE_MOCK_STORAGE === 'true' || !db;
+export const storage: IStorage = shouldUseMockStorage ? new MockStorage() : new DatabaseStorage();

@@ -121,15 +121,15 @@ const AudioRecorder = ({ onRecordingComplete, existingRecording }: AudioRecorder
   
   return (
     <Card>
-      <CardContent className="pt-6">
-        <div className="flex flex-col items-center">
-          <h3 className="text-lg font-medium mb-4">Voice Recording</h3>
+      <CardContent className="pt-4 sm:pt-6">
+        <div className="flex flex-col items-center w-full max-w-full sm:max-w-md mx-auto px-3 sm:px-0">
+          <h3 className="text-base sm:text-lg font-medium mb-3 sm:mb-4 text-center">Voice Recording</h3>
           
           {isRecording ? (
-            <div className="w-full mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Recording...</span>
-                <span className="text-sm">{formatTime(recordingTime)}</span>
+            <div className="w-full mb-3 sm:mb-4">
+              <div className="flex justify-between items-center mb-1.5 sm:mb-2">
+                <span className="text-xs sm:text-sm font-medium">Recording...</span>
+                <span className="text-xs sm:text-sm">{formatTime(recordingTime)}</span>
               </div>
               <Progress value={(recordingTime % 60) * (100/60)} className="h-1" />
             </div>
@@ -144,7 +144,7 @@ const AudioRecorder = ({ onRecordingComplete, existingRecording }: AudioRecorder
               <div className="flex justify-between items-center mb-2">
                 <div className="flex gap-2">
                   <Button 
-                    size="icon" 
+                    size="icon"
                     variant="outline"
                     onClick={togglePlayPause}
                   >
@@ -158,17 +158,17 @@ const AudioRecorder = ({ onRecordingComplete, existingRecording }: AudioRecorder
                     <Trash2 size={18} />
                   </Button>
                 </div>
-                <span className="text-xs">Recorded Voice</span>
+                <span className="text-[10px] sm:text-xs">Recorded Voice</span>
               </div>
             </div>
           ) : null}
           
-          <div className="mt-4">
+          <div className="mt-3 sm:mt-4 w-full flex justify-center">
             {isRecording ? (
               <Button 
                 variant="destructive" 
                 onClick={stopRecording}
-                className="gap-2"
+                className="gap-2 w-full sm:w-auto"
               >
                 <Square size={18} />
                 Stop Recording
@@ -176,7 +176,7 @@ const AudioRecorder = ({ onRecordingComplete, existingRecording }: AudioRecorder
             ) : !audioUrl ? (
               <Button
                 onClick={startRecording}
-                className="gap-2"
+                className="gap-2 w-full sm:w-auto"
               >
                 <Mic size={18} />
                 Start Recording

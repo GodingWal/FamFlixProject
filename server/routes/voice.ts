@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { log } from "../logger";
 import { transcribeAndAnalyzeVoice } from "../services/openai";
 import OpenAI from "openai";
-import { createClonedVoiceInElevenLabs, dataUrlToBuffer } from "../services/elevenlabs";
+import { createClonedVoiceInElevenLabs, dataUrlToBuffer, synthesizeClonedSpeech } from "../services/elevenlabs";
 
 const router = express.Router();
 
@@ -35,6 +35,26 @@ router.post("/voiceRecordings", async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    // Validate FK existence to avoid DB errors
+    try {
+      // Validate user exists
+      const user = await storage.getUser(Number(userId));
+      if (!user) {
+        return res.status(400).json({ message: "Invalid userId (user not found)" });
+      }
+      // Validate person exists and belongs to user
+      const personRows = await db!.select().from(people).where(eq(people.id, Number(personId)));
+      if (!personRows?.[0]) {
+        return res.status(400).json({ message: "Invalid personId (person not found)" });
+      }
+      if (Number(personRows[0].userId) !== Number(userId)) {
+        return res.status(403).json({ message: "Person does not belong to this user" });
+      }
+    } catch (fkErr) {
+      log(`FK validation failed before voice recording insert: ${(fkErr as Error).message}`, "error");
+      return res.status(400).json({ message: "Invalid user or person reference" });
+    }
+
     // First, create the recording (encrypted if data URL)
     const created = await storage.createVoiceRecording({
       userId: Number(userId),
@@ -42,7 +62,7 @@ router.post("/voiceRecordings", async (req: Request, res: Response) => {
       name: String(name),
       audioUrl: String(audioUrl),
       audioData: audioData ? String(audioData) : null,
-      duration: duration ? Number(duration) : null,
+      duration: duration ? Number(duration) : 0,
       isDefault: Boolean(isDefault),
       createdAt: new Date(),
     } as any);
@@ -161,35 +181,35 @@ router.post("/voice/compare", async (req: Request, res: Response) => {
 
 export default router;
 
-// Generate cloned speech audio (prototype using OpenAI TTS)
+// Generate cloned speech audio using ElevenLabs cloned voice
 router.post("/voice/clone-speech", async (req: Request, res: Response) => {
   try {
-    const { text, personId, voiceRecordingId } = req.body || {};
-    if (!text) {
-      return res.status(400).json({ error: "text is required" });
+    const { text, personId, voiceId } = req.body || {};
+    if (!text) return res.status(400).json({ error: "text is required" });
+
+    if (!process.env.ELEVENLABS_API_KEY) {
+      return res.status(503).json({ error: "ElevenLabs TTS unavailable (missing ELEVENLABS_API_KEY)" });
     }
 
-    // If needed, fetch person's ElevenLabs voice id (not yet used here)
-    if (personId) {
+    let resolvedVoiceId: string | null = null;
+    if (voiceId && typeof voiceId === 'string' && voiceId.trim().length > 0) {
+      resolvedVoiceId = voiceId.trim();
+    } else if (personId) {
       try {
-        await db!.select().from(people).where(eq(people.id, Number(personId)));
-      } catch (_) {}
+        const rows = await db!.select().from(people).where(eq(people.id, Number(personId)));
+        resolvedVoiceId = rows?.[0]?.elevenlabsVoiceId || null;
+      } catch (e) {
+        // ignore; handled below
+      }
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(503).json({ error: "TTS temporarily unavailable" });
+    if (!resolvedVoiceId) {
+      return res.status(400).json({ error: "No ElevenLabs voice configured. Provide voiceId or a personId with elevenlabsVoiceId." });
     }
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const speech = await openai.audio.speech.create({
-      model: "gpt-4o-mini-tts",
-      voice: "alloy",
-      input: String(text),
-      format: "mp3",
-    } as any);
-    const arrayBuffer = await speech.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const audioUrl = `data:audio/mpeg;base64,${buffer.toString("base64")}`;
-    return res.json({ audioUrl });
+
+    const buffer = await synthesizeClonedSpeech(resolvedVoiceId, String(text), 'mp3');
+    const audioUrl = `data:audio/mpeg;base64,${buffer.toString('base64')}`;
+    return res.json({ audioUrl, provider: 'elevenlabs', voiceId: resolvedVoiceId });
   } catch (error) {
     log(`POST /voice/clone-speech error: ${(error as Error).message}`, "error");
     return res.status(500).json({ error: "Failed to generate cloned speech" });

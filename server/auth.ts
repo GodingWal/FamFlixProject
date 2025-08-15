@@ -90,10 +90,21 @@ export function setupAuth(app: Express) {
     app.set('trust proxy', 1);
   }
   
-  // Set up session handling
-  app.use(session(sessionSettings));
+  // Set up session handling but only for API routes to avoid blocking static file serving
+  const sessionMiddleware = session(sessionSettings);
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return sessionMiddleware(req, res, next);
+    }
+    return next();
+  });
   app.use(passport.initialize() as any);
-  app.use(passport.session() as any);
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return (passport.session() as any)(req, res, next);
+    }
+    return next();
+  });
 
   // Configure Local Strategy for username/password authentication
   passport.use(

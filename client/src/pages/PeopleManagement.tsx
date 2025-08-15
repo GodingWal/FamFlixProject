@@ -363,14 +363,16 @@ const PeopleManagement = () => {
   
   // Create voice recording mutation
   const createVoiceRecordingMutation = useMutation({
-    mutationFn: async (voiceData: { audioData: string, name: string, personId: number, userId: number, duration: number, isDefault: boolean }) => {
+    mutationFn: async (voiceData: { audioData: string; name: string; personId: number; userId: number; duration?: number; isDefault?: boolean }) => {
       const res = await apiRequest("POST", "/api/voiceRecordings", {
+        // The server requires audioUrl; when recording in-browser it is the same data URL as audioData
+        audioUrl: voiceData.audioData,
         audioData: voiceData.audioData,
         name: voiceData.name,
         personId: voiceData.personId,
         userId: voiceData.userId,
-        duration: voiceData.duration,
-        isDefault: voiceData.isDefault
+        duration: voiceData.duration ?? 0,
+        isDefault: !!voiceData.isDefault,
       });
       return await res.json();
     },

@@ -53,3 +53,47 @@ export async function createClonedVoiceInElevenLabs(
   }
 }
 
+// Text-to-speech synthesis using an existing ElevenLabs cloned voice
+export async function synthesizeClonedSpeech(
+  voiceId: string,
+  text: string,
+  format: "mp3" | "wav" = "mp3",
+): Promise<Buffer> {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) {
+    throw new Error("ELEVENLABS_API_KEY is not configured");
+  }
+
+  try {
+    const accept = format === "wav" ? "audio/wav" : "audio/mpeg";
+    const response = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
+      {
+        text,
+        // Choose a broadly compatible model; adjust if you have specific preferences
+        model_id: "eleven_multilingual_v2",
+        // Optional voice settings tweak; safe defaults
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75,
+        },
+      },
+      {
+        headers: {
+          "accept": accept,
+          "xi-api-key": apiKey,
+          "content-type": "application/json",
+        },
+        responseType: "arraybuffer",
+      },
+    );
+
+    return Buffer.from(response.data);
+  } catch (error: any) {
+    const message = error?.response?.data
+      ? JSON.stringify(error.response.data)
+      : (error.message || "Unknown error");
+    log(`ElevenLabs TTS failed: ${message}`, "error");
+    throw new Error("Failed to synthesize speech with ElevenLabs");
+  }
+}

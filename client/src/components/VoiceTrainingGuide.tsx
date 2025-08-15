@@ -140,7 +140,15 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
       type: string,
       isDefault: boolean 
     }) => {
-      const res = await apiRequest("POST", "/api/voiceRecordings", voiceData);
+      const res = await apiRequest("POST", "/api/voiceRecordings", {
+        audioUrl: voiceData.audioData,
+        audioData: voiceData.audioData,
+        name: voiceData.name,
+        personId: voiceData.personId,
+        userId: voiceData.userId,
+        duration: voiceData.duration ?? 0,
+        isDefault: !!voiceData.isDefault,
+      });
       return await res.json();
     },
     onSuccess: (data) => {
@@ -213,7 +221,7 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
       });
     };
   };
-  
+
   const handleNext = () => {
     if (currentStep < totalSteps - 1) {
       setCurrentStep(currentStep + 1);
@@ -239,7 +247,7 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
       });
     }
   };
-  
+
   const handlePrevious = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
@@ -250,7 +258,7 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
     }
     // We no longer handle cancellation here since it's directly called on the button
   };
-  
+
   if (isComplete) {
     return (
       <div className="space-y-6">
@@ -259,151 +267,43 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
           <div className="flex items-center justify-center mb-4">
             <CheckCircle className="h-16 w-16 text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold text-green-700">
-            {combineRecordingsMutation.isPending ? "Creating Enhanced Voice Clone..." : "Training Complete!"}
-          </h2>
-          <p className="text-muted-foreground">
-            {combineRecordingsMutation.isPending 
-              ? "Combining all recordings to create a comprehensive voice clone with better accuracy..."
-              : `${personName}'s voice has been successfully trained and enhanced with ${completedSteps.length} combined voice samples.`
-            }
+          <h2 className="text-2xl font-semibold">Voice Training Complete</h2>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            Great job! We have enough voice samples to create a cloned voice. You can preview or retrain any step as needed.
           </p>
         </div>
-
-        {/* Voice Clone Preview */}
-        <VoiceClonePreview
-          personId={personId}
-          personName={personName}
-          voiceRecordingId={defaultVoiceRecordingId || undefined}
-          className="mt-6"
-        />
-
-        {/* Action Buttons */}
-        <div className="flex justify-center gap-4 pt-6">
-          <Button
-            onClick={onComplete}
-            disabled={combineRecordingsMutation.isPending}
-            className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
-          >
-            <CheckCircle className="h-4 w-4 mr-2" />
-            Finish & Continue
-          </Button>
-          <Button
-            onClick={() => {
-              setIsComplete(false);
-              setCurrentStep(0);
-              setCustomScript(voicePrompts[0].script);
-              setCompletedSteps([]);
-              setDefaultVoiceRecordingId(null);
-            }}
-            variant="outline"
-            disabled={combineRecordingsMutation.isPending}
-          >
-            Start Fresh Training
-          </Button>
-        </div>
+        <VoiceClonePreview personId={personId} />
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <div className="mb-6 text-center">
-        <h1 className="text-3xl font-bold mb-2">Voice Training for {personName}</h1>
-        <p className="text-muted-foreground">
-          Step {currentStep + 1} of {totalSteps}: Record your voice for better quality voice replacement
-        </p>
-        
-        {/* Progress indicators */}
-        <div className="flex justify-center mt-4 space-x-2">
-          {voicePrompts.map((prompt, index) => (
-            <div
-              key={prompt.id}
-              className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                index === currentStep
-                  ? "bg-primary w-8"
-                  : index < currentStep || completedSteps.includes(prompt.id)
-                  ? "bg-primary"
-                  : "bg-muted"
-              }`}
-            />
-          ))}
+    <Card className="w-full max-w-full sm:max-w-xl mx-auto">
+      <CardHeader className="space-y-1 text-center">
+        <CardTitle className="text-xl sm:text-2xl">Interactive Voice Training</CardTitle>
+        <CardDescription className="text-sm">Step {currentStep + 1} of {totalSteps}: {voicePrompts[currentStep].title}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 px-3 sm:px-6">
+        <div className="space-y-2">
+          <Label htmlFor="script">Script</Label>
+          <Textarea id="script" value={customScript} onChange={(e) => setCustomScript(e.target.value)} rows={4} />
         </div>
-      </div>
-      
-      <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>{voicePrompts[currentStep].title}</CardTitle>
-              <CardDescription>{voicePrompts[currentStep].description}</CardDescription>
-            </div>
-            <Badge>{voicePrompts[currentStep].type}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="script">Script to read</Label>
-            <Textarea
-              id="script"
-              value={customScript}
-              onChange={(e) => setCustomScript(e.target.value)}
-              className="h-24 font-medium text-lg leading-relaxed"
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              You can customize this script if you wish, but try to maintain a similar length and tone.
-            </p>
-          </div>
-          
-          <div className="border rounded-lg p-6 bg-muted/10">
-            <div className="mb-4">
-              <Label>Voice Recording</Label>
-              <p className="text-sm text-muted-foreground mb-4">
-                Read the script clearly at a normal pace. Try to maintain the emotion indicated by the prompt type.
-              </p>
-            </div>
-            
-            <AudioRecorder
-              onRecordingComplete={(audioBlob, audioUrl, duration) => {
-                setRecordedVoiceBlob(audioBlob);
-                setRecordedVoiceUrl(audioUrl);
-                setVoiceDuration(duration);
-              }}
-              existingRecording={recordedVoiceUrl}
-            />
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button 
-            variant="outline" 
-            onClick={currentStep === 0 ? onCancel : handlePrevious}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            {currentStep === 0 ? "Cancel" : "Previous"}
+        <AudioRecorder onRecordingComplete={(blob, url, dur) => { setRecordedVoiceBlob(blob); setRecordedVoiceUrl(url); setVoiceDuration(dur); }} />
+        <div className="flex gap-2 justify-between">
+          <Button variant="outline" onClick={onCancel} className="w-1/2 sm:w-auto">
+            <ArrowLeft className="h-4 w-4 mr-2" /> Cancel
           </Button>
-          
-          <div className="flex gap-2">
-            {recordedVoiceBlob && (
-              <Button 
-                onClick={handleSaveRecording}
-                disabled={createVoiceRecordingMutation.isPending}
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                {createVoiceRecordingMutation.isPending ? "Saving..." : "Save Recording"}
-              </Button>
-            )}
-            
-            <Button 
-              onClick={handleNext}
-              disabled={currentStep < totalSteps - 1 && !completedSteps.includes(voicePrompts[currentStep].id)}
-            >
-              {currentStep === totalSteps - 1 ? "Complete Training" : "Next"}
-              <ArrowRight className="w-4 h-4 ml-2" />
+          <div className="flex gap-2 w-1/2 sm:w-auto justify-end">
+            <Button onClick={handleSaveRecording} className="w-full sm:w-auto">
+              <CheckCircle className="h-4 w-4 mr-2" /> Save Recording
+            </Button>
+            <Button onClick={handleNext} variant="secondary" className="w-full sm:w-auto">
+              Next <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           </div>
-        </CardFooter>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

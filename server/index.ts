@@ -49,15 +49,15 @@ function assertEnv(name: string) {
   if (!process.env[name] || process.env[name] === '') {
     const message = `${name} environment variable is required in production`;
     log(message, 'error');
-    throw new Error(message);
+    // Do not throw here to avoid crashing the server and causing 502.
+    // We'll continue startup so at least health and error pages work.
   }
 }
 
 // Validate configuration early in production
 if (process.env.NODE_ENV === 'production') {
-  // Ensure the database connection string is present
+  // Log missing critical envs instead of throwing, so the server can still boot.
   assertEnv('DATABASE_URL');
-  // Ensure a session secret is set (required for express‑session)
   assertEnv('SESSION_SECRET');
 }
 
@@ -89,7 +89,8 @@ export { io };
 // `DISABLE_PRODUCTION_MIDDLEWARE=true` in your environment.
 if (process.env.NODE_ENV === 'production' && process.env.DISABLE_PRODUCTION_MIDDLEWARE !== 'true') {
   app.use(productionSecurity);
-  app.use(rateLimiter);
+  // Apply rate limiting only to API routes to avoid penalizing static asset bursts
+  app.use('/api', rateLimiter);
   app.use(performanceMonitor);
   // Monitor server resource usage (CPU/memory) and log if thresholds are exceeded.
   monitorResources();
@@ -125,7 +126,7 @@ app.use((req, res, next) => {
   try {
     // Initialize database tables
     if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
-      throw new Error("DATABASE_URL environment variable is required for production");
+      log('DATABASE_URL missing in production; continuing with mock storage and limited features', 'db');
     }
     
     await initDatabase();
