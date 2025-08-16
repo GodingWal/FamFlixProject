@@ -68,6 +68,52 @@ export const requireRole = (roles: string[]) => (req: any, res: any, next: any) 
   next();
 };
 
+// Security middleware helpers for auth endpoints
+const idempotencyCache = new Map<string, number>();
+const idempotencyGuard = (windowMs: number = 2 * 60 * 1000) => (req: any, res: any, next: any) => {
+  const key = (req.get('x-idempotency-key') || req.headers['x-idempotency-key'] || req.body?.idempotencyKey) as string | undefined;
+  if (!key) return next();
+  const now = Date.now();
+  idempotencyCache.forEach((ts, k) => {
+    if (now - ts > windowMs) idempotencyCache.delete(k);
+  });
+  const cacheKey = `${req.method}:${req.originalUrl}:${key}`;
+  if (idempotencyCache.has(cacheKey)) {
+    return res.status(409).json({ message: 'Duplicate request' });
+  }
+  idempotencyCache.set(cacheKey, now);
+  next();
+};
+
+const loginAttempts = new Map<string, { count: number; resetTime: number }>();
+const loginRateLimiter = (max: number = Number(process.env.LOGIN_RATE_LIMIT || 10), windowMs: number = 60 * 1000) => (req: any, res: any, next: any) => {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const current = loginAttempts.get(ip) || { count: 0, resetTime: now + windowMs };
+  if (now > current.resetTime) {
+    current.count = 0;
+    current.resetTime = now + windowMs;
+  }
+  current.count++;
+  loginAttempts.set(ip, current);
+  res.setHeader('X-RateLimit-Limit', String(max));
+  res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - current.count)));
+  if (current.count > max) {
+    return res.status(429).json({ message: 'Too many login attempts', retryAfter: Math.ceil((current.resetTime - now) / 1000) });
+  }
+  next();
+};
+
+const captchaGuard = (req: any, res: any, next: any) => {
+  const required = process.env.CAPTCHA_REQUIRED === 'true' && process.env.NODE_ENV === 'production';
+  if (!required) return next();
+  const token = req.body?.captchaToken || req.get('x-captcha-token');
+  if (!token) {
+    return res.status(400).json({ message: 'CAPTCHA required' });
+  }
+  next();
+};
+
 // Set up authentication with Passport.js
 export function setupAuth(app: Express) {
   // Get a secure random string for session secret or use a default (in dev only)
@@ -94,6 +140,13 @@ export function setupAuth(app: Express) {
   app.use(session(sessionSettings));
   app.use(passport.initialize() as any);
   app.use(passport.session() as any);
+
+  // Pre-route security middleware for auth endpoints
+  app.use('/api/login', captchaGuard, loginRateLimiter(), idempotencyGuard());
+  app.use('/api/login-jwt', captchaGuard, loginRateLimiter(), idempotencyGuard());
+  // Hardened: only support standard login and JWT endpoints
+  app.use('/api/register', captchaGuard, idempotencyGuard());
+  app.use('/api/request-password-reset', captchaGuard);
 
   // Configure Local Strategy for username/password authentication
   passport.use(
@@ -270,55 +323,27 @@ export function setupAuth(app: Express) {
   });
 
   // JWT-based login endpoint
-  app.post('/api/login-jwt', async (req, res) => {
-    try {
-      const validatedData = loginSchema.parse(req.body);
-      const user = await storage.getUserByUsername(validatedData.username);
-      
-      if (!user || !(await comparePasswords(validatedData.password, user.password))) {
-        return res.status(401).json({ message: 'Invalid username or password' });
-      }
-      
-      const tokens = generateTokens({ id: user.id, role: user.role });
-      const { password, ...safeUser } = user;
-      
-      res.json({
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        user: safeUser
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: 'Validation failed', 
-          errors: error.errors.map(e => ({
-            field: e.path.join('.'),
-            message: e.message
-          }))
-        });
-      }
-      
-      log(`JWT Login error: ${(error as Error).message}`, 'auth');
-      return res.status(500).json({ message: 'Login failed' });
-    }
-  });
-
+  // Removed in favor of unified passport-based /api/login-jwt below
   // Token refresh endpoint
   app.post('/api/refresh-token', async (req, res) => {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token required' });
+    }
+    
     try {
-      const { refreshToken } = req.body;
+      const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as { id: number };
+      const user = await storage.getUser(decoded.id);
       
-      if (!refreshToken) {
-        return res.status(401).json({ message: 'Refresh token required' });
+      if (!user) {
+        return res.status(401).json({ message: 'Invalid token' });
       }
-
-      const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as any;
-      const tokens = generateTokens({ id: decoded.id, role: decoded.role });
-
-      res.json(tokens);
-    } catch (error) {
-      log(`Token refresh error: ${(error as Error).message}`, 'auth');
-      res.status(401).json({ message: 'Invalid refresh token' });
+      
+      const newTokens = generateTokens(user);
+      return res.json(newTokens);
+    } catch (err) {
+      return res.status(401).json({ message: 'Token expired or invalid' });
     }
   });
 
@@ -393,213 +418,11 @@ export function setupAuth(app: Express) {
       return res.status(401).json({ message: 'Token expired or invalid' });
     }
   });
+  
+  // Remove simplified debug endpoints for production readiness
 
-  // Simple user info endpoint that checks authentication
-  app.get('/api/me-simple', (req, res) => {
-    // Check if user is authenticated via session or JWT
-    if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-    
-    // Return the authenticated user
-    const { password, ...safeUser } = req.user;
-    res.json(safeUser);
-  });
 
-  // Enhanced login endpoint with better error handling and logging
-  app.post('/api/login-enhanced', async (req, res) => {
-    try {
-      log('Enhanced login attempt started', 'auth');
-      
-      // Validate login data
-      const validatedData = loginSchema.parse(req.body);
-      const { username, password } = validatedData;
-      
-      log(`Attempting login for username: ${username}`, 'auth');
-      
-      // Direct database lookup with timeout
-      log('About to call storage.getUserByUsername', 'auth');
-      const user = await Promise.race([
-        storage.getUserByUsername(username),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Database query timeout')), 5000)
-        )
-      ]) as Express.User | undefined;
-      
-      log('getUserByUsername completed', 'auth');
-      
-      if (!user) {
-        log('User not found', 'auth');
-        return res.status(401).json({ message: 'Invalid username or password' });
-      }
-      
-      log('User found, checking password', 'auth');
-      
-      // Direct password comparison with timeout
-      const isValidPassword = await Promise.race([
-        comparePasswords(password, user.password),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Password comparison timeout')), 3000)
-        )
-      ]) as boolean;
-      
-      log('Password comparison completed', 'auth');
-      
-      if (!isValidPassword) {
-        log('Password invalid', 'auth');
-        return res.status(401).json({ message: 'Invalid username or password' });
-      }
-      
-      log('Password valid, generating tokens', 'auth');
-      
-      // Generate JWT tokens
-      const tokens = generateTokens(user);
-      
-      // Return user data and tokens
-      const { password: _, ...safeUser } = user;
-      log('Enhanced login successful', 'auth');
-      
-      return res.status(200).json({
-        user: safeUser,
-        ...tokens
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        log('Validation error in enhanced login', 'auth');
-        return res.status(400).json({ 
-          message: 'Validation failed', 
-          errors: error.errors.map(e => ({
-            field: e.path.join('.'),
-            message: e.message
-          }))
-        });
-      }
-      
-      log(`Enhanced login error: ${(error as Error).message}`, 'auth');
-      return res.status(500).json({ message: 'Login failed' });
-    }
-  });
-
-  // Simple login endpoint that works immediately 
-  app.post('/api/login-simple', (req, res) => {
-    const { username, password } = req.body;
-    
-    if (username === 'admin' && password === 'Wittymango520@') {
-      const mockUser = {
-        id: 1,
-        username: 'admin',
-        email: 'admin@fam-flix.com',
-        displayName: 'Administrator',
-        role: 'admin',
-        subscriptionStatus: 'active'
-      };
-      
-      res.json({
-        user: mockUser,
-        accessToken: 'test-token-' + Date.now(),
-        refreshToken: 'test-refresh-token-' + Date.now()
-      });
-    } else {
-      res.status(401).json({ message: 'Invalid credentials' });
-    }
-  });
-
-  // Test endpoint for debugging login issues
-  app.post('/api/login-test', async (req, res) => {
-    try {
-      log('Login test endpoint called', 'auth');
-      const { username, password } = req.body;
-      
-      log('About to check credentials', 'auth');
-      // Immediate response for testing
-      if (username === 'admin' && password === 'Wittymango520@') {
-        log('Credentials valid, creating mock user', 'auth');
-        const mockUser = {
-          id: 1,
-          username: 'admin',
-          email: 'admin@fam-flix.com',
-          displayName: 'Administrator',
-          role: 'admin',
-          subscriptionStatus: 'active'
-        };
-        
-        log('About to generate tokens', 'auth');
-        // Skip token generation for now - this might be hanging
-        // const tokens = generateTokens(mockUser);
-        
-        log('Returning response', 'auth');
-        return res.status(200).json({
-          user: mockUser,
-          accessToken: 'test-token',
-          refreshToken: 'test-refresh-token'
-        });
-      }
-      
-      log('Invalid credentials', 'auth');
-      return res.status(401).json({ message: 'Invalid credentials' });
-    } catch (error) {
-      log(`Login test error: ${(error as Error).message}`, 'auth');
-      return res.status(500).json({ message: 'Test login failed' });
-    }
-  });
-
-  // Direct authentication endpoint (bypasses passport for troubleshooting)
-  app.post('/api/login-direct', async (req, res) => {
-    try {
-      log('Direct login attempt started', 'auth');
-      
-      // Validate login data
-      loginSchema.parse(req.body);
-      
-      const { username, password } = req.body;
-      log(`Attempting login for username: ${username}`, 'auth');
-      
-      // Direct database lookup
-      log('About to call storage.getUserByUsername', 'auth');
-      const user = await storage.getUserByUsername(username);
-      log('getUserByUsername completed', 'auth');
-      
-      if (!user) {
-        log('User not found', 'auth');
-        return res.status(401).json({ message: 'Invalid username or password' });
-      }
-      
-      log('User found, checking password', 'auth');
-      // Direct password comparison
-      const isValidPassword = await comparePasswords(password, user.password);
-      log('Password comparison completed', 'auth');
-      
-      if (!isValidPassword) {
-        log('Password invalid', 'auth');
-        return res.status(401).json({ message: 'Invalid username or password' });
-      }
-      
-      log('Password valid, generating tokens', 'auth');
-      // Generate JWT tokens
-      const tokens = generateTokens(user);
-      
-      // Return user data and tokens
-      const { password: _, ...safeUser } = user;
-      log('Direct login successful', 'auth');
-      return res.status(200).json({
-        user: safeUser,
-        ...tokens
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: 'Validation failed', 
-          errors: error.errors.map(e => ({
-            field: e.path.join('.'),
-            message: e.message
-          }))
-        });
-      }
-      
-      log(`Login error: ${(error as Error).message}`, 'auth');
-      return res.status(500).json({ message: 'Login failed' });
-    }
-  });
+  // Remove debug/shortcut login endpoints for production readiness
 
   // Enhanced login endpoint with JWT token generation
   app.post('/api/login-jwt', (req, res, next) => {

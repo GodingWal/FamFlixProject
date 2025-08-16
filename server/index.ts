@@ -23,9 +23,51 @@ import {
   setupGracefulShutdown,
   monitorResources
 } from "./middleware/production";
+import helmet from "helmet";
+import { randomUUID } from "crypto";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Disable X-Powered-By header
+app.disable('x-powered-by');
+
+// Helmet security headers (loosen CSP in dev for Vite)
+app.use(
+  helmet({
+    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+// Strict CORS (no dependency)
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [process.env.PUBLIC_URL || 'https://fam-flix.com']
+  : ["http://localhost:3000", "http://localhost:5000"];
+app.use((req, res, next) => {
+  const origin = req.headers.origin as string | undefined;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-Id');
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+  next();
+});
+
+// Request ID propagation
+app.use((req, res, next) => {
+  const existing = req.get('x-request-id');
+  const requestId = existing && existing.trim() !== '' ? existing : randomUUID();
+  res.setHeader('X-Request-Id', requestId);
+  (req as any).requestId = requestId;
+  next();
+});
 
 // Initialize Socket.IO for real-time updates
 const io = new Server(httpServer, {
@@ -72,7 +114,8 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Minimal request logging
 app.use((req, res, next) => {
-  log(`${req.method} ${req.path}`, 'request');
+  const rid = (req as any).requestId || 'unknown';
+  log(`${req.method} ${req.path} [${rid}]`, 'request');
   next();
 });
 
@@ -127,15 +170,11 @@ app.use((req, res, next) => {
     await initDatabase();
     log("Database initialized successfully");
     
-    // Initialize Redis for encryption caching - with proper async handling
-    // Temporarily disabled to test server startup
-    /*
+    // Initialize Redis for encryption caching
     try {
       const redis = initializeRedis();
       if (redis) {
         log("Redis instance created", "express");
-        // Don't wait for Redis health check as it might hang
-        // Just log that Redis is initialized
         log("Redis initialized (health check deferred)", "encryption");
       } else {
         log("Redis not configured - running without cache encryption", "encryption");
@@ -144,8 +183,6 @@ app.use((req, res, next) => {
       log(`Redis initialization error: ${(redisError as Error).message}`, "error");
       log("Continuing without Redis cache", "encryption");
     }
-    */
-    log("Redis initialization temporarily disabled for testing", "express");
     
     // Serve static files for cloned voice audio
     // Temporarily disabled to test server startup
@@ -279,7 +316,7 @@ app.use((req, res, next) => {
             setTimeout(() => {
               addResult('Summary', 'success', 'Diagnostic complete. Check individual tests above.');
             }, 2000);
-          </script>
+          <\/script>
         </body>
         </html>
       `);
@@ -312,6 +349,9 @@ app.use((req, res, next) => {
       log(`Error registering routes: ${(error as Error).message}`, "express");
       console.error('Full route registration error:', error);
     }
+
+    // Error tracking middleware (before final error handler)
+    app.use(errorTracker as any);
 
     // Error handling middleware should be last
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {

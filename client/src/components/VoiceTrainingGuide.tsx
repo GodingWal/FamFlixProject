@@ -76,6 +76,13 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
 
   const totalSteps = voicePrompts.length;
 
+  // Ensure recorder state resets cleanly on step changes
+  useEffect(() => {
+    setRecordedVoiceBlob(null);
+    setRecordedVoiceUrl("");
+    setVoiceDuration(0);
+  }, [currentStep]);
+
   // Mutation for starting retraining (clears old recordings)
   const startRetrainingMutation = useMutation({
     mutationFn: async () => {
@@ -364,6 +371,7 @@ const VoiceTrainingGuide = ({ userId, personId, personName, onComplete, onCancel
             </div>
             
             <AudioRecorder
+              key={`voice-recorder-step-${currentStep}-${completedSteps.length}`}
               onRecordingComplete={(audioBlob, audioUrl, duration) => {
                 setRecordedVoiceBlob(audioBlob);
                 setRecordedVoiceUrl(audioUrl);

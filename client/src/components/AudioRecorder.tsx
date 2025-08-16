@@ -23,14 +23,12 @@ const AudioRecorder = ({ onRecordingComplete, existingRecording }: AudioRecorder
   
   // Reset state when existingRecording changes
   useEffect(() => {
-    // Reset the audio URL when existingRecording changes
     setAudioUrl(existingRecording || "");
-    // Reset recording state
-    if (!existingRecording) {
-      setRecordingTime(0);
-      if (audioRef.current) {
-        audioRef.current.src = "";
-      }
+    setRecordingTime(0);
+    setIsPlaying(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
     }
   }, [existingRecording]);
 
@@ -92,11 +90,12 @@ const AudioRecorder = ({ onRecordingComplete, existingRecording }: AudioRecorder
   // Delete recording function
   const deleteRecording = () => {
     setAudioUrl("");
-    
+    setRecordingTime(0);
     if (audioRef.current) {
       audioRef.current.pause();
-      setIsPlaying(false);
+      audioRef.current.src = "";
     }
+    setIsPlaying(false);
   };
   
   // Toggle play/pause function
