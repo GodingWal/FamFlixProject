@@ -43,17 +43,6 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
     });
   });
 
-  // Logout endpoint
-  app.post('/api/logout', (req: Request, res: Response) => {
-    req.logout((err) => {
-      if (err) {
-        log(`Logout error: ${err.message}`, 'auth');
-        return res.status(500).json({ message: 'Logout failed' });
-      }
-      res.json({ message: 'Logged out successfully' });
-    });
-  });
-
   // Protected route example
   app.get('/api/protected/test', (req: Request, res: Response) => {
     res.json({
