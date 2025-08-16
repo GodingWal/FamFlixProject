@@ -68,6 +68,52 @@ export const requireRole = (roles: string[]) => (req: any, res: any, next: any) 
   next();
 };
 
+// Security middleware helpers for auth endpoints
+const idempotencyCache = new Map<string, number>();
+const idempotencyGuard = (windowMs: number = 2 * 60 * 1000) => (req: any, res: any, next: any) => {
+  const key = (req.get('x-idempotency-key') || req.headers['x-idempotency-key'] || req.body?.idempotencyKey) as string | undefined;
+  if (!key) return next();
+  const now = Date.now();
+  idempotencyCache.forEach((ts, k) => {
+    if (now - ts > windowMs) idempotencyCache.delete(k);
+  });
+  const cacheKey = `${req.method}:${req.originalUrl}:${key}`;
+  if (idempotencyCache.has(cacheKey)) {
+    return res.status(409).json({ message: 'Duplicate request' });
+  }
+  idempotencyCache.set(cacheKey, now);
+  next();
+};
+
+const loginAttempts = new Map<string, { count: number; resetTime: number }>();
+const loginRateLimiter = (max: number = Number(process.env.LOGIN_RATE_LIMIT || 10), windowMs: number = 60 * 1000) => (req: any, res: any, next: any) => {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const current = loginAttempts.get(ip) || { count: 0, resetTime: now + windowMs };
+  if (now > current.resetTime) {
+    current.count = 0;
+    current.resetTime = now + windowMs;
+  }
+  current.count++;
+  loginAttempts.set(ip, current);
+  res.setHeader('X-RateLimit-Limit', String(max));
+  res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - current.count)));
+  if (current.count > max) {
+    return res.status(429).json({ message: 'Too many login attempts', retryAfter: Math.ceil((current.resetTime - now) / 1000) });
+  }
+  next();
+};
+
+const captchaGuard = (req: any, res: any, next: any) => {
+  const required = process.env.CAPTCHA_REQUIRED === 'true' && process.env.NODE_ENV === 'production';
+  if (!required) return next();
+  const token = req.body?.captchaToken || req.get('x-captcha-token');
+  if (!token) {
+    return res.status(400).json({ message: 'CAPTCHA required' });
+  }
+  next();
+};
+
 // Set up authentication with Passport.js
 export function setupAuth(app: Express) {
   // Get a secure random string for session secret or use a default (in dev only)
@@ -94,6 +140,14 @@ export function setupAuth(app: Express) {
   app.use(session(sessionSettings));
   app.use(passport.initialize() as any);
   app.use(passport.session() as any);
+
+  // Pre-route security middleware for auth endpoints
+  app.use('/api/login', captchaGuard, loginRateLimiter(), idempotencyGuard());
+  app.use('/api/login-jwt', captchaGuard, loginRateLimiter(), idempotencyGuard());
+  app.use('/api/login-direct', captchaGuard, loginRateLimiter(), idempotencyGuard());
+  app.use('/api/login-simple', captchaGuard, loginRateLimiter(), idempotencyGuard());
+  app.use('/api/register', captchaGuard, idempotencyGuard());
+  app.use('/api/request-password-reset', captchaGuard);
 
   // Configure Local Strategy for username/password authentication
   passport.use(
@@ -247,55 +301,27 @@ export function setupAuth(app: Express) {
   });
 
   // JWT-based login endpoint
-  app.post('/api/login-jwt', async (req, res) => {
-    try {
-      const validatedData = loginSchema.parse(req.body);
-      const user = await storage.getUserByUsername(validatedData.username);
-      
-      if (!user || !(await comparePasswords(validatedData.password, user.password))) {
-        return res.status(401).json({ message: 'Invalid username or password' });
-      }
-      
-      const tokens = generateTokens({ id: user.id, role: user.role });
-      const { password, ...safeUser } = user;
-      
-      res.json({
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        user: safeUser
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: 'Validation failed', 
-          errors: error.errors.map(e => ({
-            field: e.path.join('.'),
-            message: e.message
-          }))
-        });
-      }
-      
-      log(`JWT Login error: ${(error as Error).message}`, 'auth');
-      return res.status(500).json({ message: 'Login failed' });
-    }
-  });
-
+  // Removed in favor of unified passport-based /api/login-jwt below
   // Token refresh endpoint
   app.post('/api/refresh-token', async (req, res) => {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token required' });
+    }
+    
     try {
-      const { refreshToken } = req.body;
+      const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as { id: number };
+      const user = await storage.getUser(decoded.id);
       
-      if (!refreshToken) {
-        return res.status(401).json({ message: 'Refresh token required' });
+      if (!user) {
+        return res.status(401).json({ message: 'Invalid token' });
       }
-
-      const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as any;
-      const tokens = generateTokens({ id: decoded.id, role: decoded.role });
-
-      res.json(tokens);
-    } catch (error) {
-      log(`Token refresh error: ${(error as Error).message}`, 'auth');
-      res.status(401).json({ message: 'Invalid refresh token' });
+      
+      const newTokens = generateTokens(user);
+      return res.json(newTokens);
+    } catch (err) {
+      return res.status(401).json({ message: 'Token expired or invalid' });
     }
   });
 
@@ -346,29 +372,6 @@ export function setupAuth(app: Express) {
       const { password, ...safeUser } = user;
       return res.json(safeUser);
     })(req, res, next);
-  });
-
-  // Token refresh endpoint
-  app.post('/api/refresh-token', async (req, res) => {
-    const { refreshToken } = req.body;
-    
-    if (!refreshToken) {
-      return res.status(400).json({ message: 'Refresh token required' });
-    }
-    
-    try {
-      const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as { id: number };
-      const user = await storage.getUser(decoded.id);
-      
-      if (!user) {
-        return res.status(401).json({ message: 'Invalid token' });
-      }
-      
-      const newTokens = generateTokens(user);
-      return res.json(newTokens);
-    } catch (err) {
-      return res.status(401).json({ message: 'Token expired or invalid' });
-    }
   });
 
   // Simple user info endpoint that works immediately
