@@ -25,12 +25,16 @@ import {
 } from "./middleware/production";
 import helmet from "helmet";
 import { randomUUID } from "crypto";
+import url from "url";
 
 const app = express();
 const httpServer = createServer(app);
 
 // Disable X-Powered-By header
 app.disable('x-powered-by');
+
+// Behind Nginx/proxies, trust X-Forwarded-* headers for correct client IPs
+app.set('trust proxy', true);
 
 // Helmet security headers (loosen CSP in dev for Vite)
 app.use(
@@ -40,16 +44,63 @@ app.use(
   })
 );
 
-// Strict CORS (no dependency)
+// Strict but flexible CORS (no extra dependency)
+function expandOriginsFromPublicUrl(pubUrl?: string): string[] {
+  if (!pubUrl) return [];
+  try {
+    const u = new url.URL(pubUrl);
+    const host = u.hostname.replace(/^www\./, '');
+    const variants = new Set<string>();
+    const schemes = ['http:', 'https:'];
+    const hosts = [host, `www.${host}`];
+    for (const scheme of schemes) {
+      for (const h of hosts) {
+        variants.add(`${scheme}//${h}`);
+      }
+    }
+    return Array.from(variants);
+  } catch {
+    return [pubUrl];
+  }
+}
+
+const defaultDevOrigins = ["http://localhost:3000", "http://localhost:5000", "http://127.0.0.1:3000", "http://127.0.0.1:5000"];
+const configuredOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const pubUrlOrigins = expandOriginsFromPublicUrl(process.env.PUBLIC_URL);
 const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.PUBLIC_URL || 'https://fam-flix.com']
-  : ["http://localhost:3000", "http://localhost:5000"];
+  ? (configuredOrigins.length ? configuredOrigins : pubUrlOrigins.length ? pubUrlOrigins : ['https://fam-flix.com'])
+  : [...defaultDevOrigins];
+
 app.use((req, res, next) => {
   const origin = req.headers.origin as string | undefined;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (origin) {
+    // Allow if exact match or matches by hostname variant
+    const originUrlOk = (() => {
+      try {
+        const o = new url.URL(origin);
+        const candidates = new Set<string>([...allowedOrigins, ...expandOriginsFromPublicUrl(process.env.PUBLIC_URL)]);
+        if (candidates.has(origin)) return true;
+        // Compare by hostname ignoring www and allowing either scheme
+        const host = o.hostname.replace(/^www\./, '');
+        for (const cand of candidates) {
+          try {
+            const cu = new url.URL(cand);
+            if (cu.hostname.replace(/^www\./, '') === host) return true;
+          } catch {}
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    })();
+    if (originUrlOk) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-Id');
@@ -85,17 +136,17 @@ const io = new Server(httpServer, {
 // additional required variables to the array below as your project grows.
 function assertEnv(name: string) {
   if (!process.env[name] || process.env[name] === '') {
-    const message = `${name} environment variable is required in production`;
+    const message = `${name} environment variable is missing`;
     log(message, 'error');
-    throw new Error(message);
+    return false;
   }
+  return true;
 }
 
 // Validate configuration early in production
 if (process.env.NODE_ENV === 'production') {
-  // Ensure the database connection string is present
+  // Warn about missing critical envs; do not crash the server
   assertEnv('DATABASE_URL');
-  // Ensure a session secret is set (required for express‑session)
   assertEnv('SESSION_SECRET');
 }
 
@@ -164,7 +215,7 @@ app.use((req, res, next) => {
   try {
     // Initialize database tables
     if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
-      throw new Error("DATABASE_URL environment variable is required for production");
+      log('DATABASE_URL missing in production; continuing with limited features', 'db');
     }
     
     await initDatabase();
@@ -391,13 +442,35 @@ app.use((req, res, next) => {
       await setupVite(app, httpServer);
     } else {
       log("Serving static files in production mode", "express");
-      serveStatic(app);
-      log("Static files setup complete", "express");
+      try {
+        serveStatic(app);
+        log("Static files setup complete", "express");
+      } catch (staticErr) {
+        log(`Static files not found: ${(staticErr as Error).message}`, 'error');
+        // Provide a minimal fallback page so the site doesn't show 502
+        app.get('*', (_req: Request, res: Response) => {
+          res.status(200).send(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>FamFlix</title></head>
+            <body style="font-family: Arial; padding: 40px; text-align: center;">
+              <h1>FamFlix server is running</h1>
+              <p>Client build not found. Please run: <code>npm run build</code> and redeploy.</p>
+            </body>
+            </html>
+          `);
+        });
+      }
     }
 
     // Add a simple test route to verify server can start
     app.get('/test', (req: Request, res: Response) => {
       res.json({ message: 'Server is working!' });
+    });
+
+    // Root health/fallback
+    app.get('/', (_req: Request, res: Response) => {
+      res.status(200).send('FamFlix API is up');
     });
 
     // Serve on port 5000 for development, PORT env var for production

@@ -3,6 +3,8 @@ import { log } from "./vite";
 import { setupAuth } from "./auth";
 import encryptionRouter from "./routes/encryption";
 import appRouter from "./routes/app";
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import faceCaptureRouter from "./routes/faceCapture";
 
 export async function registerRoutes(app: Express, io?: any): Promise<void> {
   log('registerRoutes: Starting...', 'routes');
@@ -60,6 +62,15 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
   app.use('/api/encryption', encryptionRouter);
   // Mount application API router used by client
   app.use('/api', appRouter);
+  // Face capture pipeline
+  app.use('/api', faceCaptureRouter);
+
+  // VoiceAgents proxy (if running)
+  const voiceAgentsUrl = process.env.VOICE_AGENTS_URL || 'http://127.0.0.1:8001';
+  app.use('/api/tts', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
+  app.use('/api/voices', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
+  app.use('/api/agents', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
+  app.use('/api/jobs', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
   
   // Final handler for unknown API routes
   app.all('/api/*', (req: Request, res: Response) => {

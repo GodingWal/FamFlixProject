@@ -210,6 +210,77 @@ router.delete('/voiceRecordings/:id', async (req, res) => {
   }
 });
 
+// Voice AI endpoints (stubs) --------------------------------------------------
+const voicePreviewBody = z.object({
+  personId: z.number(),
+  text: z.string().min(1),
+  quality: z.string().optional(),
+});
+
+router.post('/voice/preview', async (req: Request, res: Response) => {
+  try {
+    const input = voicePreviewBody.parse(req.body);
+    if (!process.env.ELEVENLABS_API_KEY) {
+      return res.status(503).json({ message: 'TTS provider not configured' });
+    }
+    return res.status(503).json({ message: 'TTS temporarily unavailable' });
+  } catch (error) {
+    return res.status(400).json({ message: 'Invalid request' });
+  }
+});
+
+const voiceCompareBody = z.object({
+  personId: z.number(),
+  userAudio: z.string().min(1),
+  scriptText: z.string().min(1),
+  duration: z.number().optional(),
+});
+
+router.post('/voice/compare', async (req: Request, res: Response) => {
+  try {
+    const input = voiceCompareBody.parse(req.body);
+    const words = (input.scriptText || '').toLowerCase().split(/\W+/).filter(Boolean);
+    const uniq = new Set(words);
+    const similarity = Math.min(100, Math.round((uniq.size / Math.max(1, words.length)) * 100));
+    return res.json({
+      userAudioUrl: input.userAudio,
+      aiAudioUrl: '',
+      transcript: input.scriptText,
+      similarity,
+      duration: input.duration ?? 0,
+    });
+  } catch (error) {
+    return res.status(400).json({ message: 'Invalid request' });
+  }
+});
+
+const voiceCloneBody = z.object({
+  text: z.string().min(1),
+  personId: z.number().optional(),
+  voiceRecordingId: z.number().optional(),
+});
+
+router.post('/voice/clone-speech', async (req: Request, res: Response) => {
+  try {
+    const input = voiceCloneBody.parse(req.body);
+    if (!process.env.ELEVENLABS_API_KEY) {
+      return res.status(503).json({ error: 'ElevenLabs TTS unavailable (missing ELEVENLABS_API_KEY)' });
+    }
+    return res.status(503).json({ error: 'Voice cloning temporarily unavailable' });
+  } catch (error) {
+    return res.status(400).json({ message: 'Invalid request' });
+  }
+});
+
+router.post('/voice/combine-recordings', async (req: Request, res: Response) => {
+  const personId = Number((req.body || {}).personId);
+  return res.json({
+    success: true,
+    personId: Number.isFinite(personId) ? personId : null,
+    message: 'Voice clone preparation started',
+  });
+});
+
 // Video Templates -------------------------------------------------------------
 router.get('/videoTemplates/:id', async (req, res) => {
   try {

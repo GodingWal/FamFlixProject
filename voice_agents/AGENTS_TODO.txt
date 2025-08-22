@@ -1,0 +1,33 @@
+VoiceAgent and FaceAgent - To Do Lists
+
+VoiceAgent
+- [ ] Manage ElevenLabs API keys via GCP Secret Manager
+- [ ] Implement voice cloning pipeline (upload, validate test phrase, duration checks)
+- [ ] Add quality checks (SNR, clipping, background noise); reject poor samples
+- [ ] Run cloning/synthesis as background jobs with retries/backoff and idempotency
+- [ ] Store voice profiles per person; link to DB person/user; add indexes
+- [ ] Expose per-person voice settings (stability, similarity); defaults and validation
+- [ ] Move raw and processed audio to GCS; serve via signed URLs
+- [ ] Add endpoints: create/list/update/delete voice profiles; secure and rate-limited
+- [ ] Add caching (Redis) for read-heavy voice profile fetches
+- [ ] Structured JSON logs with request IDs; trace external calls to ElevenLabs
+- [ ] Add upload CAPTCHA and stricter CORS; set HSTS and security headers
+- [ ] Integration tests for uploads, cloning jobs, error cases and rate limits
+- [ ] Define retention policy for raw recordings; backups and PITR for DB
+
+FaceAgent
+- [ ] Implement face capture/upload flow with clear permission and progress states (mobile-first)
+- [ ] Validate inputs server-side (schema validation) and add per-route rate limits
+- [ ] Add face quality gates (sharpness/blur, lighting, face coverage, multiple faces)
+- [ ] Train per-person face representation/model; persist metadata and versions
+- [ ] Implement face swap/generation pipeline with GPU support; progress & cancel
+- [ ] Store training data and artifacts in GCS with signed URLs
+- [ ] Background jobs for training/inference; retries/backoff; idempotent operations
+- [ ] Observability: JSON logs, request IDs, traces around heavy GPU steps
+- [ ] Security: stricter headers, CORS; audit log for sensitive actions
+- [ ] Tests: unit + integration for uploads, training, inference, and QC
+- [ ] Data lifecycle: retention for raw face data; compliant deletion on request
+
+Cross-Cutting
+- [ ] CDN for static/media delivery to reduce latency and cost
+- [ ] Dashboards/alerts in Cloud Logging; error budgets and SLOs

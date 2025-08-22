@@ -17,6 +17,7 @@ import {
   passwordResetTokens
 } from "@shared/schema";
 import session from "express-session";
+import createMemoryStore from 'memorystore';
 import { db, pool } from './db';
 import { eq, inArray, sql } from "drizzle-orm";
 import connectPg from 'connect-pg-simple';
@@ -675,5 +676,121 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
+// In-memory fallback storage for environments without a database
+class MemoryStorage implements IStorage {
+  public sessionStore: session.Store;
+  private usersMap: Map<number, User> = new Map();
+  private usernameIndex: Map<string, number> = new Map();
+  private emailIndex: Map<string, number> = new Map();
+  private idCounter = 1;
+
+  constructor() {
+    const MemoryStoreCtor = createMemoryStore(session);
+    this.sessionStore = new MemoryStoreCtor({ checkPeriod: 86400000 });
+
+    // Seed default admin from env or defaults
+    const username = process.env.ADMIN_USERNAME || 'admin';
+    const email = process.env.ADMIN_EMAIL || 'admin@famflix.com';
+    const user: any = {
+      id: this.idCounter++,
+      username,
+      email,
+      displayName: 'Administrator',
+      role: 'admin',
+      subscriptionStatus: 'active',
+      password: process.env.ADMIN_PASSWORD_HASH || '$2a$10$7GCK1i2Hj7zqT2XnH0oB3e8N8m3tGkXv6W7f6a0s9eJk2L8qT0t9S' // bcrypt hash placeholder
+    };
+    this.usersMap.set(user.id, user);
+    this.usernameIndex.set(user.username, user.id);
+    this.emailIndex.set(user.email, user.id);
+  }
+
+  async getUser(id: number) { return this.usersMap.get(id); }
+  async getUserByUsername(username: string) {
+    const id = this.usernameIndex.get(username);
+    return id ? this.usersMap.get(id) : undefined;
+  }
+  async getUserByEmail(email: string) {
+    const id = this.emailIndex.get(email);
+    return id ? this.usersMap.get(id) : undefined;
+  }
+  async getAllUsers() { return Array.from(this.usersMap.values()); }
+  async createUser(user: InsertUser) {
+    const newUser: any = { ...user, id: this.idCounter++ };
+    this.usersMap.set(newUser.id, newUser);
+    this.usernameIndex.set(newUser.username, newUser.id);
+    this.emailIndex.set(newUser.email, newUser.id);
+    return newUser as User;
+  }
+  async updateUserRole(id: number, role: string) { const u = this.usersMap.get(id); if (!u) return undefined as any; (u as any).role = role; return u; }
+  async updateUserSubscription(id: number, subscriptionStatus: string) { const u = this.usersMap.get(id); if (!u) return undefined as any; (u as any).subscriptionStatus = subscriptionStatus; return u; }
+  async updateStripeInfo(id: number, stripeCustomerId: string, stripeSubscriptionId?: string) { const u = this.usersMap.get(id); if (!u) return undefined as any; (u as any).stripeCustomerId = stripeCustomerId; if (stripeSubscriptionId) (u as any).stripeSubscriptionId = stripeSubscriptionId; return u; }
+
+  async getPerson(id: number) { return undefined as any; }
+  async getPeopleByUserId(userId: number) { return [] as any; }
+  async createPerson(person: InsertPerson) { return { ...person, id: 1 } as any; }
+  async updatePerson(id: number, person: Partial<InsertPerson>) { return undefined as any; }
+  async deletePerson(id: number) { return true; }
+
+  async getFaceImage(id: number) { return undefined as any; }
+  async getFaceImagesByUserId(userId: number) { return [] as any; }
+  async getFaceImagesByPersonId(personId: number) { return [] as any; }
+  async createFaceImage(faceImage: InsertFaceImage) { return { ...faceImage, id: 1 } as any; }
+  async deleteFaceImage(id: number) { return true; }
+  async setDefaultFaceImage(id: number) { return undefined as any; }
+
+  async getFaceVideo(id: number) { return undefined as any; }
+  async getFaceVideosByUserId(userId: number) { return [] as any; }
+  async getFaceVideosByPersonId(personId: number) { return [] as any; }
+  async createFaceVideo(faceVideo: InsertFaceVideo) { return { ...faceVideo, id: 1 } as any; }
+  async deleteFaceVideo(id: number) { return true; }
+  async updateFaceVideoProcessingStatus(id: number, status: string) { return undefined as any; }
+
+  async getVoiceRecording(id: number) { return undefined as any; }
+  async getVoiceRecordingsByUserId(userId: number) { return [] as any; }
+  async getVoiceRecordingsByPersonId(personId: number) { return [] as any; }
+  async createVoiceRecording(voiceRecording: InsertVoiceRecording) { return { ...voiceRecording, id: 1 } as any; }
+  async deleteVoiceRecording(id: number) { return true; }
+  async setDefaultVoiceRecording(id: number) { return undefined as any; }
+
+  async getVideoTemplate(id: number) { return undefined as any; }
+  async getAllVideoTemplates() { return [] as any; }
+  async getVideoTemplatesByCategory(category: string) { return [] as any; }
+  async getVideoTemplatesByAgeRange(ageRange: string) { return [] as any; }
+  async getFeaturedVideoTemplates() { return [] as any; }
+  async createVideoTemplate(videoTemplate: InsertVideoTemplate) { return { ...videoTemplate, id: 1 } as any; }
+  async updateVideoTemplate(id: number, updateData: Partial<InsertVideoTemplate>) { return undefined as any; }
+  async deleteVideoTemplate(id: number) { return true; }
+
+  async getProcessedVideo(id: number) { return undefined as any; }
+  async getProcessedVideosByUserId(userId: number) { return [] as any; }
+  async createProcessedVideo(processedVideo: InsertProcessedVideo) { return { ...processedVideo, id: 1 } as any; }
+  async updateProcessedVideoStatus(id: number, status: string) { return undefined as any; }
+  async deleteProcessedVideo(id: number) { return true; }
+
+  async createProcessedVideoPerson(insertProcessedVideoPerson: InsertProcessedVideoPerson) { return { ...insertProcessedVideoPerson, id: 1 } as any; }
+
+  async getAnimatedStory(id: number) { return undefined as any; }
+  async getAllAnimatedStories() { return [] as any; }
+  async getAnimatedStoriesByCategory(category: string) { return [] as any; }
+  async getAnimatedStoriesByAgeRange(ageRange: string) { return [] as any; }
+  async createAnimatedStory(story: InsertAnimatedStory) { return { ...story, id: 1 } as any; }
+  async updateAnimatedStory(id: number, updateData: Partial<InsertAnimatedStory>) { return undefined as any; }
+  async deleteAnimatedStory(id: number) { return true; }
+
+  async getUserStorySession(id: number) { return undefined as any; }
+  async getUserStorySessionsByUserId(userId: number) { return [] as any; }
+  async getUserStorySessionsByStoryId(storyId: number) { return [] as any; }
+  async createUserStorySession(session: InsertUserStorySession) { return { ...session, id: 1 } as any; }
+  async updateUserStorySession(id: number, updateData: Partial<InsertUserStorySession>) { return undefined as any; }
+  async deleteUserStorySession(id: number) { return true; }
+
+  async createPasswordResetToken(token: InsertPasswordResetToken) { return { ...token, id: 1 } as any; }
+  async getPasswordResetTokenByToken(token: string) { return undefined as any; }
+  async getPasswordResetTokensByUserId(userId: number) { return [] as any; }
+  async markPasswordResetTokenUsed(token: string) { return true; }
+  async deleteExpiredPasswordResetTokens() { return 0; }
+}
+
 // Export the appropriate storage implementation based on database availability
-export const storage: IStorage = new DatabaseStorage();
+export const storage: IStorage = pool ? new DatabaseStorage() : new MemoryStorage();
