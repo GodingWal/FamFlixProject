@@ -28,9 +28,20 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  // Prepare headers with JSON content type if sending a body
+  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
+
+  // Attach Authorization header if accessToken is present (browser only)
+  try {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('accessToken');
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
+  } catch {}
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -45,8 +56,18 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    // Attach Authorization header if accessToken is present
+    const headers: Record<string, string> = {};
+    try {
+      if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('accessToken');
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      }
+    } catch {}
+
     const res = await fetch(queryKey[0] as string, {
       credentials: "include",
+      headers,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

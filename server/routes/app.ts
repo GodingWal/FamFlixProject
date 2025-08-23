@@ -3,8 +3,32 @@ import { z } from 'zod';
 import { log } from '../vite';
 import { storage } from '../storage';
 import { insertPersonSchema, insertFaceImageSchema } from '@shared/schema';
+import axios from 'axios';
 
 const router = Router();
+
+// Voice agent base URL (FastAPI). Defaults to local dev port 5050
+const VOICE_AGENT_URL = process.env.VOICE_AGENT_URL || 'http://127.0.0.1:5050';
+const DEFAULT_VOICE_ID = process.env.DEFAULT_VOICE_ID;
+
+async function resolveDefaultVoiceId(): Promise<string | null> {
+  try {
+    if (DEFAULT_VOICE_ID && DEFAULT_VOICE_ID.trim().length > 0) {
+      return DEFAULT_VOICE_ID.trim();
+    }
+    const url = `${VOICE_AGENT_URL}/api/voices`;
+    const r = await axios.get(url, { timeout: 8000 });
+    const voices = Array.isArray(r.data) ? r.data : [];
+    if (voices.length > 0) {
+      // Prefer a stable, kid-friendly voice if present; else first
+      const preferred = voices.find((v: any) => /rachel|bella|ally|emma/i.test(String(v.name || '')));
+      return String((preferred || voices[0]).id || (preferred || voices[0]).voice_id || '');
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function setDbUnavailable(res: Response) {
   try { (res as any).statusMessage = 'Database not available'; } catch {}
@@ -212,18 +236,50 @@ router.delete('/voiceRecordings/:id', async (req, res) => {
 
 // Voice AI endpoints (stubs) --------------------------------------------------
 const voicePreviewBody = z.object({
-  personId: z.number(),
+  // Prefer voiceId for direct ElevenLabs mapping; personId kept for future mapping
+  voiceId: z.string().min(1).optional(),
+  personId: z.number().optional(),
   text: z.string().min(1),
+  mode: z.enum(['narration','dialogue']).optional(),
   quality: z.string().optional(),
+});
+
+// List available provider voices via FastAPI passthrough
+router.get('/voice/voices', async (_req: Request, res: Response) => {
+  try {
+    const url = `${VOICE_AGENT_URL}/api/voices`;
+    const r = await axios.get(url, { timeout: 8000 });
+    return res.json(Array.isArray(r.data) ? r.data : []);
+  } catch (err) {
+    log(`Voice list proxy error: ${(err as Error).message}`, 'routes');
+    return res.status(200).json([]); // keep UI resilient
+  }
 });
 
 router.post('/voice/preview', async (req: Request, res: Response) => {
   try {
     const input = voicePreviewBody.parse(req.body);
-    if (!process.env.ELEVENLABS_API_KEY) {
-      return res.status(503).json({ message: 'TTS provider not configured' });
+    // Resolve a voiceId if not provided
+    let voiceId = input.voiceId;
+    if (!voiceId) {
+      voiceId = await resolveDefaultVoiceId() || undefined;
     }
-    return res.status(503).json({ message: 'TTS temporarily unavailable' });
+    if (!voiceId) {
+      return res.status(503).json({ message: 'No voices available' });
+    }
+    // Proxy to FastAPI TTS if configured
+    const url = `${VOICE_AGENT_URL}/api/tts`;
+    try {
+      const r = await axios.post(url, {
+        voice_id: voiceId,
+        text: input.text,
+        mode: input.mode || 'narration',
+      }, { timeout: 15000 });
+      return res.json(r.data);
+    } catch (err) {
+      log(`TTS proxy error: ${(err as Error).message}`, 'routes');
+      return res.status(503).json({ message: 'TTS service unavailable' });
+    }
   } catch (error) {
     return res.status(400).json({ message: 'Invalid request' });
   }
@@ -263,10 +319,26 @@ const voiceCloneBody = z.object({
 router.post('/voice/clone-speech', async (req: Request, res: Response) => {
   try {
     const input = voiceCloneBody.parse(req.body);
-    if (!process.env.ELEVENLABS_API_KEY) {
-      return res.status(503).json({ error: 'ElevenLabs TTS unavailable (missing ELEVENLABS_API_KEY)' });
+    // Map clone-speech to TTS using provided or default voiceId
+    let voiceId = (req.body || {}).voiceId as string | undefined;
+    if (!voiceId) {
+      voiceId = await resolveDefaultVoiceId() || undefined;
     }
-    return res.status(503).json({ error: 'Voice cloning temporarily unavailable' });
+    if (!voiceId) {
+      return res.status(503).json({ error: 'No voices available for synthesis' });
+    }
+    const url = `${VOICE_AGENT_URL}/api/tts`;
+    try {
+      const r = await axios.post(url, {
+        voice_id: voiceId,
+        text: input.text,
+        mode: 'narration',
+      }, { timeout: 20000 });
+      return res.json(r.data);
+    } catch (err) {
+      log(`Clone proxy error: ${(err as Error).message}`, 'routes');
+      return res.status(503).json({ error: 'Voice cloning service unavailable' });
+    }
   } catch (error) {
     return res.status(400).json({ message: 'Invalid request' });
   }
@@ -279,6 +351,31 @@ router.post('/voice/combine-recordings', async (req: Request, res: Response) => 
     personId: Number.isFinite(personId) ? personId : null,
     message: 'Voice clone preparation started',
   });
+});
+
+// Proxy: start clone job (CrewAI orchestrator)
+router.post('/voice/clone/start', async (req: Request, res: Response) => {
+  try {
+    const url = `${VOICE_AGENT_URL}/api/clone/start`;
+    const r = await axios.post(url, req.body, { timeout: 20000 });
+    return res.json(r.data);
+  } catch (err) {
+    log(`Clone start proxy error: ${(err as Error).message}`, 'routes');
+    return res.status(503).json({ message: 'Clone service unavailable' });
+  }
+});
+
+// Proxy: get job status
+router.get('/voice/jobs/:id', async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const url = `${VOICE_AGENT_URL}/api/jobs/${encodeURIComponent(id)}`;
+    const r = await axios.get(url, { timeout: 10000 });
+    return res.json(r.data);
+  } catch (err) {
+    log(`Job status proxy error: ${(err as Error).message}`, 'routes');
+    return res.status(503).json({ message: 'Job service unavailable' });
+  }
 });
 
 // Video Templates -------------------------------------------------------------

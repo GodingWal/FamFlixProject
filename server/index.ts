@@ -410,9 +410,22 @@ app.use((req, res, next) => {
       if (err.name === 'ZodError') {
         if (!res.headersSent) {
           res.status(400).json({ 
-            message: 'Validation error',
+            message: 'Validation error', 
             errors: err.issues 
           });
+        }
+        return;
+      }
+
+      // Handle body-parser JSON syntax errors as 400 Bad Request
+      // Common properties: err instanceof SyntaxError, err.type === 'entity.parse.failed'
+      if (
+        (err instanceof SyntaxError && 'status' in err && (err as any).status === 400) ||
+        (typeof err?.type === 'string' && err.type === 'entity.parse.failed')
+      ) {
+        log(`Invalid JSON payload on ${req.method} ${req.path}: ${err.message}`, 'error');
+        if (!res.headersSent) {
+          return res.status(400).json({ message: 'Invalid JSON payload' });
         }
         return;
       }

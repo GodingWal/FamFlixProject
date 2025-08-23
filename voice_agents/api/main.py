@@ -4,8 +4,11 @@ from typing import Optional, Literal, List, Dict, Any
 import os
 import json
 import yaml
+import base64
 
 from ..crew import build_voice_crew
+from . import jobs
+from .orchestrator import start_clone_job_async
 
 app = FastAPI(title="VoiceAgents API")
 
@@ -67,6 +70,47 @@ def _load_elevenlabs_client():
     try:
         return ElevenLabs(api_key=api_key)
     except Exception:
+        return None
+
+
+def _synthesize_with_elevenlabs(req: "TTSRequest") -> Optional[str]:
+    """Return MP3 audio as base64 string if ElevenLabs is configured, else None."""
+    client = _load_elevenlabs_client()
+    if client is None:
+        return None
+    try:
+        # Import here to avoid hard dependency at module import time
+        try:
+            from elevenlabs import VoiceSettings  # type: ignore
+        except Exception:
+            VoiceSettings = None  # type: ignore
+
+        voice_settings = None
+        if VoiceSettings is not None:
+            # Map our request defaults to ElevenLabs voice settings
+            voice_settings = VoiceSettings(
+                stability=float(req.defaults.dialogue_stability if req.mode == "dialogue" else req.defaults.stability),
+                similarity_boost=float(req.defaults.similarity_boost),
+                style=float(req.defaults.style),
+                use_speaker_boost=True,
+            )
+
+        # Use ElevenLabs v1 client convert API; returns an iterator of bytes chunks
+        chunks = client.text_to_speech.convert(
+            voice_id=req.voice_id,
+            model_id=os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"),
+            text=req.text,
+            voice_settings=voice_settings,
+            output_format="mp3_44100_128",
+        )
+
+        # Concatenate chunks to a single bytes object
+        audio_bytes = b"".join(chunk for chunk in chunks if chunk)
+        if not audio_bytes:
+            return None
+        return base64.b64encode(audio_bytes).decode("ascii")
+    except Exception:
+        # On any failure, fall back to stub path
         return None
 
 
@@ -165,8 +209,23 @@ def synthesize(req: TTSRequest):
         # Running the crew would require LLM configuration; defer for now
         # result = crew.kickoff()
 
-    # Stub response that matches Synthesis Specialist output schema
+    # Try real synthesis with ElevenLabs first
+    audio_b64 = _synthesize_with_elevenlabs(req)
     used = req.defaults.dialogue_stability if req.mode == "dialogue" else req.defaults.stability
+    if audio_b64:
+        return {
+            "gen_wav_path": None,
+            "audio_base64": audio_b64,
+            "settings_used": {
+                "stability": used,
+                "similarity_boost": req.defaults.similarity_boost,
+                "style": req.defaults.style,
+                "speed": req.defaults.speed,
+            },
+            "was_cached": False,
+        }
+
+    # Fallback stub response if ElevenLabs is not configured or fails
     return {
         "gen_wav_path": f"/media/tts/{req.voice_id}/stub.wav",
         "settings_used": {
@@ -178,4 +237,52 @@ def synthesize(req: TTSRequest):
         "was_cached": False,
     }
 
+
+
+# -----------------------------------------------------------------------------
+# Clone Pipeline (CrewAI Orchestrator)
+
+class CloneLimits(BaseModel):
+    max_text_length: int = 800
+    daily_char_limit: Optional[int] = 20000
+
+
+class CloneQC(BaseModel):
+    max_wer: float = 0.15
+    min_cosine: float = 0.80
+    cosine_bump_similarity: float = 0.05
+    similarity_cap: float = 0.90
+    cosine_bump_stability: float = 0.05
+    stability_cap: float = 0.75
+
+
+class CloneStartRequest(BaseModel):
+    # Minimal required fields
+    text: str
+    voice_id: str
+    mode: Literal["narration", "dialogue"] = "narration"
+    provider: Literal["elevenlabs"] = "elevenlabs"
+    consent_flag: bool = True
+
+    # Optional inputs for cloning/QC
+    raw_audio_path: Optional[str] = None
+    limits: CloneLimits = CloneLimits()
+    qc: CloneQC = CloneQC()
+
+
+@app.post("/api/clone/start")
+def start_clone(req: CloneStartRequest):
+    payload: Dict[str, Any] = req.model_dump()
+    job = jobs.create_job(payload)
+    jobs.add_event(job["id"], "Job created", stage="queued")
+    start_clone_job_async(job["id"], payload)
+    return {"jobId": job["id"], "status": job["status"]}
+
+
+@app.get("/api/jobs/{job_id}")
+def get_job(job_id: str):
+    job = jobs.get_job(job_id)
+    if not job:
+        return {"error": "job not found"}
+    return job
 

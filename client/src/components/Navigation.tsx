@@ -14,8 +14,7 @@ import {
   Menu,
   X,
   Moon,
-  Sun,
-  Bot
+  Sun
 } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -43,7 +42,6 @@ export default function Navigation() {
     { path: "/people", label: "Family", icon: Users },
     { path: "/library", label: "Videos", icon: Video },
     { path: "/stories", label: "Stories", icon: BookOpen },
-    { path: "/voice-agents", label: "Voice Agents", icon: Bot },
   ];
 
   const handleLogout = () => {

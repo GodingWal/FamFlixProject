@@ -72,6 +72,12 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
   app.use('/api/agents', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
   app.use('/api/jobs', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
   
+  // Back-compat aliases for voice routes mounted by appRouter
+  // Ensure these resolve even if the app router is missing/stale in deployment
+  app.use('/api/voice/voices', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
+  app.use('/api/voice/clone/start', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
+  app.use('/api/voice/jobs', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
+  
   // Final handler for unknown API routes
   app.all('/api/*', (req: Request, res: Response) => {
     res.status(404).json({ 

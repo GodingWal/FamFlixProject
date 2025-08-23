@@ -14,6 +14,7 @@ import AudioRecorder from "@/components/AudioRecorder";
 import { VoiceRecordingManager } from "@/components/VoiceRecordingManager";
 import FaceTrainingGuide from "@/components/FaceTrainingGuide";
 import VoiceTrainingGuide from "@/components/VoiceTrainingGuide";
+import VoiceSetupWizard from "@/components/VoiceSetupWizard";
 
 
 // UI Components
@@ -90,6 +91,7 @@ import {
   StarOff,
   MoreHorizontal,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -121,7 +123,7 @@ const PeopleManagement = () => {
   const [recordedVoiceUrl, setRecordedVoiceUrl] = useState<string>("");
   const [voiceDuration, setVoiceDuration] = useState<number>(0);
   const [voiceName, setVoiceName] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<string>("faces");
+  const [activeTab, setActiveTab] = useState<string>("voices");
   const [customComponent, setCustomComponent] = useState<ReactNode>(null);
   const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
   
@@ -674,6 +676,31 @@ const PeopleManagement = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        if (!selectedPerson || !user) return;
+                        setCustomComponent(
+                          <div className="py-2">
+                            <VoiceSetupWizard
+                              userId={user.id}
+                              personId={selectedPerson.id}
+                              personName={selectedPerson.name}
+                              onComplete={() => {
+                                setIsCustomDialogOpen(false);
+                                setActiveTab('voices');
+                                // refresh data
+                                queryClient.invalidateQueries({ queryKey: [`/api/people/${selectedPerson.id}/voiceRecordings`] });
+                                queryClient.invalidateQueries({ queryKey: [`/api/people/${selectedPerson.id}/faceImages`] });
+                              }}
+                              onCancel={() => setIsCustomDialogOpen(false)}
+                            />
+                          </div>
+                        );
+                        setIsCustomDialogOpen(true);
+                      }}
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" /> Start Setup Wizard
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -685,19 +712,19 @@ const PeopleManagement = () => {
                 </div>
 
                 <TabsList className="grid grid-cols-2">
-                  <TabsTrigger value="faces">
-                    <Camera className="h-4 w-4 mr-2" /> Face Images
-                    {faceImages && faceImages.length > 0 && (
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        {faceImages.length}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
                   <TabsTrigger value="voices">
                     <Mic className="h-4 w-4 mr-2" /> Voice Recordings
                     {voiceRecordings && voiceRecordings.length > 0 && (
                       <Badge variant="secondary" className="ml-2 text-xs">
                         {voiceRecordings.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="faces">
+                    <Camera className="h-4 w-4 mr-2" /> Face Images
+                    {faceImages && faceImages.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {faceImages.length}
                       </Badge>
                     )}
                   </TabsTrigger>
