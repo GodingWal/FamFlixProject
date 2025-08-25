@@ -78,7 +78,12 @@ router.post('/people', async (req, res) => {
 router.patch('/people/:id', async (req, res) => {
   try {
     const { id } = idParam.parse(req.params);
-    const body = z.object({ name: z.string().min(1).optional(), relationship: z.string().min(1).optional() }).parse(req.body);
+    // Allow updating name, relationship, and ElevenLabs voice mapping for this person
+    const body = z.object({
+      name: z.string().min(1).optional(),
+      relationship: z.string().min(1).optional(),
+      elevenlabsVoiceId: z.string().min(1).optional(),
+    }).parse(req.body);
     const updated = await storage.updatePerson(id, body);
     if (!updated) return res.status(404).json({ message: 'Not found' });
     return res.json(updated);
