@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.python-version
+.venv/
+.env
+.env.*
+.state/
+media/
+# Git
+.git/
+.gitignore
+# Tests and notebooks
+*.ipynb
+.tests/

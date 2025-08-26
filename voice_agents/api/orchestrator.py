@@ -6,7 +6,11 @@ from . import jobs
 from ..tools.audio_processing_tool import AudioProcessingTool
 from ..tools.quality_control_tool import QualityControlTool
 from .tts_utils import synthesize_with_elevenlabs_simple
-from ..crew import build_voice_crew
+try:
+    from ..crew import build_voice_crew  # type: ignore
+except Exception:
+    def build_voice_crew(context: Dict[str, Any]):  # type: ignore
+        return None
 
 
 def _policy_guard(payload: Dict[str, Any]) -> Optional[str]:
@@ -53,6 +57,10 @@ def run_clone_job(job_id: str, payload: Dict[str, Any]):
         use_crewai = bool(payload.get("use_crewai", True)) or os.getenv("CREWAI_RUN", "false").lower() == "true"
         audio_b64: Optional[str] = None
 
+        # If OPENAI_API_KEY is not present, disable CrewAI and use procedural path
+        if use_crewai and not (os.getenv("OPENAI_API_KEY") or ""):
+            use_crewai = False
+
         if use_crewai and (os.getenv("OPENAI_API_KEY") or ""):
             try:
                 jobs.set_status(job_id, "agents_running")
@@ -73,6 +81,8 @@ def run_clone_job(job_id: str, payload: Dict[str, Any]):
                     "gates": (payload.get("qc") or {}),
                 }
                 crew = build_voice_crew(context)
+                if crew is None:
+                    raise RuntimeError("crewai not available")
                 # Run sequential crew; tools do the heavy lifting
                 result = crew.kickoff()
                 # We don't have a standardized artifact path; return simple TTS as minimal output for now
@@ -97,7 +107,26 @@ def run_clone_job(job_id: str, payload: Dict[str, Any]):
                 jobs.set_error(job_id, "tts generation failed")
                 return
 
-        # QC (optional - stub)
+        # Persist preview audio to disk for QC
+        preview_mp3_path = f"/tmp/job_{job_id}_preview.mp3"
+        preview_wav_path = f"/tmp/job_{job_id}_preview.wav"
+        try:
+            if audio_b64:
+                import base64
+                with open(preview_mp3_path, "wb") as f:
+                    f.write(base64.b64decode(audio_b64))
+                # Try to convert to WAV (best for librosa/whisper)
+                try:
+                    import librosa, soundfile as sf
+                    y, sr = librosa.load(preview_mp3_path, sr=16000, mono=True)
+                    if y.size > 0:
+                        sf.write(preview_wav_path, y, 16000, subtype="PCM_16")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # QC (optional)
         jobs.set_status(job_id, "verifying")
         qc_metrics: Dict[str, Any] = {}
         try:
@@ -112,9 +141,8 @@ def run_clone_job(job_id: str, payload: Dict[str, Any]):
                     "cosine_bump_stability": float(gates.get("cosine_bump_stability", 0.05)),
                     "stability_cap": float(gates.get("stability_cap", 0.75)),
                 }
-                # The QC tool is stubbed; it expects paths, so we write the b64 to a temp file
-                out_path = f"/tmp/job_{job_id}_preview.wav"
-                # In our TTS path we produced mp3 b64; for stub we just pass the path placeholder
+                # Choose WAV if we managed to convert, else MP3
+                out_path = preview_wav_path if os.path.exists(preview_wav_path) else preview_mp3_path
                 qc_metrics = qc._run(
                     text=payload["text"],
                     gen_wav_path=out_path,

@@ -6,10 +6,11 @@ import { Separator } from '@/components/ui/separator';
 
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Mic, Volume2, ExternalLink, Volume, VolumeX, Sparkles, AlertCircle } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { apiRequest } from '@/lib/queryClient';
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 import { Link } from 'wouter';
 import VoiceTrainingGuide from '@/components/VoiceTrainingGuide';
 import VoiceClonePreview from '@/components/VoiceClonePreview';
@@ -38,6 +39,7 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
   const [recordingName, setRecordingName] = useState(`${personName}'s Voice`);
   const queryClient = useQueryClient();
   const { isMobile } = useMobile();
+  const { toast } = useToast();
   
   // State for voice recording processing
   const [isProcessing, setIsProcessing] = useState(false);
@@ -123,30 +125,60 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
   };
 
   // Play a recording
-  const playRecording = (audioUrl: string) => {
+  const playRecording = async (recording: VoiceRecording) => {
     try {
-      // Create an audio element
-      const audio = new Audio();
+      toast({
+        title: "Loading Recording",
+        description: "Preparing audio playback...",
+      });
+
+      // Get the decrypted audio data from the server
+      const response = await apiRequest('GET', `/api/voiceRecordings/${recording.id}/audio`);
       
-      // Make sure the audioUrl is a complete data URL or has proper format
-      if (audioUrl.startsWith('data:')) {
-        audio.src = audioUrl;
-      } else {
-        // Handle case where it might be a relative URL from the server
-        audio.src = audioUrl;
+      if (!response.ok) {
+        throw new Error('Failed to load recording');
       }
       
-      // Set up error handling
+      const audioData = await response.json();
+      
+      // Create audio element with decrypted data
+      const audio = new Audio();
+      
+      if (audioData.audioData && audioData.audioData.startsWith('data:')) {
+        audio.src = audioData.audioData;
+      } else if (audioData.audioUrl) {
+        audio.src = audioData.audioUrl;
+      } else {
+        throw new Error('No audio data available');
+      }
+      
+      // Set up event handlers
+      audio.onloadstart = () => {
+        toast({
+          title: "Playing Recording",
+          description: `Playing ${recording.name}`,
+        });
+      };
+      
       audio.onerror = (err) => {
         console.error('Error playing audio:', err);
+        toast({
+          title: "Playback Error",
+          description: "Could not play the recording",
+          variant: "destructive",
+        });
       };
       
       // Play the audio
-      audio.play().catch(err => {
-        console.error('Error playing audio:', err);
-      });
+      await audio.play();
+      
     } catch (error) {
-      console.error('Error creating audio element:', error);
+      console.error('Error playing recording:', error);
+      toast({
+        title: "Playback Failed",
+        description: error instanceof Error ? error.message : "Could not play recording",
+        variant: "destructive",
+      });
     }
   };
 
@@ -453,7 +485,7 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => playRecording(recording.audioUrl)}
+                    onClick={() => playRecording(recording)}
                   >
                     <Volume className="mr-2 h-4 w-4" />
                     Play

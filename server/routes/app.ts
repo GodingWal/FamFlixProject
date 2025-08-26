@@ -3,12 +3,12 @@ import { z } from 'zod';
 import { log } from '../vite';
 import { storage } from '../storage';
 import { insertPersonSchema, insertFaceImageSchema } from '@shared/schema';
-import axios from 'axios';
 
 const router = Router();
 
-// Voice agent base URL (FastAPI). Defaults to local dev port 5050
+// Voice agent base URL (FastAPI or CrewAI). Defaults to local dev port 5050
 const VOICE_AGENT_URL = process.env.VOICE_AGENT_URL || 'http://127.0.0.1:5050';
+const CREWAI_API_KEY = process.env.CREWAI_API_KEY || '';
 const DEFAULT_VOICE_ID = process.env.DEFAULT_VOICE_ID;
 
 async function resolveDefaultVoiceId(): Promise<string | null> {
@@ -17,8 +17,10 @@ async function resolveDefaultVoiceId(): Promise<string | null> {
       return DEFAULT_VOICE_ID.trim();
     }
     const url = `${VOICE_AGENT_URL}/api/voices`;
-    const r = await axios.get(url, { timeout: 8000 });
-    const voices = Array.isArray(r.data) ? r.data : [];
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const voices = Array.isArray(data) ? data : [];
     if (voices.length > 0) {
       // Prefer a stable, kid-friendly voice if present; else first
       const preferred = voices.find((v: any) => /rachel|bella|ally|emma/i.test(String(v.name || '')));
@@ -40,6 +42,17 @@ const userIdParam = z.object({ userId: z.string().regex(/^\d+$/).transform(v => 
 const personIdParam = z.object({ personId: z.string().regex(/^\d+$/).transform(v => parseInt(v, 10)) });
 
 // People ---------------------------------------------------------------------
+router.get('/people', async (req, res) => {
+  try {
+    // Get all people (for voice selection dropdown)
+    const rows = await storage.getAllPeople();
+    return res.json(rows);
+  } catch (error) {
+    setDbUnavailable(res);
+    return res.status(503).json({ message: 'Database not available' });
+  }
+});
+
 router.get('/users/:userId/people', async (req, res) => {
   try {
     const { userId } = userIdParam.parse(req.params);
@@ -228,6 +241,29 @@ router.patch('/voiceRecordings/:id/setDefault', async (req, res) => {
   }
 });
 
+router.get('/voiceRecordings/:id/audio', async (req, res) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    const recording = await storage.getVoiceRecording(id);
+    
+    if (!recording) {
+      return res.status(404).json({ message: 'Recording not found' });
+    }
+    
+    // Return the decrypted audio data for playback
+    return res.json({
+      audioData: recording.audioData,
+      audioUrl: recording.audioUrl,
+      name: recording.name,
+      duration: recording.duration
+    });
+  } catch (error) {
+    log(`Get voice recording audio error: ${(error as Error).message}`, 'routes');
+    setDbUnavailable(res);
+    return res.status(503).json({ message: 'Database not available' });
+  }
+});
+
 router.delete('/voiceRecordings/:id', async (req, res) => {
   try {
     const { id } = idParam.parse(req.params);
@@ -253,8 +289,10 @@ const voicePreviewBody = z.object({
 router.get('/voice/voices', async (_req: Request, res: Response) => {
   try {
     const url = `${VOICE_AGENT_URL}/api/voices`;
-    const r = await axios.get(url, { timeout: 8000 });
-    return res.json(Array.isArray(r.data) ? r.data : []);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    return res.json(Array.isArray(data) ? data : []);
   } catch (err) {
     log(`Voice list proxy error: ${(err as Error).message}`, 'routes');
     return res.status(200).json([]); // keep UI resilient
@@ -275,12 +313,25 @@ router.post('/voice/preview', async (req: Request, res: Response) => {
     // Proxy to FastAPI TTS if configured
     const url = `${VOICE_AGENT_URL}/api/tts`;
     try {
-      const r = await axios.post(url, {
-        voice_id: voiceId,
-        text: input.text,
-        mode: input.mode || 'narration',
-      }, { timeout: 15000 });
-      return res.json(r.data);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
+        },
+        body: JSON.stringify({
+          voice_id: voiceId,
+          text: input.text,
+          mode: input.mode || 'narration',
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return res.json(data);
     } catch (err) {
       log(`TTS proxy error: ${(err as Error).message}`, 'routes');
       return res.status(503).json({ message: 'TTS service unavailable' });
@@ -334,12 +385,22 @@ router.post('/voice/clone-speech', async (req: Request, res: Response) => {
     }
     const url = `${VOICE_AGENT_URL}/api/tts`;
     try {
-      const r = await axios.post(url, {
-        voice_id: voiceId,
-        text: input.text,
-        mode: 'narration',
-      }, { timeout: 20000 });
-      return res.json(r.data);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          voice_id: voiceId,
+          text: input.text,
+          mode: 'narration',
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return res.json(data);
     } catch (err) {
       log(`Clone proxy error: ${(err as Error).message}`, 'routes');
       return res.status(503).json({ error: 'Voice cloning service unavailable' });
@@ -362,8 +423,23 @@ router.post('/voice/combine-recordings', async (req: Request, res: Response) => 
 router.post('/voice/clone/start', async (req: Request, res: Response) => {
   try {
     const url = `${VOICE_AGENT_URL}/api/clone/start`;
-    const r = await axios.post(url, req.body, { timeout: 20000 });
-    return res.json(r.data);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
+      },
+      body: JSON.stringify(req.body),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    // Normalize job id field so clients can always read job_id
+    const jobId = (data && (data.job_id || data.id || data.jobId || data.run_id || data.task_id)) || '';
+    return res.json({ ...(typeof data === 'object' ? data : {}), job_id: jobId });
   } catch (err) {
     log(`Clone start proxy error: ${(err as Error).message}`, 'routes');
     return res.status(503).json({ message: 'Clone service unavailable' });
@@ -375,8 +451,18 @@ router.get('/voice/jobs/:id', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
     const url = `${VOICE_AGENT_URL}/api/jobs/${encodeURIComponent(id)}`;
-    const r = await axios.get(url, { timeout: 10000 });
-    return res.json(r.data);
+    const response = await fetch(url, {
+      headers: {
+        ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return res.json(data);
   } catch (err) {
     log(`Job status proxy error: ${(err as Error).message}`, 'routes');
     return res.status(503).json({ message: 'Job service unavailable' });
@@ -468,6 +554,51 @@ router.delete('/processedVideos/:id', async (req, res) => {
   }
 });
 
+// Story generation endpoint - simplified approach
+router.post('/ai/generate-story', async (req: Request, res: Response) => {
+  try {
+    const { theme, ageGroup, duration, characters, moralLesson, setting } = req.body;
+    
+    if (!theme || !ageGroup || !duration || !characters) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+    
+    const story = {
+      title: `The Adventure of ${characters[0] || 'Our Hero'}`,
+      description: `A wonderful story about ${theme} for children aged ${ageGroup}.`,
+      script: [
+        {
+          character: characters[0] || 'Narrator',
+          dialogue: `Once upon a time, there was a story about ${theme}.`,
+          emotion: 'cheerful',
+          timing: 0
+        },
+        {
+          character: characters[1] || 'Character',
+          dialogue: `This is an exciting adventure that teaches us about ${moralLesson || 'friendship'}.`,
+          emotion: 'excited',
+          timing: 30
+        },
+        {
+          character: characters[0] || 'Narrator',
+          dialogue: 'And they all lived happily ever after, having learned something wonderful.',
+          emotion: 'warm',
+          timing: 60
+        }
+      ],
+      duration: duration,
+      category: 'adventure',
+      ageRange: ageGroup
+    };
+    
+    return res.json(story);
+  } catch (error) {
+    log(`Story generation error: ${(error as Error).message}`, 'routes');
+    return res.status(500).json({ 
+      message: 'Failed to generate story',
+      error: (error as Error).message 
+    });
+  }
+});
+
 export default router;
-
-

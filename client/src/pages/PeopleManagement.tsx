@@ -92,6 +92,8 @@ import {
   MoreHorizontal,
   ChevronRight,
   Sparkles,
+  Play,
+  Volume2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -123,6 +125,7 @@ const PeopleManagement = () => {
   const [recordedVoiceUrl, setRecordedVoiceUrl] = useState<string>("");
   const [voiceDuration, setVoiceDuration] = useState<number>(0);
   const [voiceName, setVoiceName] = useState<string>("");
+  const [ttsTestText, setTtsTestText] = useState<string>("Hello, this is a test of my voice synthesis.");
   const [activeTab, setActiveTab] = useState<string>("voices");
   const [customComponent, setCustomComponent] = useState<ReactNode>(null);
   const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
@@ -391,6 +394,50 @@ const PeopleManagement = () => {
     onError: (error: Error) => {
       toast({
         title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // TTS preview mutation
+  const ttsPreviewMutation = useMutation({
+    mutationFn: async (data: { text: string, voiceId?: string }) => {
+      const res = await apiRequest("POST", "/api/voice/preview", {
+        text: data.text,
+        voiceId: data.voiceId,
+        mode: "narration"
+      });
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      if (data.audio_base64) {
+        // Play the audio
+        const audio = new Audio(`data:audio/mpeg;base64,${data.audio_base64}`);
+        audio.play().then(() => {
+          toast({
+            title: "Playing Voice Preview",
+            description: "Audio is now playing!",
+          });
+        }).catch(err => {
+          console.error("Error playing TTS audio:", err);
+          toast({
+            title: "Playback Error", 
+            description: "Could not play audio. Try clicking the button again or check browser permissions.",
+            variant: "destructive",
+          });
+        });
+      } else {
+        toast({
+          title: "No Audio Data",
+          description: "The server didn't return audio data",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "TTS Error",
         description: error.message,
         variant: "destructive",
       });
@@ -893,6 +940,76 @@ const PeopleManagement = () => {
                         }}
                       />
                       
+                      {/* TTS Preview Card */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Volume2 className="h-5 w-5" />
+                            Test Voice Synthesis
+                          </CardTitle>
+                          <CardDescription>
+                            Preview how {selectedPerson.name}'s voice will sound with text-to-speech
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div>
+                            <label className="text-sm font-medium mb-2 block">
+                              Test Text
+                            </label>
+                            <textarea
+                              value={ttsTestText}
+                              onChange={(e) => setTtsTestText(e.target.value)}
+                              placeholder="Enter text to synthesize..."
+                              className="w-full p-3 border rounded-md resize-none"
+                              rows={3}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => {
+                                if (!ttsTestText.trim()) {
+                                  toast({
+                                    title: "No Text",
+                                    description: "Please enter some text to synthesize",
+                                    variant: "destructive",
+                                  });
+                                  return;
+                                }
+                                
+                                toast({
+                                  title: "Generating Audio",
+                                  description: "Creating voice preview...",
+                                });
+                                
+                                ttsPreviewMutation.mutate({
+                                  text: ttsTestText,
+                                  voiceId: selectedPerson.elevenlabsVoiceId || undefined
+                                });
+                              }}
+                              disabled={ttsPreviewMutation.isPending || !ttsTestText.trim()}
+                              className="flex items-center gap-2"
+                            >
+                              <Play className="h-4 w-4" />
+                              {ttsPreviewMutation.isPending ? "Generating..." : "Preview Voice"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setTtsTestText("Hello, this is a test of my voice synthesis.")}
+                            >
+                              Reset Text
+                            </Button>
+                          </div>
+                          {selectedPerson.elevenlabsVoiceId ? (
+                            <p className="text-sm text-muted-foreground">
+                              Using voice ID: {selectedPerson.elevenlabsVoiceId}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-yellow-600">
+                              No voice ID set - using default voice
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
 
                     </>
                   )}

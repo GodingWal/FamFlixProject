@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  voice-agent:
+    build:
+      context: .
+      dockerfile: voice_agents/Dockerfile
+    image: famflix/voice-agent:latest
+    container_name: famflix-voice-agent
+    environment:
+      # Provide keys via env or an env_file
+      ELEVEN_API_KEY: ${ELEVEN_API_KEY:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      # Optional CrewAI/OpenAI for agent flow
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Defaults (tunable)
+      STABILITY_DEFAULT: ${STABILITY_DEFAULT:-0.55}
+      DIALOGUE_STABILITY_DEFAULT: ${DIALOGUE_STABILITY_DEFAULT:-0.35}
+      SIMILARITY_DEFAULT: ${SIMILARITY_DEFAULT:-0.7}
+      STYLE_DEFAULT: ${STYLE_DEFAULT:-0.0}
+      SPEED_DEFAULT: ${SPEED_DEFAULT:-1.0}
+    ports:
+      - "8001:8001"
+    restart: unless-stopped

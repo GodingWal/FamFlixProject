@@ -6,7 +6,17 @@ import json
 import yaml
 import base64
 
-from ..crew import build_voice_crew
+"""
+Optional CrewAI import:
+We avoid importing crewai at module import time so the service can run with
+the lite Docker image (which does not include crewai).
+If crewai is unavailable, build_voice_crew becomes a no-op returning None.
+"""
+try:
+    from ..crew import build_voice_crew  # type: ignore
+except Exception:  # crewai or its deps not installed
+    def build_voice_crew(context: Dict[str, Any]):  # type: ignore
+        return None
 from . import jobs
 from .orchestrator import start_clone_job_async
 

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Play, Pause, Square, Shuffle, Volume2, Loader2, Sparkles, RefreshCw } from 'lucide-react';
+import { Play, Pause, Square, Shuffle, Volume2, Loader2, Sparkles, RefreshCw, Workflow, CheckCircle2, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,11 @@ interface GeneratedStory {
   content: string;
   audioUrl?: string;
   isGenerating?: boolean;
+  qc?: {
+    decision: 'pass' | 'fail';
+    wer?: number;
+    speaker_cosine?: number;
+  };
 }
 
 const kidStoryPrompts = [
@@ -42,6 +47,8 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
   const [currentStory, setCurrentStory] = useState<GeneratedStory | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isCloning, setIsCloning] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
@@ -70,15 +77,116 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
         isGenerating: true
       };
 
+  // Start clone with QC pipeline (server proxies to VoiceAgent)
+  const startCloneWithQC = async () => {
+    if (!voiceRecordingId) {
+      toast({ title: 'No Voice Recording', description: 'Record a voice sample first.', variant: 'destructive' });
+      return;
+    }
+    try {
+      setIsCloning(true);
+      // Ensure we have a current story
+      if (!currentStory) {
+        await generateRandomStory();
+      }
+      const story = currentStory || stories[0];
+      if (!story) return;
+
+      // Resolve person voiceId
+      const personRes = await apiRequest('GET', `/api/people/${personId}`);
+      if (!personRes.ok) throw new Error('Failed to get person');
+      const person = await personRes.json();
+
+      // Start job
+      const startRes = await apiRequest('POST', '/api/voice/clone/start', {
+        text: story.content,
+        voice_id: person.elevenlabsVoiceId,
+        mode: 'narration',
+        provider: 'elevenlabs',
+        consent_flag: true,
+        // Optional: if server has a reference wav path, include raw_audio_path
+        qc: { max_wer: 0.2, min_cosine: 0.78 }
+      });
+      if (!startRes.ok) {
+        const errData = await startRes.json();
+        throw new Error(errData.message || 'Failed to start clone job');
+      }
+      const startData = await startRes.json();
+      const jid = startData.job_id || startData.id || startData.jobId;
+      if (!jid) throw new Error('No job id returned');
+      setJobId(String(jid));
+      toast({ title: 'Clone Started', description: `Job ${jid} started` });
+
+      // Poll until done
+      await pollCloneJob(String(jid));
+    } catch (e: any) {
+      toast({ title: 'Clone Failed', description: e.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
+  const pollCloneJob = async (jid: string) => {
+    let attempts = 0;
+    const maxAttempts = 40; // ~40s
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    while (attempts < maxAttempts) {
+      attempts++;
+      const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(jid)}`);
+      if (!res.ok) {
+        await sleep(1000);
+        continue;
+      }
+      const data = await res.json();
+      const status = data.status || data.state;
+      if (status === 'completed' || status === 'done' || data.result) {
+        const result = data.result || data;
+        const audioB64 = result.audio_base64 || result.audioBase64;
+        const qc = result.qc || {};
+        const audioUrl = audioB64 ? `data:audio/mpeg;base64,${audioB64}` : undefined;
+        // Update current story with audio and QC
+        setStories(prev => prev.map(s => s.id === (currentStory?.id || s.id) ? {
+          ...s,
+          audioUrl,
+          isGenerating: false,
+          qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : s.qc
+        } : s));
+        if (currentStory) {
+          setCurrentStory(cs => cs ? {
+            ...cs,
+            audioUrl,
+            isGenerating: false,
+            qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : cs.qc
+          } : cs);
+        }
+        toast({ title: 'Clone Ready', description: qc?.decision ? `QC: ${qc.decision}` : 'Audio generated' });
+        return;
+      }
+      if (status === 'failed' || data.error) {
+        throw new Error(data.error || 'Clone failed');
+      }
+      await sleep(1000);
+    }
+    throw new Error('Timed out waiting for job');
+  };
+
       setStories(prev => [newStory, ...prev.slice(0, 4)]); // Keep only 5 stories
       setCurrentStory(newStory);
 
-      // Generate voice clone using ElevenLabs
+      // Generate voice clone using TTS preview endpoint
       console.log('Generating voice clone for person:', personId, 'with recording:', voiceRecordingId);
-      const voiceResponse = await apiRequest('POST', '/api/voice/clone-speech', {
+      
+      // Get person's voice ID first
+      const personResponse = await apiRequest('GET', `/api/people/${personId}`);
+      if (!personResponse.ok) {
+        throw new Error('Failed to get person data');
+      }
+      const personData = await personResponse.json();
+      
+      const voiceResponse = await apiRequest('POST', '/api/voice/preview', {
         text: storyContent,
-        voiceRecordingId,
-        personId
+        voiceId: personData.elevenlabsVoiceId,
+        mode: 'narration'
       });
 
       if (!voiceResponse.ok) {
@@ -88,10 +196,13 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
 
       const voiceData = await voiceResponse.json();
       
+      // Create audio URL from base64 data
+      const audioUrl = voiceData.audio_base64 ? `data:audio/mpeg;base64,${voiceData.audio_base64}` : undefined;
+      
       // Update story with generated audio
       const updatedStory: GeneratedStory = {
         ...newStory,
-        audioUrl: voiceData.audioUrl,
+        audioUrl: audioUrl,
         isGenerating: false
       };
 
@@ -335,6 +446,31 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
                     </Button>
                   )}
                 </div>
+
+                {/* QC Controls */}
+                <div className="flex items-center justify-center gap-3 mt-2">
+                  <Button onClick={startCloneWithQC} disabled={isCloning || isGenerating} variant="secondary">
+                    {isCloning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Workflow className="h-4 w-4 mr-2" />}
+                    Start Clone (QC)
+                  </Button>
+                </div>
+
+                {/* QC Metrics */}
+                {currentStory?.qc && (
+                  <div className="flex items-center justify-center gap-3 mt-3 text-sm">
+                    {currentStory.qc.decision === 'pass' ? (
+                      <span className="flex items-center text-green-600"><CheckCircle2 className="h-4 w-4 mr-1" /> QC Pass</span>
+                    ) : (
+                      <span className="flex items-center text-red-600"><XCircle className="h-4 w-4 mr-1" /> QC Fail</span>
+                    )}
+                    {typeof currentStory.qc.wer === 'number' && (
+                      <span className="text-muted-foreground">WER: {(currentStory.qc.wer * 100).toFixed(1)}%</span>
+                    )}
+                    {typeof currentStory.qc.speaker_cosine === 'number' && (
+                      <span className="text-muted-foreground">Cosine: {currentStory.qc.speaker_cosine.toFixed(2)}</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

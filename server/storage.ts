@@ -51,6 +51,7 @@ export interface IStorage {
   // People operations
   getPerson(id: number): Promise<Person | undefined>;
   getPeopleByUserId(userId: number): Promise<Person[]>;
+  getAllPeople(): Promise<Person[]>;
   createPerson(person: InsertPerson): Promise<Person>;
   updatePerson(id: number, person: Partial<InsertPerson>): Promise<Person | undefined>;
   deletePerson(id: number): Promise<boolean>;
@@ -218,6 +219,16 @@ export class DatabaseStorage implements IStorage {
     if (cached) return cached;
 
     const result = await db!.select().from(people).where(eq(people.userId, userId)).orderBy(people.name);
+    cache.set(cacheKey, result, CacheTTL.MEDIUM);
+    return result;
+  }
+
+  async getAllPeople(): Promise<Person[]> {
+    const cacheKey = 'all_people';
+    const cached = cache.get<Person[]>(cacheKey);
+    if (cached) return cached;
+
+    const result = await db!.select().from(people).orderBy(people.name);
     cache.set(cacheKey, result, CacheTTL.MEDIUM);
     return result;
   }
@@ -728,6 +739,7 @@ class MemoryStorage implements IStorage {
 
   async getPerson(id: number) { return undefined as any; }
   async getPeopleByUserId(userId: number) { return [] as any; }
+  async getAllPeople() { return [] as any; }
   async createPerson(person: InsertPerson) { return { ...person, id: 1 } as any; }
   async updatePerson(id: number, person: Partial<InsertPerson>) { return undefined as any; }
   async deletePerson(id: number) { return true; }
