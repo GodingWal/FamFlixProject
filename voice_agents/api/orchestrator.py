@@ -36,134 +36,111 @@ def run_clone_job(job_id: str, payload: Dict[str, Any]):
         jobs.add_event(job_id, "Running policy and cost guard", stage="policy")
         err = _policy_guard(payload)
         if err:
-            jobs.set_error(job_id, err)
+            jobs.set_error(job_id, f"Input unusable: {err}")
             return
 
-        # Ingestion / Preprocess (optional)
+        # Ingestion / Preprocess
         raw_audio_path = payload.get("raw_audio_path")
+        if not raw_audio_path or not os.path.exists(raw_audio_path):
+            jobs.set_error(job_id, "raw_audio_path is required and must exist")
+            return
+
+        jobs.set_status(job_id, "ingesting")
+        jobs.add_event(job_id, "Preprocessing audio", stage="ingestion", data={"raw_audio_path": raw_audio_path})
         clean_wav_path: Optional[str] = None
-        if raw_audio_path:
-            jobs.set_status(job_id, "ingesting")
-            jobs.add_event(job_id, "Preprocessing audio", stage="ingestion", data={"raw_audio_path": raw_audio_path})
-            try:
-                ap = AudioProcessingTool()
-                clean_wav_path = ap._run(raw_audio_path=raw_audio_path, out_dir="/tmp")
-                jobs.add_event(job_id, "Audio preprocessed", stage="ingestion", data={"clean_wav_path": clean_wav_path})
-            except Exception as e:
-                jobs.set_error(job_id, f"audio preprocessing failed: {e}")
-                return
-
-        # Decide path: CrewAI agents or procedural
-        use_crewai = bool(payload.get("use_crewai", True)) or os.getenv("CREWAI_RUN", "false").lower() == "true"
-        audio_b64: Optional[str] = None
-
-        # If OPENAI_API_KEY is not present, disable CrewAI and use procedural path
-        if use_crewai and not (os.getenv("OPENAI_API_KEY") or ""):
-            use_crewai = False
-
-        if use_crewai and (os.getenv("OPENAI_API_KEY") or ""):
-            try:
-                jobs.set_status(job_id, "agents_running")
-                jobs.add_event(job_id, "Building CrewAI context", stage="agents")
-                defaults = payload.get("defaults") or {}
-                context = {
-                    "raw_audio_path": clean_wav_path or payload.get("raw_audio_path"),
-                    "voice_id": payload["voice_id"],
-                    "text": payload["text"],
-                    "mode": payload.get("mode", "narration"),
-                    "defaults": {
-                        "stability": float(defaults.get("stability", os.getenv("STABILITY_DEFAULT", "0.55"))),
-                        "dialogue_stability": float(defaults.get("dialogue_stability", os.getenv("DIALOGUE_STABILITY_DEFAULT", "0.35"))),
-                        "similarity_boost": float(defaults.get("similarity_boost", os.getenv("SIMILARITY_DEFAULT", "0.7"))),
-                        "style": float(defaults.get("style", os.getenv("STYLE_DEFAULT", "0.0"))),
-                        "speed": float(defaults.get("speed", os.getenv("SPEED_DEFAULT", "1.0"))),
-                    },
-                    "gates": (payload.get("qc") or {}),
-                }
-                crew = build_voice_crew(context)
-                if crew is None:
-                    raise RuntimeError("crewai not available")
-                # Run sequential crew; tools do the heavy lifting
-                result = crew.kickoff()
-                # We don't have a standardized artifact path; return simple TTS as minimal output for now
-                # Keep compatibility by synthesizing a preview using provided voice
-                jobs.add_event(job_id, "Crew complete, generating preview", stage="agents")
-                mode = context["mode"]
-                audio_b64 = synthesize_with_elevenlabs_simple(
-                    voice_id=context["voice_id"], text=context["text"], mode=mode
-                )
-            except Exception as e:
-                jobs.add_event(job_id, f"CrewAI failed, falling back: {e}", stage="agents")
-                use_crewai = False
-
-        if not use_crewai:
-            # Procedural TTS fallback
-            jobs.set_status(job_id, "synthesizing")
-            mode = payload.get("mode", "narration")
-            audio_b64 = synthesize_with_elevenlabs_simple(
-                voice_id=payload["voice_id"], text=payload["text"], mode=mode
-            )
-            if not audio_b64:
-                jobs.set_error(job_id, "tts generation failed")
-                return
-
-        # Persist preview audio to disk for QC
-        preview_mp3_path = f"/tmp/job_{job_id}_preview.mp3"
-        preview_wav_path = f"/tmp/job_{job_id}_preview.wav"
         try:
-            if audio_b64:
-                import base64
-                with open(preview_mp3_path, "wb") as f:
-                    f.write(base64.b64decode(audio_b64))
-                # Try to convert to WAV (best for librosa/whisper)
-                try:
-                    import librosa, soundfile as sf
-                    y, sr = librosa.load(preview_mp3_path, sr=16000, mono=True)
-                    if y.size > 0:
-                        sf.write(preview_wav_path, y, 16000, subtype="PCM_16")
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-        # QC (optional)
-        jobs.set_status(job_id, "verifying")
-        qc_metrics: Dict[str, Any] = {}
-        try:
-            if clean_wav_path:
-                qc = QualityControlTool()
-                gates = payload.get("qc", {})
-                max_wer = float(gates.get("max_wer", 0.15))
-                min_cosine = float(gates.get("min_cosine", 0.80))
-                retry = {
-                    "cosine_bump_similarity": float(gates.get("cosine_bump_similarity", 0.05)),
-                    "similarity_cap": float(gates.get("similarity_cap", 0.90)),
-                    "cosine_bump_stability": float(gates.get("cosine_bump_stability", 0.05)),
-                    "stability_cap": float(gates.get("stability_cap", 0.75)),
-                }
-                # Choose WAV if we managed to convert, else MP3
-                out_path = preview_wav_path if os.path.exists(preview_wav_path) else preview_mp3_path
-                qc_metrics = qc._run(
-                    text=payload["text"],
-                    gen_wav_path=out_path,
-                    ref_voice_wav=clean_wav_path,
-                    gates={"max_wer": max_wer, "min_cosine": min_cosine},
-                    retry=retry,
-                )
-            else:
-                qc_metrics = {"decision": "pass", "metrics": {}}
+            ap = AudioProcessingTool()
+            clean_wav_path = ap._run(raw_audio_path=raw_audio_path, out_dir="/tmp")
+            if not clean_wav_path or not os.path.exists(clean_wav_path):
+                raise RuntimeError("Audio processing failed to produce an output file.")
+            jobs.add_event(job_id, "Audio preprocessed", stage="ingestion", data={"clean_wav_path": clean_wav_path})
         except Exception as e:
-            qc_metrics = {"decision": "pass", "metrics": {}, "notes": f"qc skipped: {e}"}
+            jobs.set_error(job_id, f"Audio preprocessing failed: {e}")
+            return
 
-        result = {
-            "voice_id": payload["voice_id"],
-            "audio_base64": audio_b64,
-            "qc": qc_metrics,
-            "clean_wav_path": clean_wav_path,
+        # Synthesize audio for comparison
+        jobs.set_status(job_id, "synthesizing")
+        mode = payload.get("mode", "narration")
+        text = payload.get("text", "")
+        voice_id = payload.get("voice_id", "")
+        audio_b64 = synthesize_with_elevenlabs_simple(voice_id=voice_id, text=text, mode=mode)
+
+        if not audio_b64:
+            jobs.set_error(job_id, "TTS generation failed")
+            return
+
+        # Persist synthesized audio to disk for QC
+        gen_wav_path = f"/tmp/job_{job_id}_preview.wav"
+        try:
+            import base64
+            import librosa
+            import soundfile as sf
+            mp3_path = gen_wav_path.replace(".wav", ".mp3")
+            with open(mp3_path, "wb") as f:
+                f.write(base64.b64decode(audio_b64))
+            y, sr = librosa.load(mp3_path, sr=16000, mono=True)
+            sf.write(gen_wav_path, y, 16000, subtype="PCM_16")
+        except Exception as e:
+            jobs.set_error(job_id, f"Failed to prepare generated audio for QC: {e}")
+            return
+
+        # Quality Control
+        jobs.set_status(job_id, "verifying")
+        qc_config = payload.get("qc", {})
+        gates = {
+            "max_wer": float(qc_config.get("max_wer", 0.15)),
+            "min_cosine": float(qc_config.get("min_cosine", 0.80)),
         }
-        jobs.set_result(job_id, result)
+        retry_config = {
+            "cosine_bump_similarity": float(qc_config.get("cosine_bump_similarity", 0.05)),
+            "similarity_cap": float(qc_config.get("similarity_cap", 0.90)),
+            "cosine_bump_stability": float(qc_config.get("cosine_bump_stability", 0.05)),
+            "stability_cap": float(qc_config.get("stability_cap", 0.75)),
+        }
+
+        try:
+            qc_tool = QualityControlTool()
+            qc_result = qc_tool._run(
+                text=text,
+                gen_wav_path=gen_wav_path,
+                ref_voice_wav=clean_wav_path,
+                gates=gates,
+                retry=retry_config,
+            )
+        except Exception as e:
+            jobs.set_error(job_id, f"QC check failed: {e}")
+            return
+
+        # Final Result Assembly
+        final_decision = qc_result.get("decision", "fail")
+        if final_decision == "pass":
+            ok_status = {"ok": True, "reason": "checks passed"}
+            jobs.set_status(job_id, "completed")
+        else:
+            ok_status = {"ok": False, "reason": f"QC failed: {qc_result.get('notes', 'unspecified')}"}
+            jobs.set_status(job_id, "failed")
+
+        defaults = payload.get("defaults", {})
+        settings_used = {
+             "stability": float(defaults.get("stability", os.getenv("STABILITY_DEFAULT", "0.55"))),
+             "similarity_boost": float(defaults.get("similarity_boost", os.getenv("SIMILARITY_DEFAULT", "0.7"))),
+             "style": float(defaults.get("style", os.getenv("STYLE_DEFAULT", "0.0"))),
+             "speed": float(defaults.get("speed", os.getenv("SPEED_DEFAULT", "1.0"))),
+        }
+
+        result_payload = {
+            **ok_status,
+            "decision": final_decision,
+            "metrics": qc_result.get("metrics"),
+            "clean_wav_path": clean_wav_path,
+            "gen_wav_path": gen_wav_path,
+            "settings_used": settings_used,
+        }
+
+        jobs.set_result(job_id, result_payload)
+
     except Exception as e:
-        jobs.set_error(job_id, f"orchestration error: {e}")
+        jobs.set_error(job_id, f"Orchestration error: {e}")
 
 
 def start_clone_job_async(job_id: str, payload: Dict[str, Any]):

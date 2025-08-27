@@ -2,12 +2,13 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { log } from '../vite';
 import { storage } from '../storage';
-import { insertPersonSchema, insertFaceImageSchema } from '@shared/schema';
+import { insertPersonSchema, insertFaceImageSchema, insertVoiceProfileSchema } from '@shared/schema';
 
 const router = Router();
 
-// Voice agent base URL (FastAPI or CrewAI). Defaults to local dev port 5050
-const VOICE_AGENT_URL = process.env.VOICE_AGENT_URL || 'http://127.0.0.1:5050';
+// Voice agent base URL (FastAPI or CrewAI). Defaults to local dev port 8001
+const VOICE_AGENT_URL = process.env.VOICE_AGENT_URL || 'http://127.0.0.1:8001';
+const VOICE_AGENT_API_KEY = process.env.VOICE_AGENT_API_KEY || '';
 const CREWAI_API_KEY = process.env.CREWAI_API_KEY || '';
 const DEFAULT_VOICE_ID = process.env.DEFAULT_VOICE_ID;
 
@@ -17,7 +18,7 @@ async function resolveDefaultVoiceId(): Promise<string | null> {
       return DEFAULT_VOICE_ID.trim();
     }
     const url = `${VOICE_AGENT_URL}/api/voices`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: { 'X-API-Key': VOICE_AGENT_API_KEY } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     const voices = Array.isArray(data) ? data : [];
@@ -275,6 +276,93 @@ router.delete('/voiceRecordings/:id', async (req, res) => {
   }
 });
 
+// Voice Profiles ---------------------------------------------------------------
+const voiceProfileBody = insertVoiceProfileSchema.pick({
+  userId: true,
+  personId: true,
+  name: true,
+  elevenlabsVoiceId: true,
+  status: true,
+  sourceRecordingId: true,
+});
+
+// Get all voice profiles for a user
+router.get('/users/:userId/voice-profiles', async (req, res) => {
+  try {
+    const { userId } = userIdParam.parse(req.params);
+    const profiles = await storage.getVoiceProfilesByUserId(userId);
+    return res.json(profiles);
+  } catch (error) {
+    setDbUnavailable(res);
+    return res.status(503).json({ message: 'Database not available' });
+  }
+});
+
+// Get all voice profiles for a person
+router.get('/people/:personId/voice-profiles', async (req, res) => {
+  try {
+    const { personId } = personIdParam.parse(req.params);
+    const profiles = await storage.getVoiceProfilesByPersonId(personId);
+    return res.json(profiles);
+  } catch (error) {
+    setDbUnavailable(res);
+    return res.status(503).json({ message: 'Database not available' });
+  }
+});
+
+
+// Get a single voice profile
+router.get('/voice-profiles/:id', async (req, res) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    const profile = await storage.getVoiceProfile(id);
+    if (!profile) return res.status(404).json({ message: 'Not found' });
+    return res.json(profile);
+  } catch (error) {
+    setDbUnavailable(res);
+    return res.status(503).json({ message: 'Database not available' });
+  }
+});
+
+// Create a new voice profile
+router.post('/voice-profiles', async (req, res) => {
+  try {
+    const data = voiceProfileBody.parse(req.body);
+    const created = await storage.createVoiceProfile(data);
+    return res.status(201).json(created);
+  } catch (error) {
+    log(`Create voice profile error: ${(error as Error).message}`, 'routes');
+    setDbUnavailable(res);
+    return res.status(503).json({ message: 'Database not available' });
+  }
+});
+
+// Update a voice profile
+router.patch('/voice-profiles/:id', async (req, res) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    const data = voiceProfileBody.partial().parse(req.body);
+    const updated = await storage.updateVoiceProfile(id, data);
+    if (!updated) return res.status(404).json({ message: 'Not found' });
+    return res.json(updated);
+  } catch (error) {
+    setDbUnavailable(res);
+    return res.status(503).json({ message: 'Database not available' });
+  }
+});
+
+// Delete a voice profile
+router.delete('/voice-profiles/:id', async (req, res) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    const ok = await storage.deleteVoiceProfile(id);
+    return res.json({ success: ok });
+  } catch (error) {
+    setDbUnavailable(res);
+    return res.status(503).json({ message: 'Database not available' });
+  }
+});
+
 // Voice AI endpoints (stubs) --------------------------------------------------
 const voicePreviewBody = z.object({
   // Prefer voiceId for direct ElevenLabs mapping; personId kept for future mapping
@@ -289,7 +377,7 @@ const voicePreviewBody = z.object({
 router.get('/voice/voices', async (_req: Request, res: Response) => {
   try {
     const url = `${VOICE_AGENT_URL}/api/voices`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: { 'X-API-Key': VOICE_AGENT_API_KEY } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     return res.json(Array.isArray(data) ? data : []);
@@ -317,6 +405,7 @@ router.post('/voice/preview', async (req: Request, res: Response) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-API-Key': VOICE_AGENT_API_KEY,
           ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
         },
         body: JSON.stringify({
@@ -387,7 +476,10 @@ router.post('/voice/clone-speech', async (req: Request, res: Response) => {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-API-Key': VOICE_AGENT_API_KEY
+        },
         body: JSON.stringify({
           voice_id: voiceId,
           text: input.text,
@@ -427,6 +519,7 @@ router.post('/voice/clone/start', async (req: Request, res: Response) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-API-Key': VOICE_AGENT_API_KEY,
         ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
       },
       body: JSON.stringify(req.body),
@@ -453,6 +546,7 @@ router.get('/voice/jobs/:id', async (req: Request, res: Response) => {
     const url = `${VOICE_AGENT_URL}/api/jobs/${encodeURIComponent(id)}`;
     const response = await fetch(url, {
       headers: {
+        'X-API-Key': VOICE_AGENT_API_KEY,
         ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
       },
     });
@@ -592,6 +686,134 @@ router.post('/ai/generate-story', async (req: Request, res: Response) => {
     };
     
     return res.json(story);
+  } catch (error) {
+    log(`Story generation error: ${(error as Error).message}`, 'routes');
+    return res.status(500).json({ 
+      message: 'Failed to generate story',
+      error: (error as Error).message 
+    });
+  }
+});
+
+// AI Story Generation with Voice Agents Integration
+router.post('/voice/generate-story', async (req, res) => {
+  try {
+    const { theme, ageGroup, duration, characters, moralLesson, setting, voiceId } = req.body;
+    
+    // Validate required fields
+    if (!theme || !theme.trim()) {
+      return res.status(400).json({ message: 'Story theme is required' });
+    }
+
+    // Try to use the voice agents crew system for enhanced story generation
+    try {
+      const crewResponse = await fetch(`${VOICE_AGENT_URL}/api/generate-story`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-API-Key': VOICE_AGENT_API_KEY,
+          ...(CREWAI_API_KEY && { 'Authorization': `Bearer ${CREWAI_API_KEY}` })
+        },
+        body: JSON.stringify({
+          theme,
+          age_group: ageGroup,
+          duration,
+          characters,
+          moral_lesson: moralLesson,
+          setting,
+          voice_id: voiceId
+        })
+      });
+
+      if (crewResponse.ok) {
+        const aiStory = await crewResponse.json();
+        log(`AI story generated successfully: ${aiStory.title}`, 'routes');
+        return res.json(aiStory);
+      }
+      
+      log(`Voice agent unavailable, using fallback generation`, 'routes');
+    } catch (voiceAgentError) {
+      log(`Voice agent error: ${(voiceAgentError as Error).message}`, 'routes');
+    }
+
+    // Enhanced fallback story generation
+    const storyTemplates = {
+      adventure: {
+        titles: [
+          `The ${theme.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Quest`,
+          `Adventures in ${setting || 'the Magic Kingdom'}`,
+          `${characters[0] || 'Our Hero'} and the ${theme}`
+        ],
+        openings: [
+          `In the ${setting || 'enchanted kingdom'}, ${characters[0] || 'our brave hero'} discovered something magical about ${theme}.`,
+          `Once upon a time, when ${characters[0] || 'a curious child'} was exploring ${setting || 'a mysterious place'}, they learned about ${theme}.`,
+          `Long ago, in ${setting || 'a land far away'}, there lived ${characters[0] || 'a kind soul'} who would soon understand the true meaning of ${theme}.`
+        ],
+        developments: [
+          `As ${characters[0] || 'our hero'} journeyed deeper into their adventure, they met ${characters[1] || 'a wise friend'} who taught them about ${moralLesson || 'courage'}.`,
+          `But then, a challenge appeared that tested everything they knew about ${moralLesson || 'friendship'}.`,
+          `${characters[1] || 'A helpful companion'} showed them that ${moralLesson || 'kindness'} was more powerful than any magic.`
+        ],
+        climaxes: [
+          `When the biggest challenge came, ${characters[0] || 'our hero'} remembered the lesson about ${moralLesson || 'being brave'} and knew exactly what to do.`,
+          `Through ${moralLesson || 'determination'} and working together, they overcame every obstacle.`,
+          `With ${moralLesson || 'love'} in their heart, ${characters[0] || 'our hero'} found the strength to help everyone.`
+        ],
+        endings: [
+          `And so, ${characters.join(' and ')} learned that ${moralLesson || 'friendship and kindness'} can overcome any challenge. The end.`,
+          `From that day forward, they always remembered that ${moralLesson || 'being good to others'} makes the world a better place.`,
+          `They returned home wiser and happier, knowing that ${moralLesson || 'love'} is the greatest adventure of all.`
+        ]
+      }
+    };
+
+    const template = storyTemplates.adventure;
+    const randomChoice = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+    
+    const story = {
+      title: randomChoice(template.titles),
+      description: `An enchanting tale about ${theme} that teaches children about ${moralLesson || 'important values'} for ages ${ageGroup}.`,
+      script: [
+        {
+          character: characters[0] || 'Narrator',
+          dialogue: randomChoice(template.openings),
+          emotion: 'cheerful',
+          timing: 0,
+          voiceId: voiceId || undefined
+        },
+        {
+          character: characters[1] || 'Character',
+          dialogue: randomChoice(template.developments),
+          emotion: 'curious',
+          timing: Math.floor(duration * 0.2)
+        },
+        {
+          character: characters[0] || 'Narrator',
+          dialogue: `${characters[0] || 'Our hero'} thought carefully about what to do. They remembered that ${moralLesson || 'being kind'} was always the right choice.`,
+          emotion: 'thoughtful',
+          timing: Math.floor(duration * 0.4)
+        },
+        {
+          character: characters[1] || 'Character',
+          dialogue: randomChoice(template.climaxes),
+          emotion: 'excited',
+          timing: Math.floor(duration * 0.6)
+        },
+        {
+          character: characters[0] || 'Narrator',
+          dialogue: randomChoice(template.endings),
+          emotion: 'warm',
+          timing: Math.floor(duration * 0.8)
+        }
+      ],
+      duration: duration,
+      category: 'adventure',
+      ageRange: ageGroup
+    };
+    
+    log(`Generated enhanced story: ${story.title}`, 'routes');
+    return res.json(story);
+    
   } catch (error) {
     log(`Story generation error: ${(error as Error).message}`, 'routes');
     return res.status(500).json({ 

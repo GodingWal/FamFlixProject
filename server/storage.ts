@@ -1,10 +1,11 @@
 import { 
-  users, faceImages, faceVideos, voiceRecordings, videoTemplates, processedVideos, processedVideoPeople, people, profiles, templates,
+  users, faceImages, faceVideos, voiceRecordings, videoTemplates, processedVideos, processedVideoPeople, people, profiles, templates, voiceProfiles,
   animatedStories, userStorySessions,
   type User, type InsertUser, 
   type FaceImage, type InsertFaceImage,
   type FaceVideo, type InsertFaceVideo,
   type VoiceRecording, type InsertVoiceRecording,
+  type VoiceProfile, type InsertVoiceProfile,
   type VideoTemplate, type InsertVideoTemplate,
   type ProcessedVideo, type InsertProcessedVideo,
   type ProcessedVideoPerson, type InsertProcessedVideoPerson,
@@ -79,6 +80,14 @@ export interface IStorage {
   createVoiceRecording(voiceRecording: InsertVoiceRecording): Promise<VoiceRecording>;
   deleteVoiceRecording(id: number): Promise<boolean>;
   setDefaultVoiceRecording(id: number): Promise<VoiceRecording | undefined>;
+
+  // Voice profile operations
+  getVoiceProfile(id: number): Promise<VoiceProfile | undefined>;
+  getVoiceProfilesByUserId(userId: number): Promise<VoiceProfile[]>;
+  getVoiceProfilesByPersonId(personId: number): Promise<VoiceProfile[]>;
+  createVoiceProfile(voiceProfile: InsertVoiceProfile): Promise<VoiceProfile>;
+  updateVoiceProfile(id: number, voiceProfile: Partial<InsertVoiceProfile>): Promise<VoiceProfile | undefined>;
+  deleteVoiceProfile(id: number): Promise<boolean>;
 
   
   // Video template operations
@@ -297,7 +306,21 @@ export class DatabaseStorage implements IStorage {
     const cacheKey = CacheKeys.personFaceImages(personId);
     const cached = cache.get<FaceImage[]>(cacheKey);
     if (cached) return cached;
-    const result = await db!.select().from(faceImages).where(eq(faceImages.personId, personId));
+    const result = await db!.select({
+      id: faceImages.id,
+      userId: faceImages.userId,
+      personId: faceImages.personId,
+      name: faceImages.name,
+      isDefault: faceImages.isDefault,
+      mlProcessed: faceImages.mlProcessed,
+      sourceVideoId: faceImages.sourceVideoId,
+      expressionType: faceImages.expressionType,
+      createdAt: faceImages.createdAt,
+      // Exclude large fields to prevent memory issues. Fetch them individually.
+      imageUrl: sql<string>`''`,
+      imageData: sql<string>`''`,
+      faceEmbedding: sql`'{}'::jsonb`
+    }).from(faceImages).where(eq(faceImages.personId, personId));
     cache.set(cacheKey, result, CacheTTL.SHORT);
     return result;
   }
@@ -484,6 +507,64 @@ export class DatabaseStorage implements IStorage {
   async deleteVoiceRecording(id: number): Promise<boolean> {
     await db!.delete(voiceRecordings).where(eq(voiceRecordings.id, id));
     return true;
+  }
+
+  // Voice profile operations
+  async getVoiceProfile(id: number): Promise<VoiceProfile | undefined> {
+    const [profile] = await db!.select().from(voiceProfiles).where(eq(voiceProfiles.id, id));
+    return profile;
+  }
+
+  async getVoiceProfilesByUserId(userId: number): Promise<VoiceProfile[]> {
+    const cacheKey = CacheKeys.userVoiceProfiles(userId);
+    const cached = cache.get<VoiceProfile[]>(cacheKey);
+    if (cached) return cached;
+    const result = await db!.select().from(voiceProfiles).where(eq(voiceProfiles.userId, userId));
+    cache.set(cacheKey, result, CacheTTL.MEDIUM);
+    return result;
+  }
+
+  async getVoiceProfilesByPersonId(personId: number): Promise<VoiceProfile[]> {
+    const cacheKey = CacheKeys.personVoiceProfiles(personId);
+    const cached = cache.get<VoiceProfile[]>(cacheKey);
+    if (cached) return cached;
+    const result = await db!.select().from(voiceProfiles).where(eq(voiceProfiles.personId, personId));
+    cache.set(cacheKey, result, CacheTTL.MEDIUM);
+    return result;
+  }
+
+  async createVoiceProfile(insertVoiceProfile: InsertVoiceProfile): Promise<VoiceProfile> {
+    const [profile] = await db!
+      .insert(voiceProfiles)
+      .values(insertVoiceProfile)
+      .returning();
+    cache.del(CacheKeys.userVoiceProfiles(insertVoiceProfile.userId));
+    cache.del(CacheKeys.personVoiceProfiles(insertVoiceProfile.personId));
+    return profile;
+  }
+
+  async updateVoiceProfile(id: number, updateData: Partial<InsertVoiceProfile>): Promise<VoiceProfile | undefined> {
+    const [profile] = await db!
+      .update(voiceProfiles)
+      .set(updateData)
+      .where(eq(voiceProfiles.id, id))
+      .returning();
+    if (profile) {
+      cache.del(CacheKeys.userVoiceProfiles(profile.userId));
+      cache.del(CacheKeys.personVoiceProfiles(profile.personId));
+    }
+    return profile;
+  }
+
+  async deleteVoiceProfile(id: number): Promise<boolean> {
+    const [profile] = await db!.select().from(voiceProfiles).where(eq(voiceProfiles.id, id));
+    if (profile) {
+        await db!.delete(voiceProfiles).where(eq(voiceProfiles.id, id));
+        cache.del(CacheKeys.userVoiceProfiles(profile.userId));
+        cache.del(CacheKeys.personVoiceProfiles(profile.personId));
+        return true;
+    }
+    return false;
   }
 
   // Video template operations
@@ -764,6 +845,13 @@ class MemoryStorage implements IStorage {
   async createVoiceRecording(voiceRecording: InsertVoiceRecording) { return { ...voiceRecording, id: 1 } as any; }
   async deleteVoiceRecording(id: number) { return true; }
   async setDefaultVoiceRecording(id: number) { return undefined as any; }
+
+  async getVoiceProfile(id: number) { return undefined as any; }
+  async getVoiceProfilesByUserId(userId: number) { return [] as any; }
+  async getVoiceProfilesByPersonId(personId: number) { return [] as any; }
+  async createVoiceProfile(voiceProfile: InsertVoiceProfile) { return { ...voiceProfile, id: 1 } as any; }
+  async updateVoiceProfile(id: number, voiceProfile: Partial<InsertVoiceProfile>) { return undefined as any; }
+  async deleteVoiceProfile(id: number) { return true; }
 
   async getVideoTemplate(id: number) { return undefined as any; }
   async getAllVideoTemplates() { return [] as any; }

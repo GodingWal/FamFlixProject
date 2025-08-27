@@ -1,10 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, status, Security, APIRouter, Request, Response
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import Optional, Literal, List, Dict, Any
 import os
 import json
 import yaml
 import base64
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 """
 Optional CrewAI import:
@@ -20,7 +25,39 @@ except Exception:  # crewai or its deps not installed
 from . import jobs
 from .orchestrator import start_clone_job_async
 
+# --- Rate Limiting Setup ---
+limiter = Limiter(key_func=get_remote_address, default_limits=["100 per minute"])
 app = FastAPI(title="VoiceAgents API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- Security --- #
+
+API_KEY = os.getenv("VOICE_AGENT_API_KEY")
+API_KEY_NAME = "X-API-Key"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+async def get_api_key(api_key_header: str = Security(api_key_header)):
+    if not API_KEY:
+        # If no API key is configured on the server, disable auth for local dev.
+        return
+
+    if not api_key_header:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{API_KEY_NAME} header is missing"
+        )
+
+    if api_key_header != API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key"
+        )
+
+# Create a router for protected endpoints
+api_router = APIRouter(dependencies=[Depends(get_api_key)])
+
+
 
 
 class DefaultsModel(BaseModel):
@@ -124,8 +161,9 @@ def _synthesize_with_elevenlabs(req: "TTSRequest") -> Optional[str]:
         return None
 
 
-@app.get("/api/voices", response_model=List[VoiceInfo])
-def list_voices(provider: str = "elevenlabs"):
+@api_router.get("/api/voices", response_model=List[VoiceInfo])
+@limiter.limit("100/minute")
+def list_voices(request: Request, provider: str = "elevenlabs"):
     provider = provider.lower().strip()
     if provider != "elevenlabs":
         return []
@@ -171,8 +209,9 @@ class AgentInfo(BaseModel):
     backstory: Optional[str] = None
 
 
-@app.get("/api/agents", response_model=List[AgentInfo])
-def list_agents():
+@api_router.get("/api/agents", response_model=List[AgentInfo])
+@limiter.limit("100/minute")
+def list_agents(request: Request):
     config_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config')
     agents_yml = os.path.join(config_dir, 'agents.yaml')
     agents: List[AgentInfo] = []
@@ -201,8 +240,9 @@ def list_agents():
     return agents
 
 
-@app.post("/api/tts")
-def synthesize(req: TTSRequest):
+@api_router.post("/api/tts")
+@limiter.limit("60/minute")
+def synthesize(request: Request, req: TTSRequest):
     # Build crew context (not executed by default to avoid heavy deps)
     context = {
         "raw_audio_path": req.raw_audio_path,
@@ -267,32 +307,294 @@ class CloneQC(BaseModel):
 
 
 class CloneStartRequest(BaseModel):
-    # Minimal required fields
+    # Core fields from form data
     text: str
     voice_id: str
     mode: Literal["narration", "dialogue"] = "narration"
     provider: Literal["elevenlabs"] = "elevenlabs"
     consent_flag: bool = True
 
-    # Optional inputs for cloning/QC
-    raw_audio_path: Optional[str] = None
+    # Nested JSON objects for detailed config
     limits: CloneLimits = CloneLimits()
     qc: CloneQC = CloneQC()
+    defaults: DefaultsModel = DefaultsModel()
 
 
-@app.post("/api/clone/start")
-def start_clone(req: CloneStartRequest):
+from fastapi import Depends, UploadFile, File, Form, Request
+from uuid import uuid4
+
+def get_clone_request(
+    text: str = Form(...),
+    voice_id: str = Form(...),
+    mode: Literal["narration", "dialogue"] = Form("narration"),
+    provider: Literal["elevenlabs"] = Form("elevenlabs"),
+    consent_flag: bool = Form(True),
+    limits: str = Form("{}"), # JSON string
+    qc: str = Form("{}"),       # JSON string
+    defaults: str = Form("{}") # JSON string
+) -> CloneStartRequest:
+    return CloneStartRequest(
+        text=text,
+        voice_id=voice_id,
+        mode=mode,
+        provider=provider,
+        consent_flag=consent_flag,
+        limits=CloneLimits(**json.loads(limits)),
+        qc=CloneQC(**json.loads(qc)),
+        defaults=DefaultsModel(**json.loads(defaults))
+    )
+
+
+@api_router.post("/api/clone/start")
+@limiter.limit("20/minute")
+def start_clone(
+    request: Request,
+    file: UploadFile = File(...),
+    req: CloneStartRequest = Depends(get_clone_request)
+):
+    # Save uploaded file to the shared Docker volume
+    storage_dir = "/tmp/clone_uploads"
+    os.makedirs(storage_dir, exist_ok=True)
+    # Sanitize filename to prevent directory traversal
+    safe_filename = os.path.basename(file.filename or "unknown_file")
+    raw_audio_path = os.path.join(storage_dir, f"{uuid4().hex}_{safe_filename}")
+    with open(raw_audio_path, "wb") as f:
+        f.write(file.file.read())
+
     payload: Dict[str, Any] = req.model_dump()
+    payload["raw_audio_path"] = raw_audio_path
+
     job = jobs.create_job(payload)
     jobs.add_event(job["id"], "Job created", stage="queued")
     start_clone_job_async(job["id"], payload)
     return {"jobId": job["id"], "status": job["status"]}
 
 
-@app.get("/api/jobs/{job_id}")
-def get_job(job_id: str):
+@api_router.get("/api/jobs/{job_id}")
+@limiter.limit("120/minute")
+def get_job(request: Request, job_id: str):
     job = jobs.get_job(job_id)
     if not job:
         return {"error": "job not found"}
     return job
+
+
+# -----------------------------------------------------------------------------
+# AI Story Generation with CrewAI Integration
+
+class StoryRequest(BaseModel):
+    theme: str
+    age_group: str = "4-6"
+    duration: int = 180
+    characters: List[str] = ["Narrator"]
+    moral_lesson: Optional[str] = None
+    setting: Optional[str] = None
+    voice_id: Optional[str] = None
+
+
+class StoryScript(BaseModel):
+    character: str
+    dialogue: str
+    emotion: str
+    timing: int
+    voiceId: Optional[str] = None
+
+
+class GeneratedStory(BaseModel):
+    title: str
+    description: str
+    script: List[StoryScript]
+    duration: int
+    category: str
+    ageRange: str
+
+
+@api_router.post("/api/generate-story", response_model=GeneratedStory)
+@limiter.limit("30/minute")
+def generate_story(request: Request, req: StoryRequest):
+    """Generate an AI-powered children's story using CrewAI agents."""
+    
+    # Build crew context for story generation
+    context = {
+        "theme": req.theme,
+        "age_group": req.age_group,
+        "duration": req.duration,
+        "characters": req.characters,
+        "moral_lesson": req.moral_lesson,
+        "setting": req.setting,
+        "voice_id": req.voice_id,
+        "task_type": "story_generation"
+    }
+    
+    # Try to use CrewAI for enhanced story generation
+    if os.getenv("CREWAI_RUN", "false").lower() == "true":
+        try:
+            crew = build_voice_crew(context)
+            if crew:
+                # This would run the crew to generate a story
+                # For now, we'll use enhanced templates
+                pass
+        except Exception:
+            pass
+    
+    # Enhanced story generation with better templates
+    story_templates = {
+        "adventure": {
+            "titles": [
+                f"The Great {req.theme} Adventure",
+                f"{req.characters[0] if req.characters else 'Our Hero'} and the {req.theme}",
+                f"Journey to {req.setting or 'the Magic Kingdom'}"
+            ],
+            "openings": [
+                f"In the {req.setting or 'enchanted kingdom'}, {req.characters[0] if req.characters else 'our brave hero'} discovered something magical about {req.theme}.",
+                f"Once upon a time, when {req.characters[0] if req.characters else 'a curious child'} was exploring {req.setting or 'a mysterious place'}, they learned about {req.theme}.",
+                f"Long ago, in {req.setting or 'a land far away'}, there lived {req.characters[0] if req.characters else 'a kind soul'} who would soon understand the true meaning of {req.theme}."
+            ],
+            "developments": [
+                f"As {req.characters[0] if req.characters else 'our hero'} journeyed deeper into their adventure, they met {req.characters[1] if len(req.characters) > 1 else 'a wise friend'} who taught them about {req.moral_lesson or 'courage'}.",
+                f"But then, a challenge appeared that tested everything they knew about {req.moral_lesson or 'friendship'}.",
+                f"{req.characters[1] if len(req.characters) > 1 else 'A helpful companion'} showed them that {req.moral_lesson or 'kindness'} was more powerful than any magic."
+            ],
+            "climaxes": [
+                f"When the biggest challenge came, {req.characters[0] if req.characters else 'our hero'} remembered the lesson about {req.moral_lesson or 'being brave'} and knew exactly what to do.",
+                f"Through {req.moral_lesson or 'determination'} and working together, they overcame every obstacle.",
+                f"With {req.moral_lesson or 'love'} in their heart, {req.characters[0] if req.characters else 'our hero'} found the strength to help everyone."
+            ],
+            "endings": [
+                f"And so, {' and '.join(req.characters) if req.characters else 'our heroes'} learned that {req.moral_lesson or 'friendship and kindness'} can overcome any challenge. The end.",
+                f"From that day forward, they always remembered that {req.moral_lesson or 'being good to others'} makes the world a better place.",
+                f"They returned home wiser and happier, knowing that {req.moral_lesson or 'love'} is the greatest adventure of all."
+            ]
+        }
+    }
+    
+    import random
+    template = story_templates["adventure"]
+    
+    # Generate story with random template selections
+    story = GeneratedStory(
+        title=random.choice(template["titles"]),
+        description=f"An enchanting tale about {req.theme} that teaches children about {req.moral_lesson or 'important values'} for ages {req.age_group}.",
+        script=[
+            StoryScript(
+                character=req.characters[0] if req.characters else "Narrator",
+                dialogue=random.choice(template["openings"]),
+                emotion="cheerful",
+                timing=0,
+                voiceId=req.voice_id
+            ),
+            StoryScript(
+                character=req.characters[1] if len(req.characters) > 1 else "Character",
+                dialogue=random.choice(template["developments"]),
+                emotion="curious",
+                timing=int(req.duration * 0.2)
+            ),
+            StoryScript(
+                character=req.characters[0] if req.characters else "Narrator",
+                dialogue=f"{req.characters[0] if req.characters else 'Our hero'} thought carefully about what to do. They remembered that {req.moral_lesson or 'being kind'} was always the right choice.",
+                emotion="thoughtful",
+                timing=int(req.duration * 0.4)
+            ),
+            StoryScript(
+                character=req.characters[1] if len(req.characters) > 1 else "Character",
+                dialogue=random.choice(template["climaxes"]),
+                emotion="excited",
+                timing=int(req.duration * 0.6)
+            ),
+            StoryScript(
+                character=req.characters[0] if req.characters else "Narrator",
+                dialogue=random.choice(template["endings"]),
+                emotion="warm",
+                timing=int(req.duration * 0.8)
+            )
+        ],
+        duration=req.duration,
+        category="adventure",
+        ageRange=req.age_group
+    )
+    
+    return story
+
+
+# -----------------------------------------------------------------------------
+# Multi-Voice Story Audio Generation
+
+class VoiceAssignment(BaseModel):
+    character: str
+    voice_id: str
+    person_name: Optional[str] = None
+
+
+class StoryAudioRequest(BaseModel):
+    story_script: List[StoryScript]
+    voice_assignments: List[VoiceAssignment] = []
+    default_voice_id: Optional[str] = None
+
+
+class AudioSegment(BaseModel):
+    character: str
+    audio_base64: str
+    timing: int
+    duration: float
+    voice_id: str
+
+
+class StoryAudioResponse(BaseModel):
+    segments: List[AudioSegment]
+    total_duration: float
+    combined_audio_base64: Optional[str] = None
+
+
+@api_router.post("/api/generate-story-audio", response_model=StoryAudioResponse)
+@limiter.limit("30/minute")
+def generate_story_audio(request: Request, req: StoryAudioRequest):
+    """Generate audio for a complete story with multiple voices."""
+    
+    segments = []
+    total_duration = 0.0
+    
+    # Create voice mapping from assignments
+    voice_map = {assignment.character: assignment.voice_id for assignment in req.voice_assignments}
+    
+    for script_item in req.story_script:
+        # Determine voice ID for this character
+        voice_id = voice_map.get(script_item.character) or script_item.voiceId or req.default_voice_id
+        
+        if not voice_id:
+            # Skip if no voice assigned
+            continue
+            
+        # Create TTS request for this segment
+        tts_req = TTSRequest(
+            voice_id=voice_id,
+            text=script_item.dialogue,
+            mode="narration" if script_item.character.lower() == "narrator" else "dialogue"
+        )
+        
+        # Generate audio for this segment
+        audio_b64 = _synthesize_with_elevenlabs(tts_req)
+        
+        if audio_b64:
+            # Estimate duration (rough calculation: ~150 words per minute)
+            word_count = len(script_item.dialogue.split())
+            estimated_duration = (word_count / 150) * 60  # seconds
+            
+            segments.append(AudioSegment(
+                character=script_item.character,
+                audio_base64=audio_b64,
+                timing=script_item.timing,
+                duration=estimated_duration,
+                voice_id=voice_id
+            ))
+            
+            total_duration += estimated_duration
+    
+    return StoryAudioResponse(
+        segments=segments,
+        total_duration=total_duration
+    )
+
+
+# Include the protected router in the main app
+app.include_router(api_router)
 

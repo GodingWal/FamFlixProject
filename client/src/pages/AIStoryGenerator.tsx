@@ -83,44 +83,94 @@ export function AIStoryGenerator() {
 
   const generateStoryMutation = useMutation({
     mutationFn: async (request: StoryRequest) => {
-      // Client-side story generation as fallback
-      const story = {
-        title: `The Adventure of ${request.characters[0] || 'Our Hero'}`,
-        description: `A wonderful story about ${request.theme} for children aged ${request.ageGroup}.`,
-        script: [
-          {
-            character: request.characters[0] || 'Narrator',
-            dialogue: `Once upon a time, there was a story about ${request.theme}.`,
-            emotion: 'cheerful',
-            timing: 0
-          },
-          {
-            character: request.characters[1] || 'Character',
-            dialogue: `This is an exciting adventure that teaches us about ${request.moralLesson || 'friendship'}.`,
-            emotion: 'excited',
-            timing: Math.floor(request.duration * 0.3)
-          },
-          {
-            character: request.characters[0] || 'Narrator',
-            dialogue: `In the ${request.setting || 'magical place'}, our heroes learned valuable lessons.`,
-            emotion: 'warm',
-            timing: Math.floor(request.duration * 0.6)
-          },
-          {
-            character: request.characters[0] || 'Narrator',
-            dialogue: 'And they all lived happily ever after, having learned something wonderful.',
-            emotion: 'warm',
-            timing: Math.floor(request.duration * 0.9)
+      try {
+        // Try to use the voice agents crew system for AI story generation
+        const response = await fetch('/api/voice/generate-story', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            theme: request.theme,
+            ageGroup: request.ageGroup,
+            duration: request.duration,
+            characters: request.characters,
+            moralLesson: request.moralLesson,
+            setting: request.setting,
+            voiceId: selectedVoiceId
+          })
+        });
+
+        if (response.ok) {
+          return response;
+        }
+        
+        // Fallback to enhanced client-side generation
+        console.log('Using fallback story generation');
+        throw new Error('AI service unavailable');
+      } catch (error) {
+        // Enhanced client-side story generation as fallback
+        const storyTemplates = {
+          adventure: {
+            openings: [
+              `In the ${request.setting || 'enchanted kingdom'}, ${request.characters[0] || 'our brave hero'} discovered something magical about ${request.theme}.`,
+              `Once upon a time, when ${request.characters[0] || 'a curious child'} was exploring ${request.setting || 'a mysterious place'}, they learned about ${request.theme}.`
+            ],
+            conflicts: [
+              `But then, a challenge appeared that tested everything they knew about ${request.moralLesson || 'courage'}.`,
+              `Suddenly, ${request.characters[1] || 'a friend'} needed help, and only by understanding ${request.moralLesson || 'friendship'} could they succeed.`
+            ],
+            resolutions: [
+              `Through ${request.moralLesson || 'determination'} and working together, they overcame every obstacle.`,
+              `In the end, they discovered that ${request.moralLesson || 'kindness'} was the most powerful magic of all.`
+            ]
           }
-        ],
-        duration: request.duration,
-        category: 'adventure',
-        ageRange: request.ageGroup
-      };
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      return { json: () => Promise.resolve(story) };
+        };
+
+        const template = storyTemplates.adventure;
+        const story = {
+          title: `The ${request.theme.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Adventure`,
+          description: `An enchanting tale about ${request.theme} that teaches children about ${request.moralLesson || 'important values'}.`,
+          script: [
+            {
+              character: request.characters[0] || 'Narrator',
+              dialogue: template.openings[Math.floor(Math.random() * template.openings.length)],
+              emotion: 'cheerful',
+              timing: 0,
+              voiceId: selectedVoiceId || undefined
+            },
+            {
+              character: request.characters[1] || 'Character',
+              dialogue: template.conflicts[Math.floor(Math.random() * template.conflicts.length)],
+              emotion: 'concerned',
+              timing: Math.floor(request.duration * 0.25)
+            },
+            {
+              character: request.characters[0] || 'Narrator',
+              dialogue: `${request.characters[0] || 'Our hero'} thought carefully about what to do. They remembered that ${request.moralLesson || 'being kind'} was always the right choice.`,
+              emotion: 'thoughtful',
+              timing: Math.floor(request.duration * 0.5)
+            },
+            {
+              character: request.characters[1] || 'Character',
+              dialogue: template.resolutions[Math.floor(Math.random() * template.resolutions.length)],
+              emotion: 'joyful',
+              timing: Math.floor(request.duration * 0.75)
+            },
+            {
+              character: request.characters[0] || 'Narrator',
+              dialogue: `And so, ${request.characters.join(' and ')} learned that ${request.moralLesson || 'friendship and kindness'} can overcome any challenge. The end.`,
+              emotion: 'warm',
+              timing: Math.floor(request.duration * 0.9)
+            }
+          ],
+          duration: request.duration,
+          category: 'adventure',
+          ageRange: request.ageGroup
+        };
+        
+        // Simulate processing time
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        return { json: () => Promise.resolve(story) };
+      }
     },
     onSuccess: async (response) => {
       const story = await response.json();
@@ -398,16 +448,25 @@ export function AIStoryGenerator() {
                 </div>
 
                 <div className="max-h-64 overflow-y-auto space-y-2">
-                  {generatedStory.script.map((scene, index) => (
-                    <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge>{scene.character}</Badge>
-                        <Badge variant="secondary">{scene.emotion}</Badge>
-                        <span className="text-xs text-gray-500">{scene.timing}s</span>
+                  {generatedStory.script.map((scene, index) => {
+                    const assignedPerson = people?.find(p => p.elevenlabsVoiceId === scene.voiceId);
+                    return (
+                      <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge>{scene.character}</Badge>
+                          <Badge variant="secondary">{scene.emotion}</Badge>
+                          {assignedPerson && (
+                            <Badge variant="outline" className="text-xs">
+                              <Volume2 className="h-3 w-3 mr-1" />
+                              {assignedPerson.name}
+                            </Badge>
+                          )}
+                          <span className="text-xs text-gray-500">{scene.timing}s</span>
+                        </div>
+                        <p className="text-sm">{scene.dialogue}</p>
                       </div>
-                      <p className="text-sm">{scene.dialogue}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="flex gap-2">
@@ -424,9 +483,58 @@ export function AIStoryGenerator() {
                     className="flex-1"
                     onClick={async () => {
                       try {
-                        toast({ title: "Generating audio...", description: "Please wait while we create the story narration" });
+                        toast({ title: "Generating multi-voice audio...", description: "Creating personalized narration with family voices" });
                         
-                        // Generate TTS for the story
+                        // Prepare voice assignments for characters
+                        const voiceAssignments = [];
+                        if (selectedVoiceId) {
+                          // Assign selected voice to the main narrator
+                          const narratorCharacter = generatedStory.script.find(s => s.character.toLowerCase().includes('narrator'));
+                          if (narratorCharacter) {
+                            voiceAssignments.push({
+                              character: narratorCharacter.character,
+                              voice_id: selectedVoiceId
+                            });
+                          }
+                        }
+                        
+                        // Try multi-voice generation first
+                        const multiVoiceResponse = await fetch('/api/voice/generate-story-audio', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            story_script: generatedStory.script,
+                            voice_assignments: voiceAssignments,
+                            default_voice_id: selectedVoiceId || undefined
+                          })
+                        });
+                        
+                        if (multiVoiceResponse.ok) {
+                          const audioData = await multiVoiceResponse.json();
+                          
+                          if (audioData.segments && audioData.segments.length > 0) {
+                            // Play the first segment as a preview
+                            const firstSegment = audioData.segments[0];
+                            const audio = new Audio(`data:audio/mpeg;base64,${firstSegment.audio_base64}`);
+                            
+                            audio.play().then(() => {
+                              toast({ 
+                                title: "Playing story preview", 
+                                description: `Generated ${audioData.segments.length} voice segments (${Math.round(audioData.total_duration)}s total)`
+                              });
+                            }).catch(err => {
+                              console.error("Audio playback error:", err);
+                              toast({ 
+                                title: "Playback failed", 
+                                description: "Multi-voice audio generated but couldn't play",
+                                variant: "destructive" 
+                              });
+                            });
+                            return;
+                          }
+                        }
+                        
+                        // Fallback to single voice generation
                         const fullScript = generatedStory.script.map(s => s.dialogue).join(' ');
                         
                         const response = await fetch('/api/voice/preview', {

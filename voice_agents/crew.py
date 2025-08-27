@@ -1,7 +1,7 @@
 from crewai import Agent, Task, Crew
 import yaml
 import os
-from .tools import ElevenLabsTool, AudioProcessingTool, QualityControlTool
+from .tools import PreProcessingTool, ElevenLabsTool, AudioProcessingTool, QualityControlTool
 
 
 AUDIO_ENGINEER_PROMPT = (
@@ -86,6 +86,17 @@ def build_voice_crew(context: dict) -> Crew:
         tools=[ElevenLabsTool()],
     )
 
+    supervisor = Agent(
+        **({
+            'role': 'Supervisor',
+            'goal': 'Enforce consent, provider lock (ElevenLabs-only), and simple rate/cost guards before synthesis',
+            'backstory': 'You are a compliance specialist who stops processes early if something is off. You verify consent, provider, and rate limits.',
+        } if agents_cfg is None else agents_cfg.get('supervisor', {})),
+        allow_delegation=False,
+        verbose=False,
+        tools=[PreProcessingTool()],
+    )
+
     qc = Agent(
         **({
             'role': 'QC Listener',
@@ -112,10 +123,22 @@ def build_voice_crew(context: dict) -> Crew:
         "QUALITY BAR: No other speakers/music; intelligible speech; consistent loudness.\n\n"
         "IF UNUSABLE: Return a clear error message with a brief reason."
     )
+    task_configs = tasks_cfg or {}
+
+    # Task 0: Pre-flight checks
+    pre_flight_task_config = task_configs.get('policy_and_cost_guard_supervision', {})
+    t0 = Task(
+        agent=supervisor,
+        description=pre_flight_task_config.get('description', 'Check consent, provider, and rate limits.').format(**context),
+        context=context,
+        expected_output=pre_flight_task_config.get('expected_output', '{"ok": true, "reason": "checks passed"} or {"ok": false, "reason": "..."}'),
+    )
+
     t1 = Task(
         agent=audio_engineer,
         description=(t1_desc if tasks_cfg is None else tasks_cfg['audio_preprocessing_for_elevenlabs']['description']).format(**context),
         context=context,
+        depends_on=[t0],
         expected_output=(
             '{"clean_wav_path": "/abs/path/to/cleaned_single_speaker.wav"}'
             if tasks_cfg is None else tasks_cfg['audio_preprocessing_for_elevenlabs']['expected_output']
@@ -158,5 +181,5 @@ def build_voice_crew(context: dict) -> Crew:
         expected_output=(t3_expected if tasks_cfg is None else tasks_cfg['audio_quality_control_with_auto_retry']['expected_output']),
     )
 
-    return Crew(agents=[audio_engineer, synth, qc], tasks=[t1, t2, t3], process="sequential")
+    return Crew(agents=[supervisor, audio_engineer, synth, qc], tasks=[t0, t1, t2, t3], process="sequential")
 

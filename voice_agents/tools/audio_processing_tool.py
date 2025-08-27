@@ -8,87 +8,106 @@ except Exception:
         def run(self, *args, **kwargs):
             return self._run(*args, **kwargs)
 
-from typing import Optional
+from typing import Optional, Dict
 import os
-
+import json
 
 class AudioProcessingTool(BaseTool):
-    name: str = "Audio Preprocessing"
-    description: str = "Resample 16k mono, VAD trim, light denoise, loudness normalize; return path to clean WAV"
+    name: str = "Audio Preprocessing Pipeline"
+    description: str = (
+        "Processes a raw audio file through a complete pipeline for TTS/cloning preparation. "
+        "This includes resampling, speaker diarization to isolate the dominant speaker, denoising, "
+        "and loudness normalization. Returns a JSON object with the path to the cleaned audio file or an error."
+    )
 
     def _run(self, raw_audio_path: str, out_dir: Optional[str] = None) -> str:
-        if not os.path.isabs(raw_audio_path):
-            raise ValueError("raw_audio_path must be absolute")
-        out_dir = out_dir or "/tmp"
-        os.makedirs(out_dir, exist_ok=True)
-
-        # Derive output path
-        base = os.path.basename(raw_audio_path)
-        stem = base.rsplit('.', 1)[0]
-        clean_path = os.path.join(out_dir, f"{stem}_clean.wav")
-
-        # Lazy imports to keep lightweight when not used
+        # Lazy imports for heavy dependencies
         try:
             import numpy as np
             import librosa
             import soundfile as sf
             import noisereduce as nr
             import pyloudnorm as pyln
-        except Exception:
-            # If deps missing, just return target path without processing
-            return clean_path
+            from pyannote.audio import Pipeline
+            import torch
+        except ImportError as e:
+            return json.dumps({"error": f"Missing dependency: {e.name}. Please install all audio processing libraries."}) 
 
-        # 1) Load audio as mono at 16k
+        if not os.path.isabs(raw_audio_path):
+            return json.dumps({"error": "raw_audio_path must be an absolute path"})
+        if not os.path.exists(raw_audio_path):
+            return json.dumps({"error": f"Input file not found: {raw_audio_path}"})
+
+        out_dir = out_dir or "/tmp/audio_processing"
+        os.makedirs(out_dir, exist_ok=True)
+
+        base = os.path.basename(raw_audio_path)
+        stem = base.rsplit('.', 1)[0]
+        clean_path = os.path.join(out_dir, f"{stem}_clean.wav")
+
         try:
+            # 1. Load audio at 16k mono
             y, sr = librosa.load(raw_audio_path, sr=16000, mono=True)
-        except Exception:
-            # Unable to load; return target path
-            return clean_path
+            if y.size == 0:
+                return json.dumps({"error": "Input audio is empty"})
 
-        if y.size == 0:
-            return clean_path
+            # 2. Speaker diarization to find and isolate the dominant speaker
+            hf_token = os.getenv("HF_TOKEN")
+            if not hf_token:
+                return json.dumps({"error": "Hugging Face token (HF_TOKEN) not found. Diarization requires it."})
+            
+            pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=hf_token)
+            diarization = pipeline(raw_audio_path)
 
-        # 2) Simple VAD trim using energy-based segmentation
-        try:
-            intervals = librosa.effects.split(y, top_db=25)  # conservative trim
-            if intervals.size > 0:
-                y = np.concatenate([y[s:e] for s, e in intervals])
-        except Exception:
-            pass
+            speaker_turns = {}
+            for turn, _, speaker in diarization.itertracks(yield_label=True):
+                duration = turn.end - turn.start
+                if speaker not in speaker_turns:
+                    speaker_turns[speaker] = 0
+                speaker_turns[speaker] += duration
 
-        # 3) Light denoise
-        try:
-            # Use a small noise reduction to avoid artifacts
-            y = nr.reduce_noise(y=y, sr=16000, prop_decrease=0.6, stationary=True)
-        except Exception:
-            pass
+            if not speaker_turns:
+                return json.dumps({"error": "No speech detected (VAD found no segments)"})
 
-        # 4) Loudness normalize to about -20 LUFS, cap true peak
-        try:
-            meter = pyln.Meter(16000)
+            dominant_speaker = max(speaker_turns, key=speaker_turns.get)
+            total_speech_duration = sum(speaker_turns.values())
+
+            if total_speech_duration < 10.0:
+                return json.dumps({"error": f"Input is unusable. Total detected speech is only {total_speech_duration:.1f}s, which is less than the 10s minimum."})
+
+            # Concatenate segments from the dominant speaker
+            dominant_speaker_audio = []
+            for turn, _, speaker in diarization.itertracks(yield_label=True):
+                if speaker == dominant_speaker:
+                    start_sample = int(turn.start * sr)
+                    end_sample = int(turn.end * sr)
+                    dominant_speaker_audio.append(y[start_sample:end_sample])
+            
+            if not dominant_speaker_audio:
+                 return json.dumps({"error": "Could not isolate dominant speaker audio segments."})
+
+            y = np.concatenate(dominant_speaker_audio)
+
+            # 3. Light denoising
+            y = nr.reduce_noise(y=y, sr=sr, prop_decrease=0.6, stationary=True)
+
+            # 4. Loudness normalize to -20 LUFS, with true peak at -2 dBFS
+            meter = pyln.Meter(sr)
             loudness = meter.integrated_loudness(y)
-            target = -20.0
-            y = pyln.normalize.loudness(y, loudness, target)
-            # Peak safety limiter (soft clip if necessary)
-            peak = float(np.max(np.abs(y))) if y.size else 0.0
-            if peak > 0.98:
-                y = (y / peak) * 0.98
-        except Exception:
-            pass
+            y = pyln.normalize.loudness(y, loudness, -20.0)
+            
+            peak_level = np.max(np.abs(y))
+            target_peak = 10**(-2 / 20) # -2 dBFS in linear scale
+            if peak_level > target_peak:
+                y = y * (target_peak / peak_level)
 
-        # 5) Write WAV 16k mono
-        try:
-            sf.write(clean_path, y, 16000, subtype="PCM_16")
-        except Exception:
-            # Best-effort fallback
-            tmp_path = os.path.join(out_dir, f"{stem}_clean_tmp.wav")
-            try:
-                sf.write(tmp_path, y, 16000)
-                os.replace(tmp_path, clean_path)
-            except Exception:
-                # give up silently
-                return clean_path
+            # 5. Export final WAV file
+            sf.write(clean_path, y, sr, subtype='PCM_16')
 
-        return clean_path
+            return json.dumps({"clean_wav_path": clean_path})
+
+        except Exception as e:
+            return json.dumps({"error": f"An unexpected error occurred during audio processing: {str(e)}"})
+
 
 

@@ -94,11 +94,13 @@ export const CacheKeys = {
   user: (id: number) => `user:${id}`,
   userPeople: (userId: number) => `user:${userId}:people`,
   userSessions: (userId: number) => `user:${userId}:sessions`,
+  userVoiceProfiles: (userId: number) => `user:${userId}:voice_profiles`,
   
   // People-related
   person: (id: number) => `person:${id}`,
   personFaceImages: (personId: number) => `person:${personId}:faces`,
   personVoiceRecordings: (personId: number) => `person:${personId}:voices`,
+  personVoiceProfiles: (personId: number) => `person:${personId}:voice_profiles`,
   
   // Content-related
   videoTemplates: () => 'templates:all',

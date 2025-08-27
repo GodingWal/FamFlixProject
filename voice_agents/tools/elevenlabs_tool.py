@@ -16,142 +16,95 @@ except Exception:
 
 class ElevenLabsTool(BaseTool):
     name: str = "ElevenLabs TTS"
-    description: str = "Generate speech using ElevenLabs API with tuning and caching"
+    description: str = "Generate speech from text using the ElevenLabs API, with support for caching and parameter tuning."
 
     def _run(
         self,
         voice_id: str,
         text: str,
-        settings: Optional[Dict[str, Any]] = None,
-        cache_key: Optional[str] = None,
+        mode: str = "narration",
+        defaults: Optional[Dict[str, Any]] = None,
+        **kwargs
     ) -> str:
-        """
-        Synthesize speech using ElevenLabs. Returns absolute path to generated audio file.
-
-        settings keys supported (all optional):
-        - mode: "narration" | "dialogue" (affects stability selection)
-        - stability, dialogue_stability, similarity_boost, style, speed
-        - model_id (overrides env)
-        - output_format (e.g., "mp3_44100_128")
-        """
-
         api_key = os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")
         if not api_key:
-            raise RuntimeError("Missing ELEVEN_API_KEY/ELEVENLABS_API_KEY for ElevenLabsTool")
+            return json.dumps({"error": "Missing ELEVEN_API_KEY/ELEVENLABS_API_KEY"})
 
-        # Defaults align with voice_agents.api.main.DefaultsModel
-        settings = settings or {}
-        mode = str(settings.get("mode", "narration")).lower()
-        stability = float(settings.get("stability", float(os.getenv("STABILITY_DEFAULT", "0.55"))))
-        dialogue_stability = float(settings.get("dialogue_stability", float(os.getenv("DIALOGUE_STABILITY_DEFAULT", "0.35"))))
-        similarity_boost = float(settings.get("similarity_boost", float(os.getenv("SIMILARITY_DEFAULT", "0.7"))))
-        style = float(settings.get("style", float(os.getenv("STYLE_DEFAULT", "0.0"))))
-        speed = float(settings.get("speed", float(os.getenv("SPEED_DEFAULT", "1.0"))))
-        model_id = str(settings.get("model_id", os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")))
-        output_format = str(settings.get("output_format", os.getenv("ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128")))
+        # Combine defaults with any explicit kwargs
+        settings = defaults or {}
+        settings.update(kwargs)
 
-        used_stability = dialogue_stability if mode == "dialogue" else stability
+        # Determine final synthesis parameters
+        stability = settings.get("dialogue_stability", 0.35) if mode == "dialogue" else settings.get("stability", 0.55)
+        params = {
+            "stability": float(stability),
+            "similarity_boost": float(settings.get("similarity_boost", 0.7)),
+            "style": float(settings.get("style", 0.0)),
+            "speed": float(settings.get("speed", 1.0)),
+            "model_id": str(settings.get("model_id", "eleven_multilingual_v2")),
+            "output_format": str(settings.get("output_format", "mp3_44100_128")),
+        }
 
-        # Compute cache key
-        cache_base = cache_key or json.dumps(
-            {
-                "voice_id": voice_id,
-                "text": text,
-                "stability": used_stability,
-                "similarity_boost": similarity_boost,
-                "style": style,
-                "speed": speed,
-                "model_id": model_id,
-                "format": output_format,
-            },
-            sort_keys=True,
-        )
-        cache_hash = hashlib.sha256(cache_base.encode("utf-8")).hexdigest()
+        # --- Caching Logic ---
+        cache_payload = {"voice_id": voice_id, "text": text, **params}
+        cache_hash = hashlib.sha256(json.dumps(cache_payload, sort_keys=True).encode("utf-8")).hexdigest()
         cache_dir = os.path.abspath(os.getenv("ELEVEN_TTS_CACHE_DIR", "/tmp/tts_cache"))
         os.makedirs(cache_dir, exist_ok=True)
-
-        ext = ".mp3" if output_format.startswith("mp3") else ".wav"
+        ext = ".mp3" if params["output_format"].startswith("mp3") else ".wav"
         output_path = os.path.join(cache_dir, f"{cache_hash}{ext}")
+
         if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-            return output_path
+            return json.dumps({
+                "gen_wav_path": output_path,
+                "settings_used": params,
+                "was_cached": True
+            })
 
-        # Prefer ElevenLabs client with chunked convert to handle large outputs
-        audio_bytes: Optional[bytes] = None
+        # --- Synthesis Logic ---
         try:
-            try:
-                from elevenlabs.client import ElevenLabs  # type: ignore
-            except Exception:
-                ElevenLabs = None  # type: ignore
+            from elevenlabs.client import ElevenLabs
+            from elevenlabs import VoiceSettings
+        except ImportError:
+            return json.dumps({"error": "ElevenLabs client not installed. Please run 'pip install elevenlabs'."})
 
-            if ElevenLabs is not None:
-                client = ElevenLabs(api_key=api_key)
-                try:
-                    from elevenlabs import VoiceSettings  # type: ignore
-                except Exception:
-                    VoiceSettings = None  # type: ignore
+        client = ElevenLabs(api_key=api_key)
+        voice_settings = VoiceSettings(
+            stability=params["stability"],
+            similarity_boost=params["similarity_boost"],
+            style=params["style"],
+            use_speaker_boost=True
+        )
 
-                voice_settings = None
-                if VoiceSettings is not None:
-                    voice_settings = VoiceSettings(
-                        stability=float(used_stability),
-                        similarity_boost=float(similarity_boost),
-                        style=float(style),
-                        use_speaker_boost=True,
-                    )
-
-                # Split very long text into sentence-ish chunks to avoid provider limits
-                segments = self._split_text(text, max_chars=1000)
-                buf_parts: list[bytes] = []
-                for seg in segments:
-                    seg = seg.strip()
-                    if not seg:
-                        continue
-                    chunks = client.text_to_speech.convert(
-                        voice_id=voice_id,
-                        model_id=model_id,
-                        text=seg,
-                        voice_settings=voice_settings,
-                        output_format=output_format,
-                    )
-                    buf_parts.append(b"".join(chunk for chunk in chunks if chunk))
-                audio_bytes = b"".join(buf_parts)
-        except Exception:
-            audio_bytes = None
-
-        if not audio_bytes:
-            # Fallback to legacy generate API if available
-            try:
-                from elevenlabs import generate, set_api_key  # type: ignore
-            except Exception:
-                generate = None  # type: ignore
-                set_api_key = None  # type: ignore
-
-            if generate is None or set_api_key is None:
-                # As a last resort, return a stub path for development
-                return output_path
-            try:
-                set_api_key(api_key)
-                audio_bytes = generate(text=text, voice=voice_id)
-            except Exception:
-                # Return stub if generation fails
-                return output_path
-
-        # Persist audio
         try:
+            # Split text into manageable chunks for the API
+            segments = self._split_text(text)
+            audio_parts = []
+            for segment in segments:
+                if not segment.strip():
+                    continue
+                # Note: speed is not a direct parameter in the v2 client, it's a post-processing step if needed.
+                audio_stream = client.text_to_speech.convert(
+                    voice_id=voice_id,
+                    text=segment,
+                    model_id=params["model_id"],
+                    voice_settings=voice_settings,
+                    output_format=params["output_format"],
+                )
+                audio_parts.append(b"".join(chunk for chunk in audio_stream if chunk))
+            
+            audio_bytes = b"".join(audio_parts)
+
             with open(output_path, "wb") as f:
                 f.write(audio_bytes)
-        except Exception:
-            # If write fails, drop back to /tmp
-            fallback = f"/tmp/generated_{cache_hash}{ext}"
-            try:
-                with open(fallback, "wb") as f:
-                    f.write(audio_bytes)
-                return fallback
-            except Exception:
-                # Give up but return deterministic path
-                return output_path
 
-        return output_path
+            return json.dumps({
+                "gen_wav_path": output_path,
+                "settings_used": params,
+                "was_cached": False
+            })
+
+        except Exception as e:
+            return json.dumps({"error": f"ElevenLabs API call failed: {str(e)}"})
 
     # --- helpers ---
     @staticmethod

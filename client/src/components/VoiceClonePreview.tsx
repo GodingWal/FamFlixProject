@@ -77,6 +77,74 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
         isGenerating: true
       };
 
+      setStories(prev => [newStory, ...prev.slice(0, 4)]); // Keep only 5 stories
+      setCurrentStory(newStory);
+
+      // Generate voice clone using TTS preview endpoint
+      console.log('Generating voice clone for person:', personId, 'with recording:', voiceRecordingId);
+      
+      // Get person's voice ID first
+      const personResponse = await apiRequest('GET', `/api/people/${personId}`);
+      if (!personResponse.ok) {
+        throw new Error('Failed to get person data');
+      }
+      const personData = await personResponse.json();
+      
+      const voiceResponse = await apiRequest('POST', '/api/voice/preview', {
+        text: storyContent,
+        voiceId: personData.elevenlabsVoiceId,
+        mode: 'narration'
+      });
+
+      if (!voiceResponse.ok) {
+        const errorData = await voiceResponse.json();
+        throw new Error(errorData.error || 'Failed to generate cloned voice');
+      }
+
+      const voiceData = await voiceResponse.json();
+      
+      // Create audio URL from base64 data
+      const audioUrl = voiceData.audio_base64 ? `data:audio/mpeg;base64,${voiceData.audio_base64}` : undefined;
+      
+      // Update story with generated audio
+      const updatedStory: GeneratedStory = {
+        ...newStory,
+        audioUrl: audioUrl,
+        isGenerating: false
+      };
+
+      setStories(prev => prev.map(s => s.id === newStory.id ? updatedStory : s));
+      setCurrentStory(updatedStory);
+      
+      toast({
+        title: "Voice Clone Ready!",
+        description: `${personName}'s cloned voice has generated the story`
+      });
+      
+    } catch (error: any) {
+      let errorMessage = error.message || "Failed to generate story";
+      
+      // Handle specific errors
+      if (error.message?.includes('Voice clone not ready')) {
+        errorMessage = "Voice clone is still processing. Please wait a few moments and try again.";
+      } else if (error.message?.includes('cannot be decrypted') || error.message?.includes('encryption key')) {
+        errorMessage = "Your voice recording cannot be decrypted. Please record a new voice sample to enable voice cloning.";
+      }
+      
+      toast({
+        title: "Generation Failed",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      // Remove the failed story
+      setStories(prev => prev.filter(s => s.id !== currentStory?.id));
+      setCurrentStory(null);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Start clone with QC pipeline (server proxies to VoiceAgent)
   const startCloneWithQC = async () => {
     if (!voiceRecordingId) {
@@ -168,74 +236,6 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
       await sleep(1000);
     }
     throw new Error('Timed out waiting for job');
-  };
-
-      setStories(prev => [newStory, ...prev.slice(0, 4)]); // Keep only 5 stories
-      setCurrentStory(newStory);
-
-      // Generate voice clone using TTS preview endpoint
-      console.log('Generating voice clone for person:', personId, 'with recording:', voiceRecordingId);
-      
-      // Get person's voice ID first
-      const personResponse = await apiRequest('GET', `/api/people/${personId}`);
-      if (!personResponse.ok) {
-        throw new Error('Failed to get person data');
-      }
-      const personData = await personResponse.json();
-      
-      const voiceResponse = await apiRequest('POST', '/api/voice/preview', {
-        text: storyContent,
-        voiceId: personData.elevenlabsVoiceId,
-        mode: 'narration'
-      });
-
-      if (!voiceResponse.ok) {
-        const errorData = await voiceResponse.json();
-        throw new Error(errorData.error || 'Failed to generate cloned voice');
-      }
-
-      const voiceData = await voiceResponse.json();
-      
-      // Create audio URL from base64 data
-      const audioUrl = voiceData.audio_base64 ? `data:audio/mpeg;base64,${voiceData.audio_base64}` : undefined;
-      
-      // Update story with generated audio
-      const updatedStory: GeneratedStory = {
-        ...newStory,
-        audioUrl: audioUrl,
-        isGenerating: false
-      };
-
-      setStories(prev => prev.map(s => s.id === newStory.id ? updatedStory : s));
-      setCurrentStory(updatedStory);
-      
-      toast({
-        title: "Voice Clone Ready!",
-        description: `${personName}'s cloned voice has generated the story`
-      });
-      
-    } catch (error: any) {
-      let errorMessage = error.message || "Failed to generate story";
-      
-      // Handle specific errors
-      if (error.message?.includes('Voice clone not ready')) {
-        errorMessage = "Voice clone is still processing. Please wait a few moments and try again.";
-      } else if (error.message?.includes('cannot be decrypted') || error.message?.includes('encryption key')) {
-        errorMessage = "Your voice recording cannot be decrypted. Please record a new voice sample to enable voice cloning.";
-      }
-      
-      toast({
-        title: "Generation Failed",
-        description: errorMessage,
-        variant: "destructive"
-      });
-      
-      // Remove the failed story
-      setStories(prev => prev.filter(s => s.id !== currentStory?.id));
-      setCurrentStory(null);
-    } finally {
-      setIsGenerating(false);
-    }
   };
 
   const playStory = (story: GeneratedStory) => {

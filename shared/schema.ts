@@ -74,6 +74,19 @@ export const faceVideos = pgTable("face_videos", {
 });
 
 // Voice recordings linked to people profiles
+// Voice profiles for cloned voices
+export const voiceProfiles = pgTable("voice_profiles", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  personId: integer("person_id").references(() => people.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  elevenlabsVoiceId: text("elevenlabs_voice_id").notNull().unique(),
+  status: text("status").default("pending").notNull(), // pending, cloning, active, failed
+  sourceRecordingId: integer("source_recording_id").references(() => voiceRecordings.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Voice recordings linked to people profiles
 export const voiceRecordings = pgTable("voice_recordings", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
@@ -195,6 +208,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   voiceRecordings: many(voiceRecordings),
   processedVideos: many(processedVideos),
   userStorySessions: many(userStorySessions),
+  voiceProfiles: many(voiceProfiles)
 }));
 
 // People relations
@@ -206,7 +220,8 @@ export const peopleRelations = relations(people, ({ one, many }) => ({
   faceImages: many(faceImages),
   faceVideos: many(faceVideos),
   voiceRecordings: many(voiceRecordings),
-  processedVideoPeople: many(processedVideoPeople)
+  processedVideoPeople: many(processedVideoPeople),
+  voiceProfiles: many(voiceProfiles)
 }));
 
 // Face images relations
@@ -244,7 +259,11 @@ export const voiceRecordingsRelations = relations(voiceRecordings, ({ one, many 
     fields: [voiceRecordings.personId],
     references: [people.id]
   }),
-  processedVideoPeople: many(processedVideoPeople)
+  processedVideoPeople: many(processedVideoPeople),
+  voiceProfile: one(voiceProfiles, {
+    fields: [voiceRecordings.id],
+    references: [voiceProfiles.sourceRecordingId]
+  })
 }));
 
 // Video templates relations
@@ -298,6 +317,22 @@ export const animatedStoriesRelations = relations(animatedStories, ({ many }) =>
   userStorySessions: many(userStorySessions)
 }));
 
+// Voice profiles relations
+export const voiceProfilesRelations = relations(voiceProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [voiceProfiles.userId],
+    references: [users.id]
+  }),
+  person: one(people, {
+    fields: [voiceProfiles.personId],
+    references: [people.id]
+  }),
+  sourceRecording: one(voiceRecordings, {
+    fields: [voiceProfiles.sourceRecordingId],
+    references: [voiceRecordings.id]
+  })
+}));
+
 // User story sessions relations
 export const userStorySessionsRelations = relations(userStorySessions, ({ one }) => ({
   user: one(users, {
@@ -335,6 +370,12 @@ export const insertFaceVideoSchema = createInsertSchema(faceVideos).omit({
   isProcessed: true,
   processingStatus: true,
   errorMessage: true
+});
+
+// Voice recording schema with proper validation
+export const insertVoiceProfileSchema = createInsertSchema(voiceProfiles).omit({
+  id: true,
+  createdAt: true,
 });
 
 // Voice recording schema with proper validation
@@ -442,6 +483,9 @@ export type InsertFaceVideo = z.infer<typeof insertFaceVideoSchema>;
 
 export type VoiceRecording = typeof voiceRecordings.$inferSelect;
 export type InsertVoiceRecording = z.infer<typeof insertVoiceRecordingSchema>;
+
+export type VoiceProfile = typeof voiceProfiles.$inferSelect;
+export type InsertVoiceProfile = z.infer<typeof insertVoiceProfileSchema>;
 
 export type VideoTemplate = typeof videoTemplates.$inferSelect;
 export type InsertVideoTemplate = z.infer<typeof insertVideoTemplateSchema>;
