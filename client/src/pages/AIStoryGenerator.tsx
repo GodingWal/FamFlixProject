@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,38 @@ export function AIStoryGenerator() {
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
   const { toast } = useToast();
   const { user } = useAuth();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  const base64ToUrl = (b64: string, mime: string = 'audio/mpeg') => {
+    try {
+      const bin = atob(b64);
+      const len = bin.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      return URL.createObjectURL(new Blob([bytes], { type: mime }));
+    } catch {
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch {}
+        audioRef.current.onended = null;
+        audioRef.current.onpause = null;
+        audioRef.current.onplay = null;
+        // @ts-ignore
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+      if (objectUrlRef.current) {
+        try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+        objectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   // Query people with voice recordings for voice selection
   const { data: people } = useQuery<Person[]>({
@@ -515,8 +547,21 @@ export function AIStoryGenerator() {
                           if (audioData.segments && audioData.segments.length > 0) {
                             // Play the first segment as a preview
                             const firstSegment = audioData.segments[0];
-                            const audio = new Audio(`data:audio/mpeg;base64,${firstSegment.audio_base64}`);
-                            
+                            if (audioRef.current) {
+                              try { audioRef.current.pause(); } catch {}
+                              // @ts-ignore
+                              audioRef.current.src = '';
+                              audioRef.current = null;
+                            }
+                            if (objectUrlRef.current) {
+                              try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+                              objectUrlRef.current = null;
+                            }
+                            const url = base64ToUrl(firstSegment.audio_base64);
+                            if (!url) throw new Error('Invalid audio data');
+                            objectUrlRef.current = url;
+                            const audio = new Audio(url);
+                            audioRef.current = audio;
                             audio.play().then(() => {
                               toast({ 
                                 title: "Playing story preview", 
@@ -554,7 +599,21 @@ export function AIStoryGenerator() {
                         const data = await response.json();
                         
                         if (data.audio_base64) {
-                          const audio = new Audio(`data:audio/mpeg;base64,${data.audio_base64}`);
+                          if (audioRef.current) {
+                            try { audioRef.current.pause(); } catch {}
+                            // @ts-ignore
+                            audioRef.current.src = '';
+                            audioRef.current = null;
+                          }
+                          if (objectUrlRef.current) {
+                            try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+                            objectUrlRef.current = null;
+                          }
+                          const url = base64ToUrl(data.audio_base64);
+                          if (!url) throw new Error('Invalid audio data');
+                          objectUrlRef.current = url;
+                          const audio = new Audio(url);
+                          audioRef.current = audio;
                           audio.play().then(() => {
                             toast({ title: "Playing story audio", description: "Enjoy your personalized story!" });
                           }).catch(err => {

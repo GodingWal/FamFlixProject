@@ -1,4 +1,4 @@
-import { useState, ReactNode } from "react";
+import { useState, ReactNode, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -111,6 +111,38 @@ type PersonFormValues = z.infer<typeof personFormSchema>;
 const PeopleManagement = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsObjectUrlRef = useRef<string | null>(null);
+
+  const base64ToUrl = (b64: string, mime: string = 'audio/mpeg') => {
+    try {
+      const bin = atob(b64);
+      const len = bin.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      return URL.createObjectURL(new Blob([bytes], { type: mime }));
+    } catch {
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (ttsAudioRef.current) {
+        try { ttsAudioRef.current.pause(); } catch {}
+        ttsAudioRef.current.onended = null;
+        ttsAudioRef.current.onpause = null;
+        ttsAudioRef.current.onplay = null;
+        // @ts-ignore
+        ttsAudioRef.current.src = '';
+        ttsAudioRef.current = null;
+      }
+      if (ttsObjectUrlRef.current) {
+        try { URL.revokeObjectURL(ttsObjectUrlRef.current); } catch {}
+        ttsObjectUrlRef.current = null;
+      }
+    };
+  }, []);
   const [, navigate] = useLocation();
   const [isAddPersonDialogOpen, setIsAddPersonDialogOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -412,18 +444,38 @@ const PeopleManagement = () => {
     },
     onSuccess: (data) => {
       if (data.audio_base64) {
-        // Play the audio
-        const audio = new Audio(`data:audio/mpeg;base64,${data.audio_base64}`);
+        if (ttsAudioRef.current) {
+          try { ttsAudioRef.current.pause(); } catch {}
+          ttsAudioRef.current.onended = null;
+          ttsAudioRef.current.onpause = null;
+          ttsAudioRef.current.onplay = null;
+          // @ts-ignore
+          ttsAudioRef.current.src = '';
+          ttsAudioRef.current = null;
+        }
+        if (ttsObjectUrlRef.current) {
+          try { URL.revokeObjectURL(ttsObjectUrlRef.current); } catch {}
+          ttsObjectUrlRef.current = null;
+        }
+        const url = base64ToUrl(data.audio_base64);
+        if (!url) {
+          toast({ title: "Invalid audio data", variant: "destructive" });
+          return;
+        }
+        ttsObjectUrlRef.current = url;
+        const audio = new Audio(url);
+        ttsAudioRef.current = audio;
+        audio.onended = () => {};
+        audio.onpause = () => {};
+        audio.onplay = () => {};
         audio.play().then(() => {
-          toast({
-            title: "Playing Voice Preview",
-            description: "Audio is now playing!",
-          });
-        }).catch(err => {
+          toast({ title: "Playing Voice Preview", description: "Audio is now playing!" });
+        }).catch((err: any) => {
           console.error("Error playing TTS audio:", err);
+          const notAllowed = err?.name === 'NotAllowedError';
           toast({
-            title: "Playback Error", 
-            description: "Could not play audio. Try clicking the button again or check browser permissions.",
+            title: notAllowed ? "Autoplay blocked" : "Playback Error",
+            description: notAllowed ? "Tap the Play button to start audio." : "Could not play audio. Check browser permissions.",
             variant: "destructive",
           });
         });

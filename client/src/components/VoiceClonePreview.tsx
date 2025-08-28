@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Play, Pause, Square, Shuffle, Volume2, Loader2, Sparkles, RefreshCw, Workflow, CheckCircle2, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import { VoiceAPI } from '@/lib/voice-api';
 import { cn } from '@/lib/utils';
 
 interface VoiceClonePreviewProps {
@@ -49,10 +49,46 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCloning, setIsCloning] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const createdObjectUrlsRef = useRef<Set<string>>(new Set());
+  const lastVoiceRecordingIdRef = useRef<number | undefined>(undefined);
   const { toast } = useToast();
 
+  const base64ToUrl = useCallback((b64?: string, mime: string = 'audio/mpeg'): string | undefined => {
+    if (!b64) return undefined;
+    try {
+      const bin = atob(b64);
+      const len = bin.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+      createdObjectUrlsRef.current.add(url);
+      return url;
+    } catch {
+      return undefined;
+    }
+  }, []);
+
+  const randomPrompt = useCallback(() =>
+    kidStoryPrompts[Math.floor(Math.random() * kidStoryPrompts.length)]
+  , []);
+
+  function buildAndSetNewStory(): GeneratedStory {
+    const title = randomPrompt();
+    const content = `Once upon a time, ${title}. This is a short story told in ${personName}'s voice to demonstrate the voice cloning technology.`;
+    const story: GeneratedStory = {
+      id: (globalThis.crypto?.randomUUID?.() || Date.now().toString()),
+      title,
+      content,
+      isGenerating: true
+    };
+    setStories(prev => [story, ...prev].slice(0, 5));
+    setCurrentStory(story);
+    return story;
+  }
+
   const generateRandomStory = async () => {
+    if (isGenerating || isCloning) return;
     if (!voiceRecordingId) {
       toast({
         title: "No Voice Recording",
@@ -65,46 +101,34 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
     setIsGenerating(true);
     
     try {
-      const randomPrompt = kidStoryPrompts[Math.floor(Math.random() * kidStoryPrompts.length)];
-      
-      // Generate story content
-      const storyContent = `Once upon a time, ${randomPrompt}. This is a short story told in ${personName}'s voice to demonstrate the voice cloning technology.`;
-      
-      const newStory: GeneratedStory = {
-        id: Date.now().toString(),
-        title: randomPrompt,
-        content: storyContent,
-        isGenerating: true
-      };
-
-      setStories(prev => [newStory, ...prev.slice(0, 4)]); // Keep only 5 stories
-      setCurrentStory(newStory);
+      let createdStoryId: string | null = null;
+      const newStory = buildAndSetNewStory();
+      createdStoryId = newStory.id;
+      const storyContent = newStory.content;
 
       // Generate voice clone using TTS preview endpoint
       console.log('Generating voice clone for person:', personId, 'with recording:', voiceRecordingId);
       
       // Get person's voice ID first
-      const personResponse = await apiRequest('GET', `/api/people/${personId}`);
-      if (!personResponse.ok) {
+      const personRes = await VoiceAPI.getPerson(personId);
+      if (!personRes.ok || !personRes.data) {
         throw new Error('Failed to get person data');
       }
-      const personData = await personResponse.json();
+      const personData = personRes.data;
       
-      const voiceResponse = await apiRequest('POST', '/api/voice/preview', {
+      const voiceRes = await VoiceAPI.preview({
         text: storyContent,
         voiceId: personData.elevenlabsVoiceId,
         mode: 'narration'
       });
 
-      if (!voiceResponse.ok) {
-        const errorData = await voiceResponse.json();
-        throw new Error(errorData.error || 'Failed to generate cloned voice');
+      if (!voiceRes.ok) {
+        throw new Error(voiceRes.data?.error || 'Failed to generate cloned voice');
       }
-
-      const voiceData = await voiceResponse.json();
+      const voiceData = voiceRes.data || {};
       
-      // Create audio URL from base64 data
-      const audioUrl = voiceData.audio_base64 ? `data:audio/mpeg;base64,${voiceData.audio_base64}` : undefined;
+      // Create audio URL from base64 data using Blob URL
+      const audioUrl = base64ToUrl(voiceData.audio_base64);
       
       // Update story with generated audio
       const updatedStory: GeneratedStory = {
@@ -137,8 +161,8 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
         variant: "destructive"
       });
       
-      // Remove the failed story
-      setStories(prev => prev.filter(s => s.id !== currentStory?.id));
+      // Remove the failed story by id if created
+      setStories(prev => prev.filter(s => s.id !== (createdStoryId || '')));
       setCurrentStory(null);
     } finally {
       setIsGenerating(false);
@@ -147,26 +171,24 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
 
   // Start clone with QC pipeline (server proxies to VoiceAgent)
   const startCloneWithQC = async () => {
+    if (isCloning || isGenerating) return;
     if (!voiceRecordingId) {
       toast({ title: 'No Voice Recording', description: 'Record a voice sample first.', variant: 'destructive' });
       return;
     }
     try {
       setIsCloning(true);
-      // Ensure we have a current story
-      if (!currentStory) {
-        await generateRandomStory();
-      }
-      const story = currentStory || stories[0];
+      // Ensure we have a current story without async race
+      const story = currentStory ?? buildAndSetNewStory();
       if (!story) return;
 
       // Resolve person voiceId
-      const personRes = await apiRequest('GET', `/api/people/${personId}`);
-      if (!personRes.ok) throw new Error('Failed to get person');
-      const person = await personRes.json();
+      const personRes = await VoiceAPI.getPerson(personId);
+      if (!personRes.ok || !personRes.data) throw new Error('Failed to get person');
+      const person = personRes.data;
 
       // Start job
-      const startRes = await apiRequest('POST', '/api/voice/clone/start', {
+      const startRes = await VoiceAPI.startQC({
         text: story.content,
         voice_id: person.elevenlabsVoiceId,
         mode: 'narration',
@@ -175,18 +197,17 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
         // Optional: if server has a reference wav path, include raw_audio_path
         qc: { max_wer: 0.2, min_cosine: 0.78 }
       });
-      if (!startRes.ok) {
-        const errData = await startRes.json();
-        throw new Error(errData.message || 'Failed to start clone job');
+      if (!startRes.ok || !startRes.data) {
+        throw new Error(startRes.data?.message || 'Failed to start clone job');
       }
-      const startData = await startRes.json();
+      const startData = startRes.data;
       const jid = startData.job_id || startData.id || startData.jobId;
       if (!jid) throw new Error('No job id returned');
       setJobId(String(jid));
       toast({ title: 'Clone Started', description: `Job ${jid} started` });
 
       // Poll until done
-      await pollCloneJob(String(jid));
+      await pollCloneJob(String(jid), story.id);
     } catch (e: any) {
       toast({ title: 'Clone Failed', description: e.message || 'Unknown error', variant: 'destructive' });
     } finally {
@@ -194,46 +215,60 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
     }
   };
 
-  const pollCloneJob = async (jid: string) => {
-    let attempts = 0;
-    const maxAttempts = 40; // ~40s
-    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-    while (attempts < maxAttempts) {
-      attempts++;
-      const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(jid)}`);
-      if (!res.ok) {
-        await sleep(1000);
-        continue;
-      }
-      const data = await res.json();
-      const status = data.status || data.state;
-      if (status === 'completed' || status === 'done' || data.result) {
-        const result = data.result || data;
-        const audioB64 = result.audio_base64 || result.audioBase64;
-        const qc = result.qc || {};
-        const audioUrl = audioB64 ? `data:audio/mpeg;base64,${audioB64}` : undefined;
-        // Update current story with audio and QC
-        setStories(prev => prev.map(s => s.id === (currentStory?.id || s.id) ? {
-          ...s,
-          audioUrl,
-          isGenerating: false,
-          qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : s.qc
-        } : s));
-        if (currentStory) {
-          setCurrentStory(cs => cs ? {
-            ...cs,
-            audioUrl,
-            isGenerating: false,
-            qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : cs.qc
-          } : cs);
+  const pollCloneJob = async (jid: string, targetStoryId: string) => {
+    let delay = 800;
+    const maxDelay = 5000;
+    const maxMs = 60000;
+    const start = Date.now();
+    let consecutiveFailures = 0;
+    while (Date.now() - start < maxMs) {
+      try {
+        const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(jid)}`);
+        if (!res.ok) {
+          consecutiveFailures++;
+          if (consecutiveFailures >= 5) {
+            throw new Error('Job status check failing repeatedly');
+          }
+        } else {
+          consecutiveFailures = 0;
+          let data: any;
+          try {
+            data = await res.json();
+          } catch {
+            data = null;
+          }
+          if (data) {
+            const status = data.status || data.state;
+            if (status === 'completed' || status === 'done' || data.result) {
+              const result = data.result || data;
+              const audioB64 = result.audio_base64 || result.audioBase64;
+              const qc = result.qc || {};
+              const audioUrl = base64ToUrl(audioB64);
+              setStories(prev => prev.map(s => s.id === targetStoryId ? {
+                ...s,
+                audioUrl,
+                isGenerating: false,
+                qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : s.qc
+              } : s));
+              setCurrentStory(cs => cs && cs.id === targetStoryId ? {
+                ...cs,
+                audioUrl,
+                isGenerating: false,
+                qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : cs.qc
+              } : cs);
+              toast({ title: 'Clone Ready', description: qc?.decision ? `QC: ${qc.decision}` : 'Audio generated' });
+              return;
+            }
+            if (status === 'failed' || data.error) {
+              throw new Error(data.error || 'Clone failed');
+            }
+          }
         }
-        toast({ title: 'Clone Ready', description: qc?.decision ? `QC: ${qc.decision}` : 'Audio generated' });
-        return;
+      } catch (e: any) {
+        throw e;
       }
-      if (status === 'failed' || data.error) {
-        throw new Error(data.error || 'Clone failed');
-      }
-      await sleep(1000);
+      await new Promise(r => setTimeout(r, delay));
+      delay = Math.min(maxDelay, Math.floor(delay * 1.5));
     }
     throw new Error('Timed out waiting for job');
   };
@@ -242,14 +277,18 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
     if (!story.audioUrl || story.isGenerating) return;
 
     // Stop current audio if playing
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch {}
+      audioRef.current.currentTime = 0;
+      audioRef.current.oncanplay = null;
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.onpause = null;
     }
 
     console.log('Attempting to play audio:', story.audioUrl);
     const audio = new Audio(story.audioUrl);
-    setCurrentAudio(audio);
+    audioRef.current = audio;
     setCurrentStory(story);
 
     audio.onloadstart = () => {
@@ -263,7 +302,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
 
     audio.onended = () => {
       setIsPlaying(false);
-      setCurrentAudio(null);
+      audioRef.current = null;
     };
 
     audio.onerror = (e) => {
@@ -274,7 +313,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
         variant: "destructive"
       });
       setIsPlaying(false);
-      setCurrentAudio(null);
+      audioRef.current = null;
     };
 
     audio.play().catch((error) => {
@@ -285,34 +324,33 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
         variant: "destructive"
       });
       setIsPlaying(false);
-      setCurrentAudio(null);
+      audioRef.current = null;
     });
   };
 
   const stopPlayback = () => {
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-      // Clean up all event listeners
-      currentAudio.removeEventListener('loadstart', () => {});
-      currentAudio.removeEventListener('canplay', () => {});
-      currentAudio.removeEventListener('ended', () => {});
-      currentAudio.removeEventListener('error', () => {});
-      setCurrentAudio(null);
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch {}
+      audioRef.current.currentTime = 0;
+      audioRef.current.oncanplay = null;
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.onpause = null;
+      audioRef.current = null;
     }
     setIsPlaying(false);
   };
 
   const pausePlayback = () => {
-    if (currentAudio && !currentAudio.paused) {
-      currentAudio.pause();
+    if (audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
       setIsPlaying(false);
     }
   };
 
   const resumePlayback = () => {
-    if (currentAudio && currentAudio.paused) {
-      const playPromise = currentAudio.play();
+    if (audioRef.current && audioRef.current.paused) {
+      const playPromise = audioRef.current.play();
       if (playPromise !== undefined) {
         playPromise.then(() => {
           setIsPlaying(true);
@@ -329,20 +367,37 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
     }
   };
 
-  // Cleanup audio on unmount
+  // Cleanup audio and object URLs on unmount or voice change
   useEffect(() => {
     return () => {
-      if (currentAudio) {
-        currentAudio.pause();
-        setCurrentAudio(null);
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch {}
+        audioRef.current.oncanplay = null;
+        audioRef.current.onended = null;
+        audioRef.current.onerror = null;
+        audioRef.current.onpause = null;
+        // @ts-ignore
+        audioRef.current.src = '';
+        audioRef.current = null;
       }
+      for (const url of createdObjectUrlsRef.current) {
+        try { URL.revokeObjectURL(url); } catch {}
+      }
+      createdObjectUrlsRef.current.clear();
     };
-  }, [currentAudio]);
+  }, []);
 
-  // Generate initial story
+  // Reset on voiceRecordingId change and maybe generate initial story once
   useEffect(() => {
-    if (voiceRecordingId && stories.length === 0) {
+    if (!voiceRecordingId) return;
+    if (lastVoiceRecordingIdRef.current !== voiceRecordingId) {
+      // Reset state for new voice
+      stopPlayback();
+      setStories([]);
+      setCurrentStory(null);
+      // Optionally auto-generate one story
       generateRandomStory();
+      lastVoiceRecordingIdRef.current = voiceRecordingId;
     }
   }, [voiceRecordingId]);
 
@@ -390,7 +445,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
                 {/* Audio Controls */}
                 <div className="flex items-center justify-center gap-3">
                   {currentStory.isGenerating ? (
-                    <div className="flex items-center gap-2 text-purple-600">
+                    <div className="flex items-center gap-2 text-purple-600" aria-live="polite">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       <span className="text-sm">Generating {personName}'s voice...</span>
                     </div>
@@ -516,6 +571,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
                           size="sm"
                           variant="ghost"
                           className="ml-2"
+                          aria-label={`Play story ${story.title}`}
                         >
                           <Play className="h-3 w-3" />
                         </Button>

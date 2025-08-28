@@ -84,7 +84,8 @@ export function VoiceTestPlayer({ personId, personName, hasTrainedVoice }: Voice
   const [selectedScriptId, setSelectedScriptId] = useState(sampleScripts[0].id);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<'generate' | 'compare'>('generate');
   
   // Recording state
@@ -116,6 +117,19 @@ export function VoiceTestPlayer({ personId, personName, hasTrainedVoice }: Voice
       }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch {}
+        audioRef.current.onended = null;
+        audioRef.current.onpause = null;
+        audioRef.current.onplay = null;
+        // @ts-ignore
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+      if (objectUrlRef.current) {
+        try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+        objectUrlRef.current = null;
       }
     };
   }, []);
@@ -275,8 +289,24 @@ export function VoiceTestPlayer({ personId, personName, hasTrainedVoice }: Voice
       return await response.json();
     },
     onSuccess: (data) => {
-      if (data.audioUrl) {
-        setAudioUrl(data.audioUrl);
+      if (data.audio_base64 || data.audioUrl) {
+        // prefer base64 if provided
+        if (objectUrlRef.current) {
+          try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+          objectUrlRef.current = null;
+        }
+        const url = data.audio_base64 ? (() => {
+          try {
+            const bin = atob(data.audio_base64);
+            const len = bin.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+            return URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+          } catch { return null; }
+        })() : data.audioUrl;
+        if (!url) return;
+        objectUrlRef.current = data.audio_base64 ? url : null;
+        setAudioUrl(url);
         toast({
           title: 'Voice preview ready!',
           description: `${personName}'s voice has been generated for the script.`
@@ -317,18 +347,18 @@ export function VoiceTestPlayer({ personId, personName, hasTrainedVoice }: Voice
   const handlePlayPause = () => {
     if (!audioUrl) return;
 
-    if (!audioElement) {
+    if (!audioRef.current) {
       const audio = new Audio(audioUrl);
       audio.onended = () => setIsPlaying(false);
       audio.onpause = () => setIsPlaying(false);
       audio.onplay = () => setIsPlaying(true);
-      setAudioElement(audio);
+      audioRef.current = audio;
       audio.play();
     } else {
       if (isPlaying) {
-        audioElement.pause();
+        audioRef.current.pause();
       } else {
-        audioElement.play();
+        audioRef.current.play();
       }
     }
   };
@@ -341,9 +371,15 @@ export function VoiceTestPlayer({ personId, personName, hasTrainedVoice }: Voice
       // Clear previous audio when changing script
       setAudioUrl(null);
       setIsPlaying(false);
-      if (audioElement) {
-        audioElement.pause();
-        setAudioElement(null);
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch {}
+        // @ts-ignore
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+      if (objectUrlRef.current) {
+        try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+        objectUrlRef.current = null;
       }
     }
   };
@@ -355,9 +391,15 @@ export function VoiceTestPlayer({ personId, personName, hasTrainedVoice }: Voice
     // Clear previous audio when changing script
     setAudioUrl(null);
     setIsPlaying(false);
-    if (audioElement) {
-      audioElement.pause();
-      setAudioElement(null);
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch {}
+      // @ts-ignore
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
+    if (objectUrlRef.current) {
+      try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+      objectUrlRef.current = null;
     }
   };
 
