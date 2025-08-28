@@ -11,15 +11,34 @@ if (!process.env.DATABASE_URL) {
 }
 
 // Create the database connection pool only if DATABASE_URL is available
+function resolveSsl() {
+  const url = process.env.DATABASE_URL || '';
+  const force = String(process.env.DATABASE_SSL || '').toLowerCase();
+  if (force === 'true' || force === '1' || url.includes('sslmode=require')) {
+    return { rejectUnauthorized: false } as any;
+  }
+  try {
+    const u = new URL(url);
+    const host = (u.hostname || '').toLowerCase();
+    // Do NOT use SSL for localhost / 127.0.0.1 unless forced
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return false as any;
+    }
+    // In production connecting to remote hosts, enable SSL by default
+    if (process.env.NODE_ENV === 'production') {
+      return { rejectUnauthorized: false } as any;
+    }
+  } catch {}
+  return false as any;
+}
+
 export const pool = process.env.DATABASE_URL 
   ? new Pool({ 
       connectionString: process.env.DATABASE_URL,
       max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
-      ssl: process.env.NODE_ENV === 'production' ? {
-        rejectUnauthorized: false
-      } : false
+      ssl: resolveSsl()
     })
   : null;
 
