@@ -54,14 +54,37 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
   const lastVoiceRecordingIdRef = useRef<number | undefined>(undefined);
   const { toast } = useToast();
 
-  const base64ToUrl = useCallback((b64?: string, mime: string = 'audio/mpeg'): string | undefined => {
+  const base64ToUrl = useCallback((b64?: string, mimeHint?: string): string | undefined => {
     if (!b64) return undefined;
     try {
       const bin = atob(b64);
       const len = bin.length;
       const bytes = new Uint8Array(len);
       for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
-      const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+      const audio = typeof document !== 'undefined' ? document.createElement('audio') : null;
+      const head = b64.slice(0, 16);
+      const detectFromHeader = () => {
+        if (head.startsWith('SUQz')) return 'audio/mpeg'; // ID3
+        if (head.startsWith('UklGR')) return 'audio/wav'; // RIFF
+        if (head.startsWith('T2dn')) return 'audio/ogg'; // OggS -> T2dnUw==
+        if (head.startsWith('AAAA') || head.startsWith('AAAB')) return 'audio/aac'; // raw AAC (heuristic)
+        return undefined;
+      };
+      const candidates = [
+        mimeHint,
+        detectFromHeader(),
+        'audio/mpeg',
+        'audio/mp4',
+        'audio/x-m4a',
+        'audio/aac',
+        'audio/wav',
+        'audio/ogg',
+        'audio/webm',
+        'application/octet-stream',
+      ].filter(Boolean) as string[];
+      let chosen: string | undefined = candidates.find((m) => !audio || audio.canPlayType(m) !== '');
+      if (!chosen) chosen = 'application/octet-stream';
+      const url = URL.createObjectURL(new Blob([bytes], { type: chosen }));
       createdObjectUrlsRef.current.add(url);
       return url;
     } catch {
@@ -128,7 +151,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
       const voiceData = voiceRes.data || {};
       
       // Create audio URL from base64 data using Blob URL
-      const audioUrl = base64ToUrl(voiceData.audio_base64);
+      const audioUrl = base64ToUrl(voiceData.audio_base64, voiceData.mime || voiceData.content_type || undefined);
       
       // Update story with generated audio
       const updatedStory: GeneratedStory = {
@@ -243,7 +266,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
               const result = data.result || data;
               const audioB64 = result.audio_base64 || result.audioBase64;
               const qc = result.qc || {};
-              const audioUrl = base64ToUrl(audioB64);
+              const audioUrl = base64ToUrl(audioB64, result.mime || result.content_type || undefined);
               setStories(prev => prev.map(s => s.id === targetStoryId ? {
                 ...s,
                 audioUrl,
