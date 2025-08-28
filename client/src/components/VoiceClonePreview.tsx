@@ -100,8 +100,8 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
 
     setIsGenerating(true);
     
+    let createdStoryId: string | null = null;
     try {
-      let createdStoryId: string | null = null;
       const newStory = buildAndSetNewStory();
       createdStoryId = newStory.id;
       const storyContent = newStory.content;
