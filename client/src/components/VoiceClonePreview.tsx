@@ -246,7 +246,8 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
     let consecutiveFailures = 0;
     while (Date.now() - start < maxMs) {
       try {
-        const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(jid)}`);
+        // Pass personId hint to allow server to persist completed audio
+        const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(jid)}?personId=${encodeURIComponent(String(personId))}`);
         if (!res.ok) {
           consecutiveFailures++;
           if (consecutiveFailures >= 5) {
@@ -266,6 +267,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
               const result = data.result || data;
               const audioB64 = result.audio_base64 || result.audioBase64;
               const qc = result.qc || {};
+              const recordingId = result.recording_id || result.recordingId;
               const audioUrl = base64ToUrl(audioB64, result.mime || result.content_type || undefined);
               setStories(prev => prev.map(s => s.id === targetStoryId ? {
                 ...s,
@@ -279,7 +281,11 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
                 isGenerating: false,
                 qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : cs.qc
               } : cs);
-              toast({ title: 'Clone Ready', description: qc?.decision ? `QC: ${qc.decision}` : 'Audio generated' });
+              if (recordingId) {
+                toast({ title: 'Clone Saved', description: `Recording #${recordingId} saved` });
+              } else {
+                toast({ title: 'Clone Ready', description: qc?.decision ? `QC: ${qc.decision}` : 'Audio generated' });
+              }
               return;
             }
             if (status === 'failed' || data.error) {

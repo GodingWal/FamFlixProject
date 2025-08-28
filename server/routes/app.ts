@@ -540,9 +540,13 @@ router.post('/voice/clone/start', async (req: Request, res: Response) => {
 });
 
 // Proxy: get job status
+// Track jobs we've already persisted during this process lifetime to avoid duplicates on polling
+const persistedJobIds = new Set<string>();
+
 router.get('/voice/jobs/:id', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
+    const personIdRaw = (req.query?.personId as string | undefined) || undefined;
     const url = `${VOICE_AGENT_URL}/api/jobs/${encodeURIComponent(id)}`;
     const response = await fetch(url, {
       headers: {
@@ -556,6 +560,46 @@ router.get('/voice/jobs/:id', async (req: Request, res: Response) => {
     }
     
     const data = await response.json();
+
+    // Persist completed audio result to the database if possible
+    try {
+      const status = (data && (data.status || data.state)) as string | undefined;
+      const result = (data && (data.result || data)) || {};
+      const audioB64 = (result.audio_base64 || result.audioBase64) as string | undefined;
+      const contentType = (result.mime || result.content_type || 'audio/mpeg') as string;
+      const personId = personIdRaw ? Number(personIdRaw) : undefined;
+      if (status && /^(completed|done)$/i.test(status) && audioB64 && personId && !Number.isNaN(personId)) {
+        if (!persistedJobIds.has(id)) {
+          // Lazy import to avoid circular deps
+          const { storage } = await import('../storage');
+          // Load person to get userId
+          const person = await storage.getPerson(personId);
+          if (person && typeof person.userId === 'number') {
+            const audioUrl = `data:${contentType};base64,${audioB64}`;
+            const now = new Date();
+            const name = `Cloned Story ${now.toISOString().slice(0, 10)} [job ${id}]`;
+            try {
+              const created = await storage.createVoiceRecording({
+                userId: person.userId,
+                personId,
+                name,
+                duration: 0,
+                isDefault: false,
+                audioUrl,
+              } as any);
+              (result as any).recording_id = created?.id ?? undefined;
+              persistedJobIds.add(id);
+            } catch (persistErr) {
+              // Log but do not fail the request
+              log(`Persist clone audio failed for job ${id}: ${(persistErr as Error).message}`, 'routes');
+            }
+          }
+        }
+      }
+    } catch (innerErr) {
+      log(`Job persist handler error: ${(innerErr as Error).message}`, 'routes');
+    }
+
     return res.json(data);
   } catch (err) {
     log(`Job status proxy error: ${(err as Error).message}`, 'routes');
