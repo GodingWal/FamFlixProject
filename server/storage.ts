@@ -261,17 +261,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePerson(id: number): Promise<boolean> {
+    // Collect related resources first
     const personVoiceRecordings = await db!.select().from(voiceRecordings).where(eq(voiceRecordings.personId, id));
     const personFaceImages = await db!.select().from(faceImages).where(eq(faceImages.personId, id));
     const voiceRecordingIds = personVoiceRecordings.map(vr => vr.id);
     const faceImageIds = personFaceImages.map(fi => fi.id);
+
+    // Remove processed videos that reference these assets
     if (voiceRecordingIds.length > 0) {
       await db!.delete(processedVideos).where(inArray(processedVideos.voiceRecordingId, voiceRecordingIds));
     }
     if (faceImageIds.length > 0) {
       await db!.delete(processedVideos).where(inArray(processedVideos.faceImageId, faceImageIds));
     }
+
+    // Remove junction rows that directly reference the person
     await db!.delete(processedVideoPeople).where(eq(processedVideoPeople.personId, id));
+
+    // Remove voice profiles for this person (FK may block deletion otherwise)
+    await db!.delete(voiceProfiles).where(eq(voiceProfiles.personId, id));
+
+    // Proactively delete child's rows in case database doesn't enforce ON DELETE CASCADE
+    await db!.delete(voiceRecordings).where(eq(voiceRecordings.personId, id));
+    await db!.delete(faceImages).where(eq(faceImages.personId, id));
+    await db!.delete(faceVideos).where(eq(faceVideos.personId, id));
+
+    // Finally remove the person
     await db!.delete(people).where(eq(people.id, id));
     return true;
   }
