@@ -1,4 +1,4 @@
-import React, { useState, ReactNode } from 'react';
+import React, { useState, ReactNode, useRef, useEffect } from 'react';
 import { VoiceRecorder } from '@/components/VoiceRecorder';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,8 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
   const queryClient = useQueryClient();
   const { isMobile } = useMobile();
   const { toast } = useToast();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
   
   // State for voice recording processing
   const [isProcessing, setIsProcessing] = useState(false);
@@ -139,38 +141,75 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
         throw new Error('Failed to load recording');
       }
       
-      const audioData = await response.json();
-      
-      // Create audio element with decrypted data
-      const audio = new Audio();
-      
-      if (audioData.audioData && audioData.audioData.startsWith('data:')) {
-        audio.src = audioData.audioData;
-      } else if (audioData.audioUrl) {
-        audio.src = audioData.audioUrl;
-      } else {
-        throw new Error('No audio data available');
+      const payload = await response.json();
+
+      // Cleanup previous
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch {}
+        audioRef.current.onended = null;
+        audioRef.current.onpause = null;
+        audioRef.current.onplay = null;
+        // @ts-ignore
+        audioRef.current.src = '';
+        audioRef.current = null;
       }
-      
-      // Set up event handlers
-      audio.onloadstart = () => {
-        toast({
-          title: "Playing Recording",
-          description: `Playing ${recording.name}`,
-        });
+      if (objectUrlRef.current) {
+        try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+        objectUrlRef.current = null;
+      }
+
+      const base64ToUrl = (b64: string, mime: string = 'audio/mpeg') => {
+        try {
+          const bin = atob(b64);
+          const len = bin.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+          return URL.createObjectURL(new Blob([bytes], { type: mime }));
+        } catch {
+          return null;
+        }
       };
-      
-      audio.onerror = (err) => {
-        console.error('Error playing audio:', err);
+
+      let src: string | null = null;
+      if (payload.audioData) {
+        if (typeof payload.audioData === 'string' && payload.audioData.startsWith('data:')) {
+          src = payload.audioData;
+        } else if (typeof payload.audioData === 'string') {
+          src = base64ToUrl(payload.audioData);
+          if (src) objectUrlRef.current = src;
+        }
+      }
+      if (!src && payload.audioUrl) {
+        if (typeof payload.audioUrl === 'string' && payload.audioUrl.startsWith('data:')) {
+          src = payload.audioUrl;
+        } else if (typeof payload.audioUrl === 'string' && /^([A-Za-z0-9+/=]+)$/.test(payload.audioUrl.replace(/^data:[^,]*,/, ''))) {
+          const cleaned = payload.audioUrl.includes(',') ? payload.audioUrl.split(',').pop()! : payload.audioUrl;
+          src = base64ToUrl(cleaned);
+          if (src) objectUrlRef.current = src;
+        } else {
+          src = payload.audioUrl;
+        }
+      }
+
+      if (!src) throw new Error('No audio data available');
+
+      const audio = new Audio(src);
+      audioRef.current = audio;
+
+      audio.onended = () => {};
+      audio.onpause = () => {};
+      audio.onplay = () => {};
+
+      await audio.play().then(() => {
+        toast({ title: "Playing Recording", description: `Playing ${recording.name}` });
+      }).catch((err: any) => {
+        const notAllowed = err?.name === 'NotAllowedError';
         toast({
-          title: "Playback Error",
-          description: "Could not play the recording",
-          variant: "destructive",
+          title: notAllowed ? 'Autoplay blocked' : 'Playback Error',
+          description: notAllowed ? 'Tap Play to start audio.' : 'Could not play the recording',
+          variant: 'destructive'
         });
-      };
-      
-      // Play the audio
-      await audio.play();
+      });
       
     } catch (error) {
       console.error('Error playing recording:', error);
@@ -181,6 +220,25 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
       });
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch {}
+        audioRef.current.onended = null;
+        audioRef.current.onpause = null;
+        audioRef.current.onplay = null;
+        // @ts-ignore
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+      if (objectUrlRef.current) {
+        try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+        objectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   // Start new recording
   const startNewRecording = () => {
