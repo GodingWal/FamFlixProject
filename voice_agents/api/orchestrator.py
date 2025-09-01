@@ -6,6 +6,7 @@ from . import jobs
 from ..tools.audio_processing_tool import AudioProcessingTool
 from ..tools.quality_control_tool import QualityControlTool
 from .tts_utils import synthesize_with_elevenlabs_simple
+import json
 try:
     from ..crew import build_voice_crew  # type: ignore
 except Exception:
@@ -82,9 +83,19 @@ def run_clone_job(job_id: str, payload: Dict[str, Any]):
         clean_wav_path: Optional[str] = None
         try:
             ap = AudioProcessingTool()
-            clean_wav_path = ap._run(raw_audio_path=raw_audio_path, out_dir="/tmp")
+            ap_result = ap._run(raw_audio_path=raw_audio_path, out_dir="/tmp")
+            # Tool returns JSON string
+            try:
+                parsed = json.loads(ap_result) if isinstance(ap_result, str) else ap_result
+            except Exception:
+                parsed = {"error": str(ap_result)}
+            if isinstance(parsed, dict) and parsed.get("error"):
+                jobs.set_error(job_id, f"Audio preprocessing error: {parsed.get('error')}")
+                return
+            clean_wav_path = parsed.get("clean_wav_path") if isinstance(parsed, dict) else None
             if not clean_wav_path or not os.path.exists(clean_wav_path):
-                raise RuntimeError("Audio processing failed to produce an output file.")
+                jobs.set_error(job_id, "Audio processing failed to produce an output file")
+                return
             jobs.add_event(job_id, "Audio preprocessed", stage="ingestion", data={"clean_wav_path": clean_wav_path})
         except Exception as e:
             jobs.set_error(job_id, f"Audio preprocessing failed: {e}")

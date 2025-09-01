@@ -91,9 +91,19 @@ class TTSRequest(BaseModel):
     consent: Optional[bool] = True
 
 
+@app.on_event("startup")
+def _validate_env_on_startup():
+    # Record presence of critical envs for diagnostics
+    app.state.hf_token_present = bool(os.getenv("HF_TOKEN"))
+    app.state.eleven_api_present = bool(os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY"))
+
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "hf_token": bool(getattr(app.state, "hf_token_present", False)),
+        "eleven_api": bool(getattr(app.state, "eleven_api_present", False)),
+    }
 
 
 # -----------------------------------------------------------------------------
@@ -352,14 +362,56 @@ def start_clone(
     file: UploadFile = File(...),
     req: CloneStartRequest = Depends(get_clone_request)
 ):
-    # Save uploaded file to the shared Docker volume
+    # Save uploaded file to the shared Docker volume, with strict validation
     storage_dir = "/tmp/clone_uploads"
     os.makedirs(storage_dir, exist_ok=True)
-    # Sanitize filename to prevent directory traversal
-    safe_filename = os.path.basename(file.filename or "unknown_file")
-    raw_audio_path = os.path.join(storage_dir, f"{uuid4().hex}_{safe_filename}")
-    with open(raw_audio_path, "wb") as f:
-        f.write(file.file.read())
+
+    # Enforce audio content type
+    content_type = (file.content_type or "").strip().lower()
+    if not content_type.startswith("audio/"):
+        raise HTTPException(status_code=415, detail="Only audio uploads are supported")
+
+    # Map content type to safe extension
+    ext_map = {
+        "audio/wav": ".wav",
+        "audio/x-wav": ".wav",
+        "audio/mpeg": ".mp3",
+        "audio/mp3": ".mp3",
+        "audio/ogg": ".ogg",
+        "audio/webm": ".webm",
+        "audio/mp4": ".m4a",
+        "audio/x-m4a": ".m4a",
+    }
+    ext = ext_map.get(content_type, ".bin")
+    safe_filename = f"{uuid4().hex}{ext}"
+    raw_audio_path = os.path.join(storage_dir, safe_filename)
+
+    # Stream to disk with size cap
+    max_bytes = int(os.getenv("MAX_UPLOAD_BYTES", "20000000"))  # 20 MB default
+    total = 0
+    try:
+        with open(raw_audio_path, "wb") as f:
+            while True:
+                chunk = file.file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    try:
+                        f.close()
+                    except Exception:
+                        pass
+                    try:
+                        os.remove(raw_audio_path)
+                    except Exception:
+                        pass
+                    raise HTTPException(status_code=413, detail="Audio file too large")
+                f.write(chunk)
+    finally:
+        try:
+            file.file.close()
+        except Exception:
+            pass
 
     payload: Dict[str, Any] = req.model_dump()
     payload["raw_audio_path"] = raw_audio_path
