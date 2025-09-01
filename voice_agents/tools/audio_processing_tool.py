@@ -53,40 +53,45 @@ class AudioProcessingTool(BaseTool):
 
             # 2. Speaker diarization to find and isolate the dominant speaker
             hf_token = os.getenv("HF_TOKEN")
-            if not hf_token:
-                return json.dumps({"error": "Hugging Face token (HF_TOKEN) not found. Diarization requires it."})
-            
-            pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=hf_token)
-            diarization = pipeline(raw_audio_path)
+            if hf_token:
+                # Full diarization path
+                pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=hf_token)
+                diarization = pipeline(raw_audio_path)
 
-            speaker_turns = {}
-            for turn, _, speaker in diarization.itertracks(yield_label=True):
-                duration = turn.end - turn.start
-                if speaker not in speaker_turns:
-                    speaker_turns[speaker] = 0
-                speaker_turns[speaker] += duration
+                speaker_turns = {}
+                for turn, _, speaker in diarization.itertracks(yield_label=True):
+                    duration = turn.end - turn.start
+                    if speaker not in speaker_turns:
+                        speaker_turns[speaker] = 0
+                    speaker_turns[speaker] += duration
 
-            if not speaker_turns:
-                return json.dumps({"error": "No speech detected (VAD found no segments)"})
+                if not speaker_turns:
+                    return json.dumps({"error": "No speech detected (VAD found no segments)"})
 
-            dominant_speaker = max(speaker_turns, key=speaker_turns.get)
-            total_speech_duration = sum(speaker_turns.values())
+                dominant_speaker = max(speaker_turns, key=speaker_turns.get)
+                total_speech_duration = sum(speaker_turns.values())
 
-            if total_speech_duration < 10.0:
-                return json.dumps({"error": f"Input is unusable. Total detected speech is only {total_speech_duration:.1f}s, which is less than the 10s minimum."})
+                if total_speech_duration < 10.0:
+                    return json.dumps({"error": f"Input is unusable. Total detected speech is only {total_speech_duration:.1f}s, which is less than the 10s minimum."})
 
-            # Concatenate segments from the dominant speaker
-            dominant_speaker_audio = []
-            for turn, _, speaker in diarization.itertracks(yield_label=True):
-                if speaker == dominant_speaker:
-                    start_sample = int(turn.start * sr)
-                    end_sample = int(turn.end * sr)
-                    dominant_speaker_audio.append(y[start_sample:end_sample])
-            
-            if not dominant_speaker_audio:
-                 return json.dumps({"error": "Could not isolate dominant speaker audio segments."})
+                # Concatenate segments from the dominant speaker
+                dominant_speaker_audio = []
+                for turn, _, speaker in diarization.itertracks(yield_label=True):
+                    if speaker == dominant_speaker:
+                        start_sample = int(turn.start * sr)
+                        end_sample = int(turn.end * sr)
+                        dominant_speaker_audio.append(y[start_sample:end_sample])
+                
+                if not dominant_speaker_audio:
+                    return json.dumps({"error": "Could not isolate dominant speaker audio segments."})
 
-            y = np.concatenate(dominant_speaker_audio)
+                y = np.concatenate(dominant_speaker_audio)
+            else:
+                # Fallback: no diarization (HF token missing). Proceed with minimal cleanup.
+                # Keep first 30s to bound processing time.
+                max_len = sr * 30
+                if y.shape[0] > max_len:
+                    y = y[:max_len]
 
             # 3. Light denoising
             y = nr.reduce_noise(y=y, sr=sr, prop_decrease=0.6, stationary=True)
