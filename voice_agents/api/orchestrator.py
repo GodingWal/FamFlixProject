@@ -178,6 +178,9 @@ def run_clone_job(job_id: str, payload: Dict[str, Any]):
             "clean_wav_path": clean_wav_path,
             "gen_wav_path": gen_wav_path,
             "settings_used": settings_used,
+            # Include audio for downstream persistence
+            "audio_base64": audio_b64,
+            "mime": "audio/mpeg",
         }
 
         jobs.set_result(job_id, result_payload)
