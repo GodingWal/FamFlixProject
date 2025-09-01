@@ -110,6 +110,17 @@ export function VoiceRecordingManager({ userId, personId, personName, onOpenTrai
       });
 
       if (response.ok) {
+        const created = await response.json();
+        // Kick off analysis (agent 1) in background
+        if (created?.id) {
+          try {
+            await apiRequest('POST', '/api/voice/analyze', {
+              recordingId: created.id
+            });
+          } catch (e) {
+            console.warn('Voice analysis failed or unavailable');
+          }
+        }
         // Reset recording name for next time
         setRecordingName(`${personName}'s Voice ${new Date().toLocaleDateString()}`);
         

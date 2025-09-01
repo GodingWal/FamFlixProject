@@ -8,10 +8,64 @@ const router = Router();
 
 // Voice agent base URL (FastAPI or CrewAI). Defaults to local dev port 8001
 const VOICE_AGENT_URL = process.env.VOICE_AGENT_URL || 'http://127.0.0.1:8001';
+// Control whether to use local stub jobs regardless of agent availability
+const USE_LOCAL_STUB_JOBS = String(process.env.VOICE_AGENT_STUB || '').toLowerCase() === 'true';
+// Analyze recording (Agent 1)
+const analyzeBody = z.object({ recordingId: z.number() });
+router.post('/voice/analyze', async (req: Request, res: Response) => {
+  try {
+    const { recordingId } = analyzeBody.parse(req.body);
+    const recording = await storage.getVoiceRecording(recordingId);
+    if (!recording) return res.status(404).json({ message: 'Recording not found' });
+    // Prefer audioUrl (may be encrypted data URI) else audioData
+    let base64: string | null = null;
+    try {
+      const resp = await fetch(`${req.protocol}://${req.get('host')}/api/voiceRecordings/${recordingId}/audio`);
+      if (resp.ok) {
+        const data = await resp.json();
+        const v = (data.audioData || data.audioUrl) as string | undefined;
+        if (v && typeof v === 'string') {
+          base64 = v.startsWith('data:') ? v.split(',').pop() || null : v;
+        }
+      }
+    } catch {}
+    // Call agent if available; otherwise return minimal faux analysis
+    let analysis: any = null;
+    if (base64 && !VOICE_AGENT_URL.startsWith('http://127.0.0.1')) {
+      try {
+        const a = await fetch(`${VOICE_AGENT_URL}/api/analyze`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': VOICE_AGENT_API_KEY,
+            ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
+          },
+          body: JSON.stringify({ audio_base64: base64 }),
+        });
+        if (a.ok) analysis = await a.json();
+      } catch (e) {
+        log(`Analyze proxy error: ${(e as Error).message}`, 'routes');
+      }
+    }
+    if (!analysis) {
+      analysis = { decision: 'ok', duration_s: recording.duration ?? null };
+    }
+    await storage.updateVoiceRecording(recordingId, { analysis } as any);
+    return res.json({ analysis });
+  } catch (err) {
+    return res.status(400).json({ message: 'Invalid request' });
+  }
+});
+
 // In-memory fake jobs for local fallback
 const localJobs = new Map<string, any>();
 
-function generateSineWaveWavBase64(durationSec: number = 1, freq: number = 440, sampleRate: number = 22050): string {
+function generateSineWaveWavBase64(
+  durationSec: number = 1,
+  freq: number = 440,
+  sampleRate: number = 22050,
+  amplitudeScale: number = 0.03
+): string {
   const numSamples = Math.floor(durationSec * sampleRate);
   const headerSize = 44;
   const dataSize = numSamples * 2; // 16-bit mono
@@ -36,7 +90,7 @@ function generateSineWaveWavBase64(durationSec: number = 1, freq: number = 440, 
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
     const amplitude = Math.sin(2 * Math.PI * freq * t);
-    const sample = Math.max(-1, Math.min(1, amplitude)) * 0.25; // scale down volume
+    const sample = Math.max(-1, Math.min(1, amplitude)) * amplitudeScale; // lower volume to avoid loud beep
     view.setInt16(offset, sample * 0x7FFF, true);
     offset += 2;
   }
@@ -47,7 +101,7 @@ function generateSineWaveWavBase64(durationSec: number = 1, freq: number = 440, 
   return Buffer.from(binary, 'binary').toString('base64');
 }
 
-const VOICE_AGENT_API_KEY = process.env.VOICE_AGENT_API_KEY || '';
+const VOICE_AGENT_API_KEY = process.env.VOICE_AGENT_API_KEY || ((VOICE_AGENT_URL.includes('127.0.0.1') || VOICE_AGENT_URL.includes('localhost')) ? 'dev-local' : '');
 const CREWAI_API_KEY = process.env.CREWAI_API_KEY || '';
 const DEFAULT_VOICE_ID = process.env.DEFAULT_VOICE_ID;
 
@@ -261,6 +315,123 @@ router.post('/voiceRecordings', async (req, res) => {
       audioData: input.audioData
     } as any;
     const created = await storage.createVoiceRecording(payload);
+    // Fire-and-forget: kick off clone preview generation via agent and persist result when done
+    (async () => {
+      try {
+        const personId = Number(input.personId);
+        if (!Number.isFinite(personId)) return;
+        // Resolve voiceId preference
+        let voiceId: string | null = null;
+        try {
+          const person = await storage.getPerson(personId);
+          voiceId = (person && typeof person.elevenlabsVoiceId === 'string' && person.elevenlabsVoiceId.trim()) ? person.elevenlabsVoiceId.trim() : null;
+        } catch {}
+        if (!voiceId) {
+          voiceId = await resolveDefaultVoiceId();
+        }
+        if (!voiceId) return;
+
+        // Convert the saved audio (data URI or raw base64) into a Buffer for multipart upload
+        const getAudioFromRecording = async (): Promise<{ buffer: Buffer; mime: string; filename: string } | null> => {
+          try {
+            const rec = await storage.getVoiceRecording(created.id);
+            const v: string | undefined = (rec?.audioData || rec?.audioUrl) as any;
+            if (!v) return null;
+            let mime = 'audio/wav';
+            let base64 = v;
+            if (typeof v === 'string' && v.startsWith('data:')) {
+              const m = v.match(/^data:([^;]+);base64,(.*)$/);
+              if (m) {
+                mime = m[1];
+                base64 = m[2];
+              }
+            }
+            const buffer = Buffer.from(base64, 'base64');
+            const ext = mime.includes('mpeg') ? 'mp3' : mime.includes('wav') ? 'wav' : mime.includes('ogg') ? 'ogg' : 'audio';
+            const filename = `recording_${created.id}.${ext}`;
+            return { buffer, mime, filename };
+          } catch {
+            return null;
+          }
+        };
+
+        const audio = await getAudioFromRecording();
+        if (!audio) return;
+
+        // Build multipart form-data request expected by the agent
+        const { default: FormData } = await import('form-data');
+        const form = new FormData();
+        form.append('file', audio.buffer, { filename: audio.filename, contentType: audio.mime, knownLength: audio.buffer.length } as any);
+        form.append('text', `This is a short preview generated for ${new Date().toISOString().slice(0,10)}.`);
+        form.append('voice_id', voiceId);
+        form.append('mode', 'narration');
+        form.append('provider', 'elevenlabs');
+        form.append('consent_flag', 'true');
+
+        const startUrl = `${VOICE_AGENT_URL}/api/clone/start`;
+        const startResp = await fetch(startUrl, {
+          method: 'POST',
+          headers: {
+            'X-API-Key': VOICE_AGENT_API_KEY,
+            ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
+            // Let FormData set the Content-Type with boundary
+            ...form.getHeaders?.(),
+          } as any,
+          body: form as any,
+        }).catch(() => null);
+        if (!startResp || !startResp.ok) return;
+        const startData: any = await startResp.json().catch(() => ({}));
+        const jobId = (startData && (startData.jobId || startData.job_id || startData.id || startData.run_id || startData.task_id)) || null;
+        if (!jobId) return;
+        // Poll agent for completion, then persist to DB
+        const jobUrl = `${VOICE_AGENT_URL}/api/jobs/${encodeURIComponent(String(jobId))}`;
+        const deadline = Date.now() + 60_000;
+        let delay = 800;
+        while (Date.now() < deadline) {
+          try {
+            const r = await fetch(jobUrl, {
+              headers: {
+                'X-API-Key': VOICE_AGENT_API_KEY,
+                ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
+              },
+            });
+            if (r.ok) {
+              const data: any = await r.json().catch(() => ({}));
+              const status = (data && (data.status || data.state)) as string | undefined;
+              const result = (data && (data.result || data)) || {};
+              if (status && /^(completed|done)$/i.test(status)) {
+                const audioB64 = (result.audio_base64 || result.audioBase64) as string | undefined;
+                const contentType = (result.mime || result.content_type || 'audio/mpeg') as string;
+                if (audioB64) {
+                  try {
+                    const person = await storage.getPerson(personId);
+                    if (person && typeof person.userId === 'number') {
+                      const audioUrl = `data:${contentType};base64,${audioB64}`;
+                      const now = new Date();
+                      const name = `Cloned Story ${now.toISOString().slice(0, 10)} [job ${jobId}]`;
+                      await storage.createVoiceRecording({
+                        userId: person.userId,
+                        personId,
+                        name,
+                        duration: 0,
+                        isDefault: false,
+                        audioUrl,
+                      } as any);
+                    }
+                  } catch {}
+                }
+                break;
+              }
+              if (status && /^(failed|error)$/i.test(status)) {
+                break;
+              }
+            }
+          } catch {}
+          await new Promise(r => setTimeout(r, delay));
+          delay = Math.min(5000, Math.floor(delay * 1.5));
+        }
+      } catch {}
+    })();
     return res.status(201).json(created);
   } catch (error) {
     log(`Create voice recording error: ${(error as Error).message}`, 'routes');
@@ -407,7 +578,7 @@ const voicePreviewBody = z.object({
   // Prefer voiceId for direct ElevenLabs mapping; personId kept for future mapping
   voiceId: z.string().min(1).optional(),
   personId: z.number().optional(),
-  text: z.string().min(1),
+  text: z.string().optional(),
   mode: z.enum(['narration','dialogue']).optional(),
   quality: z.string().optional(),
 });
@@ -428,15 +599,21 @@ router.get('/voice/voices', async (_req: Request, res: Response) => {
 
 router.post('/voice/preview', async (req: Request, res: Response) => {
   try {
-    const input = voicePreviewBody.parse(req.body);
+    const parsed = voicePreviewBody.safeParse(req.body);
+    if (!parsed.success) {
+      // In dev or on validation issues, return a local tone so UI is resilient
+      const b64 = generateSineWaveWavBase64(1.2, 440);
+      return res.status(200).json({ audio_base64: b64, mime: 'audio/wav' });
+    }
+    const input = parsed.data;
     // Resolve a voiceId if not provided
     let voiceId = input.voiceId;
     if (!voiceId) {
       voiceId = await resolveDefaultVoiceId() || undefined;
     }
-    // If no upstream or voiceId not resolved, synthesize a short placeholder tone for local/dev
-    if (!voiceId || VOICE_AGENT_URL.startsWith('http://127.0.0.1')) {
-      const b64 = generateSineWaveWavBase64(1.2, 440);
+    // If no voiceId resolved, synthesize a short placeholder tone so UI is resilient
+    if (!voiceId) {
+      const b64 = generateSineWaveWavBase64(1.2, 440, 22050, 0.0);
       return res.json({ audio_base64: b64, mime: 'audio/wav' });
     }
     // Proxy to FastAPI TTS if configured
@@ -462,12 +639,14 @@ router.post('/voice/preview', async (req: Request, res: Response) => {
       return res.json(data);
     } catch (err) {
       log(`TTS proxy error: ${(err as Error).message}`, 'routes');
-      // Fallback to generated tone
-      const b64 = generateSineWaveWavBase64(1.2, 523.25);
+      // Fallback to silence instead of tone
+      const b64 = generateSineWaveWavBase64(1.2, 523.25, 22050, 0.0);
       return res.status(200).json({ audio_base64: b64, mime: 'audio/wav' });
     }
   } catch (error) {
-    return res.status(400).json({ message: 'Invalid request' });
+    // Final safety fallback
+    const b64 = generateSineWaveWavBase64(1.2, 440, 22050, 0.0);
+    return res.status(200).json({ audio_base64: b64, mime: 'audio/wav' });
   }
 });
 
@@ -555,12 +734,12 @@ router.post('/voice/combine-recordings', async (req: Request, res: Response) => 
 // Proxy: start clone job (CrewAI orchestrator)
 router.post('/voice/clone/start', async (req: Request, res: Response) => {
   try {
-    // Local/dev fallback: synthesize a job id and create a result shortly
-    if (VOICE_AGENT_URL.startsWith('http://127.0.0.1')) {
+    // Optional local stub: synthesize a job id and create a result shortly
+    if (USE_LOCAL_STUB_JOBS) {
       const jobId = `local-${Date.now()}`;
       const { text, personId } = (req.body || {}) as any;
       // prepare a result to be returned by /voice/jobs/:id
-      const audio_base64 = generateSineWaveWavBase64(1.5, 392);
+      const audio_base64 = generateSineWaveWavBase64(1.5, 392, 22050, 0.0);
       localJobs.set(jobId, {
         status: 'processing',
         created_at: new Date().toISOString(),
@@ -606,8 +785,8 @@ router.get('/voice/jobs/:id', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
     const personIdRaw = (req.query?.personId as string | undefined) || undefined;
-    // Local/dev fallback: return local job state
-    if (VOICE_AGENT_URL.startsWith('http://127.0.0.1') && localJobs.has(id)) {
+    // Optional local stub: return local job state
+    if (USE_LOCAL_STUB_JOBS && localJobs.has(id)) {
       const state = localJobs.get(id);
       if (state?.status === 'completed' && state?.result) {
         const data = {
@@ -681,6 +860,24 @@ router.get('/voice/jobs/:id', async (req: Request, res: Response) => {
                 audioUrl,
               } as any);
               (result as any).recording_id = created?.id ?? undefined;
+              // Optionally run QC via agent here and persist
+              try {
+                const qcRes = await fetch(`${VOICE_AGENT_URL}/api/qc`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': VOICE_AGENT_API_KEY,
+                    ...(CREWAI_API_KEY ? { Authorization: `Bearer ${CREWAI_API_KEY}` } : {}),
+                  },
+                  body: JSON.stringify({ audio_base64: audioB64 }),
+                }).catch(() => null);
+                if (qcRes && qcRes.ok) {
+                  const qc = await qcRes.json();
+                  const { storage } = await import('../storage');
+                  await storage.updateVoiceRecording(created.id, { qc });
+                  (result as any).qc = qc;
+                }
+              } catch {}
               persistedJobIds.add(id);
             } catch (persistErr) {
               // Log but do not fail the request

@@ -35,8 +35,9 @@ export const VoiceAPI = {
     const data = await safeJson(res);
     return { ok: res.ok, data, status: res.status };
   },
-  async job(id: string): Promise<{ ok: boolean; data: any | null; status: number }> {
-    const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(id)}`);
+  async job(id: string, params?: { personId?: number }): Promise<{ ok: boolean; data: any | null; status: number }> {
+    const qs = params?.personId != null ? `?personId=${encodeURIComponent(String(params.personId))}` : '';
+    const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(id)}${qs}`);
     const data = await safeJson(res);
     return { ok: res.ok, data, status: res.status };
   },

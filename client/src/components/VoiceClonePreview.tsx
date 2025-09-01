@@ -8,6 +8,7 @@ import { Play, Pause, Square, Shuffle, Volume2, Loader2, Sparkles, RefreshCw, Wo
 import { useToast } from '@/hooks/use-toast';
 import { VoiceAPI } from '@/lib/voice-api';
 import { cn } from '@/lib/utils';
+import { apiRequest } from '@/lib/queryClient';
 
 interface VoiceClonePreviewProps {
   personId: number;
@@ -268,7 +269,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
               const audioB64 = result.audio_base64 || result.audioBase64;
               const qc = result.qc || {};
               const recordingId = result.recording_id || result.recordingId;
-              const audioUrl = base64ToUrl(audioB64, result.mime || result.content_type || undefined);
+              let audioUrl = base64ToUrl(audioB64, result.mime || result.content_type || undefined);
               setStories(prev => prev.map(s => s.id === targetStoryId ? {
                 ...s,
                 audioUrl,
@@ -282,6 +283,19 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
                 qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : cs.qc
               } : cs);
               if (recordingId) {
+                // Prefer fetching from DB for robust playback
+                try {
+                  const recRes = await apiRequest('GET', `/api/voiceRecordings/${encodeURIComponent(String(recordingId))}/audio`);
+                  if (recRes.ok) {
+                    const recData = await recRes.json();
+                    const v = (recData.audioData || recData.audioUrl) as string | undefined;
+                    if (v) {
+                      const b64 = v.startsWith('data:') ? v.split(',').pop() : v;
+                      const fetchedUrl = base64ToUrl(b64, 'audio/mpeg');
+                      if (fetchedUrl) audioUrl = fetchedUrl;
+                    }
+                  }
+                } catch {}
                 toast({ title: 'Clone Saved', description: `Recording #${recordingId} saved` });
               } else {
                 toast({ title: 'Clone Ready', description: qc?.decision ? `QC: ${qc.decision}` : 'Audio generated' });
@@ -492,11 +506,11 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
                       ) : (
                         <div className="flex gap-2">
                           <Button
-                            onClick={currentAudio?.paused ? resumePlayback : pausePlayback}
+                            onClick={audioRef.current?.paused ? resumePlayback : pausePlayback}
                             size="lg"
                             variant="outline"
                           >
-                            {currentAudio?.paused ? (
+                            {audioRef.current?.paused ? (
                               <>
                                 <Play className="h-4 w-4 mr-2" />
                                 Resume
@@ -531,13 +545,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
                   )}
                 </div>
 
-                {/* QC Controls */}
-                <div className="flex items-center justify-center gap-3 mt-2">
-                  <Button onClick={startCloneWithQC} disabled={isCloning || isGenerating} variant="secondary">
-                    {isCloning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Workflow className="h-4 w-4 mr-2" />}
-                    Start Clone (QC)
-                  </Button>
-                </div>
+                {/* QC pipeline starts automatically when a recording is available */}
 
                 {/* QC Metrics */}
                 {currentStory?.qc && (

@@ -97,6 +97,8 @@ export const voiceRecordings = pgTable("voice_recordings", {
   duration: integer("duration"), // in seconds
   isDefault: boolean("is_default").default(false), // Whether this is the default voice for this person
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  analysis: jsonb("analysis"), // NLP/acoustic metrics from agent
+  qc: jsonb("qc"), // QC metrics/decision after cloning
 });
 
 // Educational video templates

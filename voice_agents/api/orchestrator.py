@@ -45,6 +45,38 @@ def run_clone_job(job_id: str, payload: Dict[str, Any]):
             jobs.set_error(job_id, "raw_audio_path is required and must exist")
             return
 
+        # Optional: Run CrewAI orchestration if enabled, but do not depend on its output
+        try:
+            if os.getenv("CREWAI_RUN", "false").lower() == "true":
+                context = {
+                    "raw_audio_path": raw_audio_path,
+                    "voice_id": payload.get("voice_id", ""),
+                    "text": payload.get("text", ""),
+                    "mode": payload.get("mode", "narration"),
+                    "defaults": payload.get("defaults", {}),
+                    "gates": {
+                        "max_wer": float((payload.get("qc", {}) or {}).get("max_wer", 0.15)),
+                        "min_cosine": float((payload.get("qc", {}) or {}).get("min_cosine", 0.80)),
+                    },
+                    "retry": {
+                        "cosine_bump_similarity": float((payload.get("qc", {}) or {}).get("cosine_bump_similarity", 0.05)),
+                        "similarity_cap": float((payload.get("qc", {}) or {}).get("similarity_cap", 0.90)),
+                        "cosine_bump_stability": float((payload.get("qc", {}) or {}).get("cosine_bump_stability", 0.05)),
+                        "stability_cap": float((payload.get("qc", {}) or {}).get("stability_cap", 0.75)),
+                    },
+                    "task_type": "voice_clone",
+                }
+                crew = build_voice_crew(context)
+                if crew:
+                    jobs.add_event(job_id, "CrewAI kickoff", stage="crew")
+                    try:
+                        _ = crew.kickoff()
+                        jobs.add_event(job_id, "CrewAI finished", stage="crew")
+                    except Exception as e:
+                        jobs.add_event(job_id, f"CrewAI error: {e}", stage="crew")
+        except Exception as e:
+            jobs.add_event(job_id, f"CrewAI init skipped: {e}", stage="crew")
+
         jobs.set_status(job_id, "ingesting")
         jobs.add_event(job_id, "Preprocessing audio", stage="ingestion", data={"raw_audio_path": raw_audio_path})
         clean_wav_path: Optional[str] = None

@@ -274,21 +274,44 @@ const PeopleManagement = () => {
     mutationFn: async (personId: number) => {
       await apiRequest("DELETE", `/api/people/${personId}`);
     },
+    onMutate: async (personId: number) => {
+      // Optimistically remove the person from the cached list
+      await queryClient.cancelQueries({ queryKey: [`/api/users/${user?.id}/people`] });
+      const previous = queryClient.getQueryData<Person[]>([`/api/users/${user?.id}/people`]);
+      queryClient.setQueryData<Person[] | undefined>([`/api/users/${user?.id}/people`], (old) => {
+        if (!old) return old;
+        return old.filter((p) => p.id !== personId);
+      });
+      // If the currently selected person is the one being deleted, clear it immediately
+      if (selectedPerson && selectedPerson.id === personId) {
+        setSelectedPerson(null);
+      }
+      return { previous } as { previous?: Person[] };
+    },
+    onError: (error: Error, _personId: number, context?: { previous?: Person[] }) => {
+      // Roll back optimistic update on error
+      if (context?.previous) {
+        queryClient.setQueryData([`/api/users/${user?.id}/people`], context.previous);
+      }
+      // Surface error
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
     onSuccess: () => {
       setIsDeleteDialogOpen(false);
-      setSelectedPerson(null);
+      // Final invalidate to ensure fresh data
       queryClient.invalidateQueries({ queryKey: [`/api/users/${user?.id}/people`] });
       toast({
         title: "Success",
         description: "Person deleted successfully",
       });
     },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+    onSettled: () => {
+      // Safety: also invalidate after settle
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${user?.id}/people`] });
     },
   });
 

@@ -261,6 +261,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePerson(id: number): Promise<boolean> {
+    // Load person first to obtain userId for cache invalidation
+    const [personRow] = await db!.select().from(people).where(eq(people.id, id));
+    if (!personRow) return false;
+
     // Collect related resources first
     const personVoiceRecordings = await db!.select().from(voiceRecordings).where(eq(voiceRecordings.personId, id));
     const personFaceImages = await db!.select().from(faceImages).where(eq(faceImages.personId, id));
@@ -288,6 +292,15 @@ export class DatabaseStorage implements IStorage {
 
     // Finally remove the person
     await db!.delete(people).where(eq(people.id, id));
+
+    // Invalidate caches so UI reflects deletion immediately
+    try {
+      cache.del(CacheKeys.userPeople(personRow.userId));
+      cache.del('all_people');
+      cache.del(CacheKeys.personFaceImages(id));
+      cache.del(CacheKeys.personVoiceRecordings(id));
+      cache.del(CacheKeys.personVoiceProfiles(id));
+    } catch {}
     return true;
   }
 
@@ -502,6 +515,15 @@ export class DatabaseStorage implements IStorage {
       .returning();
     cache.del(CacheKeys.personVoiceRecordings(insertVoiceRecording.personId));
     return voiceRecording;
+  }
+
+  async updateVoiceRecording(id: number, update: Partial<VoiceRecording>): Promise<VoiceRecording | undefined> {
+    const [row] = await db!
+      .update(voiceRecordings)
+      .set(update as any)
+      .where(eq(voiceRecordings.id, id))
+      .returning();
+    return row;
   }
 
   async setDefaultVoiceRecording(id: number): Promise<VoiceRecording | undefined> {
