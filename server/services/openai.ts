@@ -1,9 +1,38 @@
-import OpenAI from "openai";
+// Replaced OpenAI with local Ollama (gpt-oss) for all LLM operations
+// Reference model: gpt-oss (powerful reasoning & agentic tasks)
+// https://ollama.com/library/gpt-oss:latest
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gpt-oss:latest';
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY 
-});
+interface OllamaChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
+
+async function ollamaChat(messages: OllamaChatMessage[], temperature = 0.7, json = false): Promise<string> {
+  const url = `${OLLAMA_BASE_URL}/api/chat`;
+  const body: any = {
+    model: OLLAMA_MODEL,
+    messages,
+    stream: false,
+    options: {
+      temperature,
+    },
+  };
+  if (json) {
+    body.format = 'json';
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Ollama chat failed: ${res.status} ${res.statusText} ${txt}`);
+  }
+  const data = await res.json().catch(() => ({}));
+  // Ollama chat returns { message: { role, content }, ... }
+  const content = (data && data.message && data.message.content) || '';
+  return String(content || '');
+}
 
 export interface StoryGenerationRequest {
   theme: string;
@@ -57,23 +86,11 @@ export async function generateStoryScript(request: StoryGenerationRequest): Prom
     
     Make sure the dialogue is age-appropriate, engaging, and fits within the specified duration.`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are a professional children's story writer specializing in educational and entertaining content for young audiences."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.8,
-    });
-
-    const storyData = JSON.parse(response.choices[0].message.content || '{}');
+    const content = await ollamaChat([
+      { role: 'system', content: "You are a professional children's story writer specializing in educational and entertaining content for young audiences." },
+      { role: 'user', content: prompt },
+    ], 0.8, true);
+    const storyData = JSON.parse(content || '{}');
     return storyData as StoryScript;
   } catch (error) {
     console.error('Story generation error:', error);
@@ -83,32 +100,12 @@ export async function generateStoryScript(request: StoryGenerationRequest): Prom
 
 export async function enhanceVoiceScript(originalScript: string, voicePersonality: string): Promise<string> {
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are a voice coach specializing in adapting scripts for different voice personalities and speech patterns. Your job is to modify the given script to match the specified voice personality while maintaining the original meaning and educational value.`
-        },
-        {
-          role: "user",
-          content: `Please adapt this script for a ${voicePersonality} voice personality:
+    const content = await ollamaChat([
+      { role: 'system', content: 'You are a voice coach specializing in adapting scripts for different voice personalities and speech patterns. Your job is to modify the given script to match the specified voice personality while maintaining the original meaning and educational value.' },
+      { role: 'user', content: `Please adapt this script for a ${voicePersonality} voice personality:\n\nOriginal Script: "${originalScript}"\n\nMake the script more suitable for this voice type by:\n- Adjusting tone and emotion markers\n- Adding appropriate pauses and emphasis\n- Modifying sentence structure for natural flow\n- Including vocal direction hints\n\nReturn only the enhanced script text without additional formatting.` },
+    ], 0.7, false);
 
-Original Script: "${originalScript}"
-
-Make the script more suitable for this voice type by:
-- Adjusting tone and emotion markers
-- Adding appropriate pauses and emphasis
-- Modifying sentence structure for natural flow
-- Including vocal direction hints
-
-Return only the enhanced script text without additional formatting.`
-        }
-      ],
-      temperature: 0.7,
-    });
-
-    return response.choices[0].message.content || originalScript;
+    return content || originalScript;
   } catch (error) {
     console.error('Voice script enhancement error:', error);
     return originalScript; // Fallback to original
@@ -144,23 +141,11 @@ Please provide a JSON response with:
   "optimizedScript": "script_optimized_for_this_voice"
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert in voice analysis and script optimization for children's content."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.3,
-    });
-
-    const analysis = JSON.parse(response.choices[0].message.content || '{}');
+    const content = await ollamaChat([
+      { role: 'system', content: "You are an expert in voice analysis and script optimization for children's content." },
+      { role: 'user', content: prompt },
+    ], 0.3, true);
+    const analysis = JSON.parse(content || '{}');
     return {
       compatibility: analysis.compatibility || 70,
       suggestions: analysis.suggestions || [],
@@ -200,23 +185,11 @@ Please provide a JSON response with:
 
 Make it engaging, age-appropriate, and aligned with the learning objectives.`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert children's educator specializing in creating engaging educational content."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    });
-
-    const educationalData = JSON.parse(response.choices[0].message.content || '{}');
+    const content = await ollamaChat([
+      { role: 'system', content: "You are an expert children's educator specializing in creating engaging educational content." },
+      { role: 'user', content: prompt },
+    ], 0.7, true);
+    const educationalData = JSON.parse(content || '{}');
     return {
       content: educationalData.content || '',
       activities: educationalData.activities || [],
@@ -243,11 +216,9 @@ export async function transcribeAndAnalyzeVoice(audioBuffer: Buffer): Promise<{
     const tempFile = `/tmp/voice_analysis_${Date.now()}.wav`;
     require('fs').writeFileSync(tempFile, audioBuffer);
 
-    const transcription = await openai.audio.transcriptions.create({
-      file: require('fs').createReadStream(tempFile),
-      model: "whisper-1",
-      response_format: "verbose_json",
-    });
+    // NOTE: Replaced remote Whisper with a placeholder.
+    // For local transcription, integrate a local Whisper CLI/service and parse its output here.
+    const transcription = { text: '' } as any;
 
     // Clean up temp file
     require('fs').unlinkSync(tempFile);
@@ -268,23 +239,11 @@ Please provide a JSON response with:
   "suggestions": ["improvement suggestion 1", "suggestion 2"]
 }`;
 
-    const analysisResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are a voice coach expert in analyzing speech patterns for children's content narration."
-        },
-        {
-          role: "user",
-          content: analysisPrompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.3,
-    });
-
-    const analysis = JSON.parse(analysisResponse.choices[0].message.content || '{}');
+    const content = await ollamaChat([
+      { role: 'system', content: "You are a voice coach expert in analyzing speech patterns for children's content narration." },
+      { role: 'user', content: analysisPrompt },
+    ], 0.3, true);
+    const analysis = JSON.parse(content || '{}');
 
     return {
       transcript: transcription.text,

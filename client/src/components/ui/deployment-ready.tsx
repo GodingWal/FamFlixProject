@@ -64,9 +64,11 @@ export function DeploymentReadiness() {
         critical: true
       },
       {
-        name: "OpenAI Integration",
-        status: process.env.OPENAI_API_KEY ? 'pass' : 'warning',
-        message: process.env.OPENAI_API_KEY ? "OpenAI API key configured" : "OpenAI API key not detected",
+        name: "Local LLM (Ollama)",
+        status: (process.env.OLLAMA_BASE_URL && process.env.OLLAMA_MODEL) ? 'pass' : 'warning',
+        message: (process.env.OLLAMA_BASE_URL && process.env.OLLAMA_MODEL)
+          ? `Ollama configured: ${process.env.OLLAMA_MODEL}`
+          : "Ollama not fully configured (set OLLAMA_BASE_URL and OLLAMA_MODEL)",
         critical: false
       },
 
