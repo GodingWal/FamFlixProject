@@ -31,13 +31,15 @@ export const VoiceAPI = {
     return { ok: res.ok, data, status: res.status };
   },
   async startQC(args: any): Promise<{ ok: boolean; data: any | null; status: number }> {
-    const res = await apiRequest('POST', '/api/voice/clone/start', args);
+    // Direct agent-style path; server proxies to agent
+    const res = await apiRequest('POST', '/api/clone/start', args);
     const data = await safeJson(res);
     return { ok: res.ok, data, status: res.status };
   },
   async job(id: string, params?: { personId?: number }): Promise<{ ok: boolean; data: any | null; status: number }> {
     const qs = params?.personId != null ? `?personId=${encodeURIComponent(String(params.personId))}` : '';
-    const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(id)}${qs}`);
+    // Direct agent-style path; server proxies to agent
+    const res = await apiRequest('GET', `/api/jobs/${encodeURIComponent(id)}${qs}`);
     const data = await safeJson(res);
     return { ok: res.ok, data, status: res.status };
   },
