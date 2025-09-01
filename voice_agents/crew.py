@@ -1,8 +1,56 @@
-from crewai import Agent, Task, Crew
+from crewai import Agent, Task, Crew, LLM
 import yaml
 import os
 from .tools import PreProcessingTool, ElevenLabsTool, AudioProcessingTool, QualityControlTool
 
+
+def get_llm_config() -> "LLM | None":
+    """Return an LLM configured from environment variables.
+
+    Priority:
+    1) OPENAI_API_KEY (+ optional OPENAI_MODEL_NAME, OPENAI_API_BASE)
+    2) ANTHROPIC_API_KEY (Claude)
+    3) OLLAMA_BASE_URL (+ OLLAMA_MODEL)
+    4) AZURE_OPENAI_API_KEY (+ endpoint & deployment)
+    """
+    # OpenAI
+    if os.getenv("OPENAI_API_KEY"):
+        return LLM(
+            model=os.getenv("OPENAI_MODEL_NAME", "gpt-3.5-turbo"),
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url=os.getenv("OPENAI_API_BASE") or None,
+        )
+
+    # Anthropic Claude
+    if os.getenv("ANTHROPIC_API_KEY"):
+        return LLM(
+            model="claude-3-haiku-20240307",
+            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            api_base="https://api.anthropic.com",
+        )
+
+    # Local Ollama
+    if os.getenv("OLLAMA_BASE_URL"):
+        return LLM(
+            model=os.getenv("OLLAMA_MODEL", "llama2"),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            api_key="ollama",
+        )
+
+    # Azure OpenAI
+    if os.getenv("AZURE_OPENAI_API_KEY"):
+        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-35-turbo")
+        base = f"https://{endpoint}/openai/deployments/{deployment}" if endpoint else None
+        return LLM(
+            model=deployment,
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            base_url=base,
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+        )
+
+    # No LLM configured
+    return None
 
 AUDIO_ENGINEER_PROMPT = (
     "Provider lock: This pipeline is ElevenLabs-only for TTS/cloning. Do not invoke or suggest any other TTS providers.\n\n"
@@ -46,6 +94,8 @@ QC_LISTENER_PROMPT = (
 
 
 def build_voice_crew(context: dict) -> Crew:
+    # Configure LLM (supports OpenAI/Anthropic/Ollama/Azure)
+    llm = get_llm_config()
     # If YAML configs exist, prefer them
     config_dir = os.path.join(os.path.dirname(__file__), 'config')
     agents_yml = os.path.join(config_dir, 'agents.yaml')
@@ -68,8 +118,9 @@ def build_voice_crew(context: dict) -> Crew:
             ),
         } if agents_cfg is None else agents_cfg.get('audio_engineer', {})),
         allow_delegation=False,
-        verbose=False,
+        verbose=True,
         tools=[AudioProcessingTool()],
+        llm=llm,
     )
 
     synth = Agent(
@@ -82,8 +133,9 @@ def build_voice_crew(context: dict) -> Crew:
             ),
         } if agents_cfg is None else agents_cfg.get('synthesis_specialist', {})),
         allow_delegation=False,
-        verbose=False,
+        verbose=True,
         tools=[ElevenLabsTool()],
+        llm=llm,
     )
 
     supervisor = Agent(
@@ -93,8 +145,9 @@ def build_voice_crew(context: dict) -> Crew:
             'backstory': 'You are a compliance specialist who stops processes early if something is off. You verify consent, provider, and rate limits.',
         } if agents_cfg is None else agents_cfg.get('supervisor', {})),
         allow_delegation=False,
-        verbose=False,
+        verbose=True,
         tools=[PreProcessingTool()],
+        llm=llm,
     )
 
     qc = Agent(
@@ -106,8 +159,9 @@ def build_voice_crew(context: dict) -> Crew:
             ),
         } if agents_cfg is None else agents_cfg.get('qc_listener', {})),
         allow_delegation=False,
-        verbose=False,
+        verbose=True,
         tools=[QualityControlTool()],
+        llm=llm,
     )
 
     t1_desc = (
@@ -181,5 +235,5 @@ def build_voice_crew(context: dict) -> Crew:
         expected_output=(t3_expected if tasks_cfg is None else tasks_cfg['audio_quality_control_with_auto_retry']['expected_output']),
     )
 
-    return Crew(agents=[supervisor, audio_engineer, synth, qc], tasks=[t0, t1, t2, t3], process="sequential")
+    return Crew(agents=[supervisor, audio_engineer, synth, qc], tasks=[t0, t1, t2, t3], process="sequential", verbose=True)
 
