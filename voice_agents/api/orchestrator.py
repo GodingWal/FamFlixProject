@@ -143,13 +143,22 @@ def run_clone_job(job_id: str, payload: Dict[str, Any]):
 
         try:
             qc_tool = QualityControlTool()
-            qc_result = qc_tool._run(
+            current_settings = {
+                "qc_gates": gates,
+                "retry_params": retry_config,
+                "similarity_boost": float((payload.get("defaults", {}) or {}).get("similarity_boost", 0.7)),
+            }
+            qc_raw = qc_tool._run(
                 text=text,
                 gen_wav_path=gen_wav_path,
                 ref_voice_wav=clean_wav_path,
-                gates=gates,
-                retry=retry_config,
+                current_settings=current_settings,
+                is_retry=False,
             )
+            try:
+                qc_result = json.loads(qc_raw) if isinstance(qc_raw, str) else qc_raw
+            except Exception:
+                qc_result = {"decision":"fail","metrics":{},"notes":"invalid qc result"}
         except Exception as e:
             jobs.set_error(job_id, f"QC check failed: {e}")
             return

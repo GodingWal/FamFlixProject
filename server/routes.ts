@@ -71,6 +71,8 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
   app.use('/api/voices', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
   app.use('/api/agents', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
   app.use('/api/jobs', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
+  // Direct agent-style endpoints for dev coherence
+  app.use('/api/clone/start', createProxyMiddleware({ target: voiceAgentsUrl, changeOrigin: true }));
   
   // Back-compat aliases for voice routes mounted by appRouter
   // Only enable proxying these in production or when explicitly requested.
