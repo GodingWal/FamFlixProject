@@ -7,21 +7,29 @@ from .tools import PreProcessingTool, ElevenLabsTool, AudioProcessingTool, Quali
 def get_llm_config() -> "LLM | None":
     """Return an LLM configured from environment variables.
 
-    Priority:
-    1) OPENAI_API_KEY (+ optional OPENAI_MODEL_NAME, OPENAI_API_BASE)
-    2) ANTHROPIC_API_KEY (Claude)
-    3) OLLAMA_BASE_URL (+ OLLAMA_MODEL)
-    4) AZURE_OPENAI_API_KEY (+ endpoint & deployment)
+    Priority (forced to Ollama first):
+    1) OLLAMA_BASE_URL (+ OLLAMA_MODEL, default gpt-oss:latest)
+    2) OPENAI_API_KEY
+    3) ANTHROPIC_API_KEY
+    4) AZURE_OPENAI_API_KEY
     """
-    # OpenAI
+    # Local Ollama (preferred)
+    if os.getenv("OLLAMA_BASE_URL") or os.getenv("USE_OLLAMA", "false").lower() == "true":
+        return LLM(
+            model=os.getenv("OLLAMA_MODEL", "gpt-oss:latest"),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            api_key="ollama",
+        )
+
+    # OpenAI (fallback)
     if os.getenv("OPENAI_API_KEY"):
         return LLM(
             model=os.getenv("OPENAI_MODEL_NAME", "gpt-3.5-turbo"),
             api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_API_BASE") or None,
+            base_url(os.getenv("OPENAI_API_BASE") or None),
         )
 
-    # Anthropic Claude
+    # Anthropic Claude (fallback)
     if os.getenv("ANTHROPIC_API_KEY"):
         return LLM(
             model="claude-3-haiku-20240307",
@@ -29,15 +37,7 @@ def get_llm_config() -> "LLM | None":
             api_base="https://api.anthropic.com",
         )
 
-    # Local Ollama
-    if os.getenv("OLLAMA_BASE_URL"):
-        return LLM(
-            model=os.getenv("OLLAMA_MODEL", "llama2"),
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-            api_key="ollama",
-        )
-
-    # Azure OpenAI
+    # Azure OpenAI (fallback)
     if os.getenv("AZURE_OPENAI_API_KEY"):
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-35-turbo")
