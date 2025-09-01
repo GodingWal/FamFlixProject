@@ -31,15 +31,15 @@ export const VoiceAPI = {
     return { ok: res.ok, data, status: res.status };
   },
   async startQC(args: any): Promise<{ ok: boolean; data: any | null; status: number }> {
-    // Direct agent-style path; server proxies to agent
-    const res = await apiRequest('POST', '/api/clone/start', args);
+    // Use server app route that accepts JSON and posts multipart to agent
+    const res = await apiRequest('POST', '/api/voice/clone/start', args);
     const data = await safeJson(res);
     return { ok: res.ok, data, status: res.status };
   },
   async job(id: string, params?: { personId?: number }): Promise<{ ok: boolean; data: any | null; status: number }> {
     const qs = params?.personId != null ? `?personId=${encodeURIComponent(String(params.personId))}` : '';
-    // Direct agent-style path; server proxies to agent
-    const res = await apiRequest('GET', `/api/jobs/${encodeURIComponent(id)}${qs}`);
+    // Use server app route that also persists completed results to DB
+    const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(id)}${qs}`);
     const data = await safeJson(res);
     return { ok: res.ok, data, status: res.status };
   },
