@@ -78,6 +78,7 @@ export interface IStorage {
   getVoiceRecordingsByUserId(userId: number): Promise<VoiceRecording[]>;
   getVoiceRecordingsByPersonId(personId: number): Promise<VoiceRecording[]>;
   createVoiceRecording(voiceRecording: InsertVoiceRecording): Promise<VoiceRecording>;
+  updateVoiceRecording(id: number, update: Partial<VoiceRecording>): Promise<VoiceRecording | undefined>;
   deleteVoiceRecording(id: number): Promise<boolean>;
   setDefaultVoiceRecording(id: number): Promise<VoiceRecording | undefined>;
 
@@ -880,6 +881,7 @@ class MemoryStorage implements IStorage {
   async getVoiceRecordingsByUserId(userId: number) { return [] as any; }
   async getVoiceRecordingsByPersonId(personId: number) { return [] as any; }
   async createVoiceRecording(voiceRecording: InsertVoiceRecording) { return { ...voiceRecording, id: 1 } as any; }
+  async updateVoiceRecording(id: number, update: Partial<VoiceRecording>) { return undefined as any; }
   async deleteVoiceRecording(id: number) { return true; }
   async setDefaultVoiceRecording(id: number) { return undefined as any; }
 

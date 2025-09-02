@@ -49,6 +49,7 @@ interface GeneratedStory {
     dialogue: string;
     emotion: string;
     timing: number;
+    voiceId?: string;
   }>;
   duration: number;
   category: string;

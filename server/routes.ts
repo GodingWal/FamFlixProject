@@ -71,10 +71,13 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
   const withAuthHeader = createProxyMiddleware({
     target: voiceAgentsUrl,
     changeOrigin: true,
-    onProxyReq: (proxyReq) => {
-      if (voiceAgentApiKey) proxyReq.setHeader('X-API-Key', voiceAgentApiKey);
+    // Use event-style hook to remain compatible with strict typings
+    on: {
+      proxyReq: (proxyReq: import('http').ClientRequest) => {
+        if (voiceAgentApiKey) proxyReq.setHeader('X-API-Key', voiceAgentApiKey);
+      }
     }
-  });
+  } as any);
 
   app.use('/api/tts', withAuthHeader);
   app.use('/api/voices', withAuthHeader);
