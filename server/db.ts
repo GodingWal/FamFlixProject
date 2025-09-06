@@ -1,14 +1,14 @@
+// Load environment variables first
+import dotenv from 'dotenv';
+dotenv.config();
+
 import pkg from 'pg';
 const { Pool } = pkg;
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '@shared/schema';
 import { log } from './vite';
 
-// Check if DATABASE_URL is set
-if (!process.env.DATABASE_URL) {
-  console.warn('DATABASE_URL is not set. Running in development mode without database connection.');
-  console.warn('To enable database features, set the DATABASE_URL environment variable.');
-}
+// Note: DATABASE_URL check moved to connection time to allow for dotenv loading
 
 // Create the database connection pool only if DATABASE_URL is available
 function resolveSsl() {
@@ -32,18 +32,28 @@ function resolveSsl() {
   return false as any;
 }
 
-export const pool = process.env.DATABASE_URL 
-  ? new Pool({ 
-      connectionString: process.env.DATABASE_URL,
-      max: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-      ssl: resolveSsl()
-    })
-  : null;
+// Create database connection synchronously
+function createDatabaseConnection() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    console.warn('DATABASE_URL is not set. Running in development mode without database connection.');
+    console.warn('To enable database features, set the DATABASE_URL environment variable.');
+    return { pool: null, db: null };
+  }
 
-// Test database connection if pool exists
-if (pool) {
+  console.log('🔍 DEBUG: Creating database pool with URL:', databaseUrl.replace(/:[^:]*@/, ':***@'));
+
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    ssl: resolveSsl()
+  });
+
+  const db = drizzle(pool, { schema });
+
+  // Test connection immediately
   pool.query('SELECT NOW()')
     .then(() => {
       log('PostgreSQL database connection successful', 'db');
@@ -53,13 +63,14 @@ if (pool) {
       log(`PostgreSQL database connection error: ${err.message}`, 'db');
       log('🔍 DEBUG: Database connection test failed', 'db');
     });
-} else {
-  log('Database connection not available - running in development mode', 'db');
-  log('🔍 DEBUG: No database pool available', 'db');
+
+  return { pool, db };
 }
 
-// Initialize Drizzle with the schema (only if pool exists)
-export const db = pool ? drizzle(pool, { schema }) : null;
+const { pool, db } = createDatabaseConnection();
+
+// Export the pool and db
+export { pool, db };
 
 // Initialize database for the application
 export async function initDatabase() {

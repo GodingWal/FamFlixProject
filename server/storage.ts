@@ -20,6 +20,10 @@ import {
 import session from "express-session";
 import createMemoryStore from 'memorystore';
 import { db, pool } from './db';
+
+// Debug: Check database availability
+console.log('🔍 DEBUG: Storage - db available:', !!db);
+console.log('🔍 DEBUG: Storage - pool available:', !!pool);
 import { eq, inArray, sql } from "drizzle-orm";
 import connectPg from 'connect-pg-simple';
 import { cache, CacheKeys, CacheTTL } from "./cache.js";
@@ -929,5 +933,24 @@ class MemoryStorage implements IStorage {
   async deleteExpiredPasswordResetTokens() { return 0; }
 }
 
-// Export the appropriate storage implementation based on database availability
-export const storage: IStorage = pool ? new DatabaseStorage() : new MemoryStorage();
+// Lazy storage initialization - check database availability at runtime
+let _storage: IStorage | null = null;
+
+function initializeStorage(): IStorage {
+  if (_storage === null) {
+    // Re-check database availability at runtime
+    console.log('🔍 DEBUG: Runtime storage init - db available:', !!db);
+    console.log('🔍 DEBUG: Runtime storage init - pool available:', !!pool);
+    _storage = (pool && db) ? new DatabaseStorage() : new MemoryStorage();
+    console.log('🔍 DEBUG: Using storage type:', _storage.constructor.name);
+  }
+  return _storage;
+}
+
+// Create a proxy object that initializes storage on first property access
+export const storage = new Proxy({} as IStorage, {
+  get(target, prop) {
+    const storageInstance = initializeStorage();
+    return (storageInstance as any)[prop];
+  }
+});
