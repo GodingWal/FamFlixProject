@@ -65,32 +65,7 @@ export async function registerRoutes(app: Express, io?: any): Promise<void> {
   // Face capture pipeline
   app.use('/api', faceCaptureRouter);
 
-  // VoiceAgents proxy (if running)
-  const voiceAgentsUrl = process.env.VOICE_AGENTS_URL || 'http://127.0.0.1:8001';
-  const voiceAgentApiKey = process.env.VOICE_AGENT_API_KEY || '';
-  const withAuthHeader = createProxyMiddleware({
-    target: voiceAgentsUrl,
-    changeOrigin: true,
-    onProxyReq: (proxyReq) => {
-      if (voiceAgentApiKey) proxyReq.setHeader('X-API-Key', voiceAgentApiKey);
-    }
-  });
-
-  app.use('/api/tts', withAuthHeader);
-  app.use('/api/voices', withAuthHeader);
-  app.use('/api/agents', withAuthHeader);
-  app.use('/api/jobs', withAuthHeader);
-  // Direct agent-style endpoints for dev coherence
-  app.use('/api/clone/start', withAuthHeader);
-  
-  // Back-compat aliases for voice routes mounted by appRouter
-  // Only enable proxying these in production or when explicitly requested.
-  // In development we want our local Express handlers in appRouter to run so we can persist to DB and use fallbacks.
-  if (process.env.NODE_ENV === 'production' || process.env.PROXY_VOICE_ROUTES === 'true') {
-    app.use('/api/voice/voices', withAuthHeader);
-    app.use('/api/voice/clone/start', withAuthHeader);
-    app.use('/api/voice/jobs', withAuthHeader);
-  }
+  // Removed VoiceAgents proxy: we call ElevenLabs directly from our server routes
   
   // Final handler for unknown API routes
   app.all('/api/*', (req: Request, res: Response) => {

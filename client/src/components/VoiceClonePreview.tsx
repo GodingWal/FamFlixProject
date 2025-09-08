@@ -49,7 +49,6 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCloning, setIsCloning] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const createdObjectUrlsRef = useRef<Set<string>>(new Set());
   const lastVoiceRecordingIdRef = useRef<number | undefined>(undefined);
@@ -193,128 +192,7 @@ export default function VoiceClonePreview({ personId, personName, voiceRecording
     }
   };
 
-  // Start clone with QC pipeline (server proxies to VoiceAgent)
-  const startCloneWithQC = async () => {
-    if (isCloning || isGenerating) return;
-    if (!voiceRecordingId) {
-      toast({ title: 'No Voice Recording', description: 'Record a voice sample first.', variant: 'destructive' });
-      return;
-    }
-    try {
-      setIsCloning(true);
-      // Ensure we have a current story without async race
-      const story = currentStory ?? buildAndSetNewStory();
-      if (!story) return;
-
-      // Resolve person voiceId
-      const personRes = await VoiceAPI.getPerson(personId);
-      if (!personRes.ok || !personRes.data) throw new Error('Failed to get person');
-      const person = personRes.data;
-
-      // Start job
-      const startRes = await VoiceAPI.startQC({
-        text: story.content,
-        voice_id: person.elevenlabsVoiceId,
-        mode: 'narration',
-        provider: 'elevenlabs',
-        consent_flag: true,
-        // Optional: if server has a reference wav path, include raw_audio_path
-        qc: { max_wer: 0.2, min_cosine: 0.78 }
-      });
-      if (!startRes.ok || !startRes.data) {
-        throw new Error(startRes.data?.message || 'Failed to start clone job');
-      }
-      const startData = startRes.data;
-      const jid = startData.job_id || startData.id || startData.jobId;
-      if (!jid) throw new Error('No job id returned');
-      setJobId(String(jid));
-      toast({ title: 'Clone Started', description: `Job ${jid} started` });
-
-      // Poll until done
-      await pollCloneJob(String(jid), story.id);
-    } catch (e: any) {
-      toast({ title: 'Clone Failed', description: e.message || 'Unknown error', variant: 'destructive' });
-    } finally {
-      setIsCloning(false);
-    }
-  };
-
-  const pollCloneJob = async (jid: string, targetStoryId: string) => {
-    let delay = 800;
-    const maxDelay = 5000;
-    const maxMs = 60000;
-    const start = Date.now();
-    let consecutiveFailures = 0;
-    while (Date.now() - start < maxMs) {
-      try {
-        // Pass personId hint to allow server to persist completed audio
-        const res = await apiRequest('GET', `/api/voice/jobs/${encodeURIComponent(jid)}?personId=${encodeURIComponent(String(personId))}`);
-        if (!res.ok) {
-          consecutiveFailures++;
-          if (consecutiveFailures >= 5) {
-            throw new Error('Job status check failing repeatedly');
-          }
-        } else {
-          consecutiveFailures = 0;
-          let data: any;
-          try {
-            data = await res.json();
-          } catch {
-            data = null;
-          }
-          if (data) {
-            const status = data.status || data.state;
-            if (status === 'completed' || status === 'done' || data.result) {
-              const result = data.result || data;
-              const audioB64 = result.audio_base64 || result.audioBase64;
-              const qc = result.qc || {};
-              const recordingId = result.recording_id || result.recordingId;
-              let audioUrl = base64ToUrl(audioB64, result.mime || result.content_type || undefined);
-              setStories(prev => prev.map(s => s.id === targetStoryId ? {
-                ...s,
-                audioUrl,
-                isGenerating: false,
-                qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : s.qc
-              } : s));
-              setCurrentStory(cs => cs && cs.id === targetStoryId ? {
-                ...cs,
-                audioUrl,
-                isGenerating: false,
-                qc: qc.decision ? { decision: qc.decision, wer: qc.metrics?.wer, speaker_cosine: qc.metrics?.speaker_cosine } : cs.qc
-              } : cs);
-              if (recordingId) {
-                // Prefer fetching from DB for robust playback
-                try {
-                  const recRes = await apiRequest('GET', `/api/voiceRecordings/${encodeURIComponent(String(recordingId))}/audio`);
-                  if (recRes.ok) {
-                    const recData = await recRes.json();
-                    const v = (recData.audioData || recData.audioUrl) as string | undefined;
-                    if (v) {
-                      const b64 = v.startsWith('data:') ? v.split(',').pop() : v;
-                      const fetchedUrl = base64ToUrl(b64, 'audio/mpeg');
-                      if (fetchedUrl) audioUrl = fetchedUrl;
-                    }
-                  }
-                } catch {}
-                toast({ title: 'Clone Saved', description: `Recording #${recordingId} saved` });
-              } else {
-                toast({ title: 'Clone Ready', description: qc?.decision ? `QC: ${qc.decision}` : 'Audio generated' });
-              }
-              return;
-            }
-            if (status === 'failed' || data.error) {
-              throw new Error(data.error || 'Clone failed');
-            }
-          }
-        }
-      } catch (e: any) {
-        throw e;
-      }
-      await new Promise(r => setTimeout(r, delay));
-      delay = Math.min(maxDelay, Math.floor(delay * 1.5));
-    }
-    throw new Error('Timed out waiting for job');
-  };
+  // Removed agent-based cloning job flow
 
   const playStory = (story: GeneratedStory) => {
     if (!story.audioUrl || story.isGenerating) return;

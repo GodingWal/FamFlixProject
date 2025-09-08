@@ -17,7 +17,7 @@ const AuthPage = lazy(() => import('./pages/auth-page'));
 const Home = lazy(() => import('./pages/Home'));
 const SystemDashboard = lazy(() => import('./pages/SystemDashboard'));
 const PeopleManagement = lazy(() => import('./pages/PeopleManagement'));
-const VoiceAgents = lazy(() => import('./pages/VoiceAgents'));
+// Removed VoiceAgents page
 
 const StoriesPage = lazy(() => import('./pages/StoriesPage'));
 const VideoLibrary = lazy(() => import('./pages/VideoLibrary'));
@@ -59,7 +59,7 @@ const LoadingSpinner = () => (
 // Define guarded wrapper components explicitly (no inline factory calls)
 const ProtectedHome = (props: any) => <ProtectedRoute component={Home} {...props} />;
 const ProtectedPeople = (props: any) => <ProtectedRoute component={PeopleManagement} {...props} />;
-const AdminVoiceAgents = (props: any) => <AdminRoute component={VoiceAgents} {...props} />;
+// const AdminVoiceAgents = (props: any) => <AdminRoute component={VoiceAgents} {...props} />;
 const ProtectedStories = (props: any) => <ProtectedRoute component={StoriesPage} {...props} />;
 const ProtectedTemplates = (props: any) => <ProtectedRoute component={VideoLibrary} {...props} />;
 const ProtectedLibrary = (props: any) => <ProtectedRoute component={VideoLibrary} {...props} />;
@@ -89,7 +89,7 @@ export default function App() {
                     <Route path="/home" component={ProtectedHome} />
                     <Route path="/dashboard" component={AdminDashboard} />
                     <Route path="/people" component={ProtectedPeople} />
-                    <Route path="/voice-agents" component={AdminVoiceAgents} />
+                    {/* VoiceAgents removed */}
 
                     <Route path="/stories" component={ProtectedStories} />
                     <Route path="/templates" component={ProtectedTemplates} />
