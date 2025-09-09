@@ -145,15 +145,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       return simpleData.user || simpleData;
     },
-    onSuccess: (userData: Omit<SelectUser, "password">) => {
+    onSuccess: async (userData: Omit<SelectUser, "password">) => {
+      // Set the query data immediately
       queryClient.setQueryData(["/api/me-simple"], userData);
-      queryClient.invalidateQueries({ queryKey: ["/api/me-simple"] });
+      
+      // Wait for the query to be updated
+      await queryClient.invalidateQueries({ queryKey: ["/api/me-simple"] });
+      
       toast({
         title: "Login successful",
         description: `Welcome back, ${userData.displayName || userData.username}!`,
       });
-      // Use router navigation instead of window.location to avoid full page reload
-      navigate('/home');
+      
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        navigate('/home');
+      }, 100);
     },
     onError: (error: Error) => {
       toast({

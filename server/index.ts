@@ -1,9 +1,12 @@
+// Load environment variables FIRST before any other imports
+import dotenv from 'dotenv';
+dotenv.config();
+
+// Force database connection to happen after dotenv
+import './db';
+
 // Environment variables loaded by PM2
 import 'express-async-errors'; // Automatically catch async errors
-import dotenv from 'dotenv';
-
-// Load environment variables from .env file
-dotenv.config();
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";

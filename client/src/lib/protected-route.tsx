@@ -19,7 +19,7 @@ export function ProtectedRoute({ component: Component, ...props }: ProtectedRout
   }
 
   if (!user) {
-    return <Redirect to="/" />;
+    return <Redirect to="/auth" />;
   }
 
   return <Component {...props} />;
@@ -37,11 +37,11 @@ export function AdminRoute({ component: Component, ...props }: ProtectedRoutePro
   }
 
   if (!user) {
-    return <Redirect to="/" />;
+    return <Redirect to="/auth" />;
   }
 
   if (!isAdmin) {
-    return <Redirect to="/" />;
+    return <Redirect to="/home" />;
   }
 
   return <Component {...props} />;

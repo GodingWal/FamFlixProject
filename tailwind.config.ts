@@ -26,11 +26,11 @@ const config: Config = {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "#4F46E5", // Indigo for buttons/actions
+          DEFAULT: "hsl(var(--primary))", // Use CSS variable for consistency
           foreground: "hsl(var(--primary-foreground))",
         },
         secondary: {
-          DEFAULT: "#10B981", // Green for success/processing
+          DEFAULT: "hsl(var(--secondary))", // Use CSS variable for consistency
           foreground: "hsl(var(--secondary-foreground))",
         },
         destructive: {

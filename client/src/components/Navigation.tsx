@@ -33,15 +33,15 @@ export default function Navigation() {
   };
 
   // Don't show navigation on landing or auth pages
-  if (!user || location === '/' || location === '/auth') {
+  if (location === '/' || location === '/auth') {
     return null;
   }
 
   const navItems = [
-    { path: "/home", label: "Home", icon: Home },
-    { path: "/people", label: "Family", icon: Users },
-    { path: "/library", label: "Videos", icon: Video },
-    { path: "/stories", label: "Stories", icon: BookOpen },
+    { path: "/home", label: "Dashboard", icon: Home },
+    { path: "/create", label: "Create", icon: Users },
+    { path: "/library", label: "Library", icon: Video },
+    { path: "/clone", label: "Clone", icon: BookOpen },
   ];
 
   const handleLogout = () => {
@@ -57,7 +57,7 @@ export default function Navigation() {
           <img src={famFlixLogo} alt="FamFlix" className="h-8 w-auto" />
           <span className="text-xl font-bold">
             <span className="text-primary">Fam</span>
-            <span className="text-secondary-foreground">Flix</span>
+            <span className="text-foreground">Flix</span>
           </span>
         </div>
       </Link>
@@ -72,7 +72,7 @@ export default function Navigation() {
               <Link key={item.path} href={item.path}>
                 <Button
                   variant={isActive ? "default" : "ghost"}
-                  className="flex items-center gap-2 h-9"
+                  className="flex items-center gap-2 h-9 hover:bg-secondary/50 transition-colors"
                   size="sm"
                 >
                   <Icon className="h-4 w-4" />
@@ -90,19 +90,19 @@ export default function Navigation() {
         {user.role === 'admin' && !isMobile && (
           <div className="flex items-center gap-2">
             <Link href="/dashboard">
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2 hover:bg-secondary/50 border-border/50">
                 <BarChart3 className="h-4 w-4" />
                 Dashboard
               </Button>
             </Link>
             <Link href="/admin/templates">
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2 hover:bg-secondary/50 border-border/50">
                 <Video className="h-4 w-4" />
                 Manage Videos
               </Button>
             </Link>
             <Link href="/admin/stories">
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2 hover:bg-secondary/50 border-border/50">
                 <BookOpen className="h-4 w-4" />
                 Manage Stories
               </Button>
@@ -130,7 +130,7 @@ export default function Navigation() {
           variant="outline" 
           size="sm"
           onClick={handleThemeToggle}
-          className="relative"
+          className="relative hover:bg-secondary/50 border-border/50"
         >
           <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -143,7 +143,7 @@ export default function Navigation() {
           size="sm"
           onClick={handleLogout}
           disabled={logoutMutation.isPending}
-          className="gap-2"
+          className="gap-2 hover:bg-secondary/50 border-border/50"
         >
           <LogOut className="h-4 w-4" />
           {!isMobile && "Logout"}
@@ -244,7 +244,7 @@ export default function Navigation() {
 
   if (isMobile) {
     return (
-      <nav className="bg-white/95 backdrop-blur-sm border-b sticky top-0 z-50">
+      <nav className="bg-background/98 backdrop-blur-md border-b border-border/30 fixed top-0 left-0 right-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             {/* Logo */}
@@ -253,7 +253,7 @@ export default function Navigation() {
                 <img src={famFlixLogo} alt="FamFlix" className="h-7 w-auto" />
                 <span className="text-lg font-bold">
                   <span className="text-primary">Fam</span>
-                  <span className="text-secondary-foreground">Flix</span>
+                  <span className="text-foreground">Flix</span>
                 </span>
               </div>
             </Link>
@@ -276,7 +276,7 @@ export default function Navigation() {
   }
 
   return (
-    <nav className="bg-white/95 backdrop-blur-sm border-b sticky top-0 z-50">
+    <nav className="bg-background/98 backdrop-blur-md border-b border-border/30 fixed top-0 left-0 right-0 z-50 shadow-sm">
       <div className="container mx-auto px-6 py-3">
         <div className="flex items-center justify-between">
           <NavContent />

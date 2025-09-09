@@ -74,14 +74,14 @@ const AdminStories = (props: any) => <AdminRoute component={AdminStoriesPage} {.
 
 export default function App() {
   return (
-    <ThemeProvider defaultTheme="light" storageKey="famflix-theme">
+    <ThemeProvider defaultTheme="dark" storageKey="famflix-theme">
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-secondary/10">
             <Router>
               <div className="flex flex-col min-h-screen">
                 <Navigation />
-                <main className="flex-1">
+                <main className="flex-1 pt-16">
                 <Suspense fallback={<LoadingSpinner />}>
                   <Switch>
                     <Route path="/" component={LandingPage} />
